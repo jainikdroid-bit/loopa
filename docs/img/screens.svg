@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" width="900" height="600" font-family="Inter, Segoe UI, Roboto, sans-serif">
+  <!-- Схематичные экраны Loopa: вместо роликов — абстрактные градиенты (без реального контента). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b1033"/><stop offset="1" stop-color="#2a0f24"/>
+    </linearGradient>
+    <linearGradient id="t1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f59e0b"/><stop offset="1" stop-color="#ec4899"/></linearGradient>
+    <linearGradient id="t2" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+    <linearGradient id="t3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a855f7"/><stop offset="1" stop-color="#f43f5e"/></linearGradient>
+    <linearGradient id="t4" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#10b981"/><stop offset="1" stop-color="#3b82f6"/></linearGradient>
+    <linearGradient id="t5" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f97316"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient>
+    <linearGradient id="t6" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#ec4899"/><stop offset="1" stop-color="#fbbf24"/></linearGradient>
+    <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c3aed"/><stop offset=".55" stop-color="#db2777"/><stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".75"/>
+    </linearGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="14"/></filter>
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000" flood-opacity=".45"/></filter>
+    <clipPath id="s1"><rect x="40" y="50" width="250" height="520" rx="30"/></clipPath>
+    <clipPath id="s2"><rect x="325" y="20" width="250" height="560" rx="30"/></clipPath>
+    <clipPath id="s3"><rect x="610" y="50" width="250" height="520" rx="30"/></clipPath>
+  </defs>
+  <rect width="900" height="600" rx="28" fill="url(#bg)"/>
+  <circle cx="160" cy="120" r="160" fill="#7c3aed" opacity=".25" filter="url(#soft)"/>
+  <circle cx="760" cy="500" r="180" fill="#db2777" opacity=".22" filter="url(#soft)"/>
+
+  <!-- 1. Сетка -->
+  <g filter="url(#drop)"><rect x="40" y="50" width="250" height="520" rx="30" fill="#111318"/></g>
+  <g clip-path="url(#s1)">
+    <rect x="56" y="78" width="218" height="34" rx="17" fill="#1f232b"/>
+    <text x="74" y="100" font-size="12" fill="#8a8f98">Поиск по тегам…</text>
+    <rect x="56" y="122" width="82" height="24" rx="12" fill="#7c3aed"/><text x="97" y="138" font-size="10" fill="#fff" text-anchor="middle">Популярное</text>
+    <rect x="144" y="122" width="62" height="24" rx="12" fill="#262a33"/><text x="175" y="138" font-size="10" fill="#d6d9de" text-anchor="middle">♥ Для вас</text>
+    <rect x="212" y="122" width="62" height="24" rx="12" fill="#262a33"/><text x="243" y="138" font-size="10" fill="#d6d9de" text-anchor="middle">Мои лайки</text>
+    <g>
+      <rect x="56" y="158" width="68" height="91" rx="10" fill="url(#t1)"/>
+      <rect x="131" y="158" width="68" height="91" rx="10" fill="url(#t2)"/>
+      <rect x="206" y="158" width="68" height="91" rx="10" fill="url(#t3)"/>
+      <rect x="56" y="256" width="68" height="91" rx="10" fill="url(#t4)"/>
+      <rect x="131" y="256" width="68" height="91" rx="10" fill="url(#t5)"/>
+      <rect x="206" y="256" width="68" height="91" rx="10" fill="url(#t6)"/>
+      <rect x="56" y="354" width="68" height="91" rx="10" fill="url(#t3)"/>
+      <rect x="131" y="354" width="68" height="91" rx="10" fill="url(#t1)"/>
+      <rect x="206" y="354" width="68" height="91" rx="10" fill="url(#t4)"/>
+      <rect x="56" y="452" width="68" height="91" rx="10" fill="url(#t2)"/>
+      <rect x="131" y="452" width="68" height="91" rx="10" fill="url(#t6)"/>
+      <rect x="206" y="452" width="68" height="91" rx="10" fill="url(#t5)"/>
+    </g>
+    <g font-size="9" fill="#fff" opacity=".9">
+      <text x="62" y="243">0:15</text><text x="137" y="243">0:09</text><text x="212" y="243">0:22</text>
+      <text x="62" y="341">0:12</text><text x="137" y="341">0:31</text><text x="212" y="341">0:07</text>
+    </g>
+  </g>
+  <rect x="40" y="50" width="250" height="520" rx="30" fill="none" stroke="#ffffff" stroke-opacity=".12"/>
+
+  <!-- 2. Плеер -->
+  <g filter="url(#drop)"><rect x="325" y="20" width="250" height="560" rx="30" fill="#000"/></g>
+  <g clip-path="url(#s2)">
+    <rect x="325" y="20" width="250" height="560" fill="url(#hero)"/>
+    <circle cx="420" cy="230" r="90" fill="#fff" opacity=".18" filter="url(#soft)"/>
+    <circle cx="500" cy="380" r="70" fill="#22d3ee" opacity=".25" filter="url(#soft)"/>
+    <rect x="325" y="20" width="250" height="560" fill="url(#shade)"/>
+    <g fill="#fff" text-anchor="middle">
+      <circle cx="545" cy="330" r="20" fill="#000" fill-opacity=".35"/><text x="545" y="337" font-size="18">♥</text>
+      <circle cx="545" cy="378" r="20" fill="#000" fill-opacity=".35"/><text x="545" y="384" font-size="15">⬇</text>
+      <circle cx="545" cy="426" r="20" fill="#000" fill-opacity=".35"/><text x="545" y="432" font-size="13">HD</text>
+    </g>
+    <text x="343" y="470" font-size="13" font-weight="700" fill="#fff">@creator</text>
+    <text x="343" y="489" font-size="10.5" fill="#e5e7eb">0:15 · 1,2 млн просмотров · ♥ 24 тыс.</text>
+    <g font-size="10" fill="#fff">
+      <rect x="343" y="500" width="44" height="20" rx="10" fill="#fff" fill-opacity=".2"/><text x="352" y="514">#tag</text>
+      <rect x="392" y="500" width="56" height="20" rx="10" fill="#fff" fill-opacity=".2"/><text x="401" y="514">#niche</text>
+      <rect x="453" y="500" width="50" height="20" rx="10" fill="#fff" fill-opacity=".2"/><text x="462" y="514">#4K</text>
+    </g>
+    <rect x="343" y="536" width="214" height="4" rx="2" fill="#fff" fill-opacity=".3"/>
+    <rect x="343" y="536" width="120" height="4" rx="2" fill="#fff"/>
+    <circle cx="463" cy="538" r="6" fill="#fff"/>
+  </g>
+  <rect x="325" y="20" width="250" height="560" rx="30" fill="none" stroke="#ffffff" stroke-opacity=".15"/>
+
+  <!-- 3. Поиск -->
+  <g filter="url(#drop)"><rect x="610" y="50" width="250" height="520" rx="30" fill="#111318"/></g>
+  <g clip-path="url(#s3)">
+    <rect x="626" y="78" width="218" height="34" rx="17" fill="#1f232b" stroke="#7c3aed" stroke-width="1.5"/>
+    <text x="644" y="100" font-size="12" fill="#fff">sunset beach</text>
+    <rect x="806" y="88" width="1.5" height="14" fill="#a78bfa"/>
+    <g font-size="11" fill="#e5e7eb">
+      <rect x="626" y="124" width="104" height="26" rx="13" fill="#262a33"/><text x="638" y="141">Sunset · 12 тыс.</text>
+      <rect x="736" y="124" width="96" height="26" rx="13" fill="#262a33"/><text x="748" y="141">Beach · 48 тыс.</text>
+      <rect x="626" y="156" width="88" height="26" rx="13" fill="#262a33"/><text x="638" y="173">Outdoor · 9к</text>
+      <rect x="720" y="156" width="70" height="26" rx="13" fill="#262a33"/><text x="732" y="173">Travel</text>
+    </g>
+    <text x="626" y="204" font-size="10.5" fill="#b0b5bd">Поиск по тегам: Sunset, Beach · 40</text>
+    <rect x="626" y="216" width="105" height="140" rx="10" fill="url(#t6)"/>
+    <rect x="739" y="216" width="105" height="140" rx="10" fill="url(#t2)"/>
+    <rect x="626" y="364" width="105" height="140" rx="10" fill="url(#t5)"/>
+    <rect x="739" y="364" width="105" height="140" rx="10" fill="url(#t1)"/>
+    <rect x="626" y="512" width="105" height="80" rx="10" fill="url(#t4)"/>
+    <rect x="739" y="512" width="105" height="80" rx="10" fill="url(#t3)"/>
+  </g>
+  <rect x="610" y="50" width="250" height="520" rx="30" fill="none" stroke="#ffffff" stroke-opacity=".12"/>
+</svg>

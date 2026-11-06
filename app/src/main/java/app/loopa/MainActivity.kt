@@ -1,0 +1,307 @@
+package app.loopa
+
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.Gravity
+import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.PopupMenu
+import android.widget.TextView
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import kotlin.concurrent.thread
+import kotlin.math.roundToInt
+
+/**
+ * Главный экран: строка поиска, подсказки тегов (пока вводишь — из /v2/search/suggest,
+ * иначе — популярные теги ленты), сортировка, сетка превью с бесконечной подгрузкой. Нажатие — плеер со свайпами,
+ * долгое нажатие — скачать.
+ */
+class MainActivity : Activity() {
+    private val ui = Handler(Looper.getMainLooper())
+    private lateinit var search: EditText
+    private lateinit var chips: LinearLayout
+    private lateinit var status: TextView
+    private lateinit var sortBtn: TextView
+    private lateinit var grid: RecyclerView
+    private lateinit var swipe: SwipeRefreshLayout
+    private lateinit var tabs: LinearLayout
+    private lateinit var userBtn: TextView
+    private val adapter = GridAdapter()
+    private var suggestGen = 0
+    private val onFeed: () -> Unit = { refresh() }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        Api.init(this); Net.init(this)
+        if (savedInstanceState == null && Feed.items.isEmpty()) {
+            Feed.duration = prefs.getString("duration", "any")!!; Feed.audioOnly = prefs.getBoolean("audio", false)
+            prefs.getString("order", null)?.let { Feed.restore(it) }
+        }
+        window.statusBarColor = BG; window.navigationBarColor = BG
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BG) }
+        root.setOnApplyWindowInsetsListener { v, ins ->
+            @Suppress("DEPRECATION") v.setPadding(ins.systemWindowInsetLeft, ins.systemWindowInsetTop, ins.systemWindowInsetRight, ins.systemWindowInsetBottom); ins
+        }
+        // строка поиска + сортировка
+        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10), dp(8), dp(10), dp(4)) }
+        search = EditText(this).apply {
+            hint = "Поиск по тегам: blonde, POV, car…"; setHintTextColor(0xFF8A8F98.toInt()); setTextColor(Color.WHITE); textSize = 16f
+            isSingleLine = true; imeOptions = EditorInfo.IME_ACTION_SEARCH
+            background = pill(0xFF1F232B.toInt()); setPadding(dp(14), dp(10), dp(14), dp(10))
+            setOnEditorActionListener { _, a, e -> if (a == EditorInfo.IME_ACTION_SEARCH || e?.keyCode == KeyEvent.KEYCODE_ENTER) { go(text.toString()); true } else false }
+            addTextChangedListener(object : TextWatcher {
+                override fun afterTextChanged(s: Editable?) { suggestLater(s.toString()) }
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            })
+        }
+        bar.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
+        sortBtn = chip("⇅ Популярное", ACCENT) { sortMenu(it) }
+        bar.addView(sortBtn, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
+        userBtn = chip("👤", CHIP) { account() }
+        bar.addView(userBtn, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(6) })
+        root.addView(bar)
+        // вкладки: рекомендации по лайкам (нужен вход), популярное, лайкнутое
+        tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(2), dp(10), dp(2)) }
+        TABS.forEach { (t, m) -> tabs.addView(chip(t, CHIP) { tab(m) }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) }) }
+        root.addView(tabs)
+        chips = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(4), dp(10), dp(4)) }
+        root.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(chips) })
+        status = TextView(this).apply { setTextColor(0xFFB0B5BD.toInt()); textSize = 13f; setPadding(dp(14), dp(2), dp(14), dp(6)) }
+        root.addView(status)
+        grid = RecyclerView(this).apply {
+            layoutManager = GridLayoutManager(this@MainActivity, cols())
+            adapter = this@MainActivity.adapter
+            setPadding(dp(4), 0, dp(4), 0); clipToPadding = false
+            addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
+                    val lm = rv.layoutManager as GridLayoutManager
+                    if (lm.findLastVisibleItemPosition() > Feed.items.size - 12) Feed.more()
+                }
+            })
+        }
+        // потянуть вниз — обновить выдачу
+        swipe = SwipeRefreshLayout(this).apply {
+            setColorSchemeColors(ACCENT); setProgressBackgroundColorSchemeColor(0xFF1F232B.toInt())
+            addView(grid)
+            setOnRefreshListener { reload() }
+        }
+        root.addView(swipe, LinearLayout.LayoutParams(-1, 0, 1f))
+        setContentView(root)
+        Feed.listeners += onFeed
+        root0 = root
+        when {
+            Api.renewDue -> renew(startHome = Feed.items.isEmpty() && !Feed.busy)   // вход продлеваем до первой ленты
+            Feed.items.isEmpty() && !Feed.busy -> home()
+            else -> refresh()
+        }
+    }
+    private lateinit var root0: ViewGroup
+
+    /** Продлить вход без окна; не вышло (нет сети или куки сайта тоже истекли) — следующий запуск попробует снова, а 👤 откроет вход. */
+    private fun renew(startHome: Boolean = false) {
+        if (Renewer.running) return
+        status.text = "Обновляю вход…"
+        Renewer.run(root0) { ok ->
+            if (isDestroyed) return@run
+            if (!ok) status.setOnClickListener { login() }
+            if (startHome || ok && Feed.error == Api.LOGIN_EXPIRED) home() else refresh()
+            if (!ok) status.text = "Вход истёк — нажмите 👤, чтобы войти снова"
+        }
+    }
+
+    /** Домашняя лента: после входа — «Для вас», иначе популярное. */
+    private fun home() { search.setText(""); Feed.reset("", homeOrder(), mode = if (Api.loggedIn) "foryou" else null); if (::grid.isInitialized) grid.scrollToPosition(0) }
+    /** Без поиска релевантности нет — тогда популярное. */
+    private fun homeOrder() = Feed.order.takeIf { it != "score" && it != "oldest" } ?: "trending"
+
+    private fun tab(m: String?) {
+        if (m != null && !Api.loggedIn) { pendingTab = m; login(); return }
+        search.setText(""); Feed.reset("", homeOrder(), mode = m); grid.scrollToPosition(0)
+    }
+    private var pendingTab: String? = null
+
+    private fun login() = @Suppress("DEPRECATION") startActivityForResult(Intent(this, LoginActivity::class.java), 1)
+
+    private fun account() {
+        if (!Api.loggedIn) { pendingTab = "foryou"; login(); return }
+        val m = PopupMenu(this, userBtn)
+        m.menu.add(0, 1, 0, "Выйти из аккаунта")
+        m.setOnMenuItemClickListener { Api.logout(); android.webkit.CookieManager.getInstance().removeAllCookies(null); home(); true }
+        m.show()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(rq: Int, rs: Int, data: Intent?) {
+        @Suppress("DEPRECATION") super.onActivityResult(rq, rs, data)
+        if (rq == 1 && rs == RESULT_OK) { val t = pendingTab ?: "foryou"; pendingTab = null; tab(t) }
+    }
+
+    override fun onDestroy() { Feed.listeners -= onFeed; super.onDestroy() }
+
+    override fun onConfigurationChanged(c: Configuration) {
+        super.onConfigurationChanged(c)
+        (grid.layoutManager as GridLayoutManager).spanCount = cols()
+    }
+
+    /** Из плеера: нажали тег или автора. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra("tag")?.let { search.setText(it); go(it, tag = true) }
+        intent.getStringExtra("author")?.let { search.setText(""); Feed.reset("", Feed.order, it); grid.scrollToPosition(0) }
+        if (intent.getBooleanExtra("login", false)) login()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (Feed.author != null || Feed.text.isNotEmpty()) home()
+        else @Suppress("DEPRECATION") super.onBackPressed()
+    }
+
+    private fun cols() = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 4 else 2
+
+    private fun go(q: String, tag: Boolean = false) {
+        (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(search.windowToken, 0)
+        search.clearFocus()
+        if (q.isBlank()) { home(); return }
+        Feed.reset(q.trim(), Feed.order, tag = tag)
+        grid.scrollToPosition(0)
+    }
+
+    /** Сортировка (сервер или досортировка на телефоне) и фильтры: длительность, только со звуком. Выбор запоминается. */
+    private fun sortMenu(v: View) {
+        val m = PopupMenu(this, v)
+        val sorts = Feed.SORTS.filter { !it.authorOnly || Feed.author != null }.filter { it.id != "score" || Feed.text.isNotEmpty() }
+        sorts.forEachIndexed { i, s -> m.menu.add(1, i, i, s.label).isChecked = s.id == Feed.order }
+        m.menu.setGroupCheckable(1, true, true)
+        val dur = m.menu.addSubMenu(2, 0, 100, "Длительность: " + if (Feed.duration == "any") "любая" else Feed.DURATIONS.first { it.first == Feed.duration }.second.lowercase())
+        Feed.DURATIONS.forEachIndexed { i, d -> dur.add(3, i, i, d.second).isChecked = d.first == Feed.duration }
+        dur.setGroupCheckable(3, true, true)
+        m.menu.add(4, 0, 101, "Только со звуком").apply { isCheckable = true; isChecked = Feed.audioOnly }
+        m.setOnMenuItemClickListener {
+            when (it.groupId) {
+                1 -> Feed.reset(Feed.text, sorts[it.itemId].id, Feed.author, Feed.mode, Feed.byTag && Feed.query == Feed.text).also { _ -> prefs.edit().putString("order", Feed.order).apply() }
+                3 -> { Feed.duration = Feed.DURATIONS[it.itemId].first; prefs.edit().putString("duration", Feed.duration).apply(); reload() }
+                4 -> { Feed.audioOnly = !Feed.audioOnly; prefs.edit().putBoolean("audio", Feed.audioOnly).apply(); reload() }
+                else -> return@setOnMenuItemClickListener false
+            }
+            grid.scrollToPosition(0); true
+        }
+        m.show()
+    }
+
+    private fun reload() = Feed.reset(Feed.text, Feed.order, Feed.author, Feed.mode, Feed.byTag && Feed.query == Feed.text)
+    private val prefs by lazy { getSharedPreferences("loopa", MODE_PRIVATE) }
+
+    /** Подсказки при вводе: через 350 мс после последней буквы. */
+    private fun suggestLater(q: String) {
+        val g = ++suggestGen
+        if (q.isBlank()) { showChips(Feed.tags.map { it to 0 }); return }
+        ui.postDelayed({
+            if (g != suggestGen) return@postDelayed
+            thread {
+                val r = runCatching { Api.suggest(q.trim()) }.getOrDefault(emptyList())
+                ui.post { if (g == suggestGen) showChips(r) }
+            }
+        }, 350)
+    }
+
+    private fun showChips(list: List<Pair<String, Int>>) {
+        chips.removeAllViews()
+        list.take(30).forEach { (t, n) ->
+            chips.addView(chip(if (n > 0) "$t · ${count(n.toLong())}" else t, CHIP) { search.setText(t); search.setSelection(t.length); go(t, tag = true) },
+                LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
+        }
+    }
+
+    private fun refresh() {
+        userBtn.text = when { Api.loggedIn -> "👤✓"; Api.hadUser -> "👤!"; else -> "👤" }
+        for (i in 0 until tabs.childCount) tabs.getChildAt(i).background = pill(if (TABS[i].second == Feed.mode && Feed.author == null && Feed.text.isEmpty()) ACCENT else CHIP)
+        sortBtn.visibility = if (Feed.mode == null) View.VISIBLE else View.GONE
+        if (Feed.error == Api.LOGIN_EXPIRED && !Renewer.running) renew()
+        if (Feed.error != null && Feed.error != Api.LOGIN_EXPIRED) status.setOnClickListener { Feed.retry() }
+        sortBtn.text = "⇅ " + Feed.sort.short + if (Feed.filtered) " ⧩" else ""
+        status.text = buildString {
+            when {
+                Feed.mode == "foryou" -> append("Для вас — по вашим лайкам")
+                Feed.mode == "liked" -> append("Ваши лайки")
+                Feed.author != null -> append("Автор: ${Feed.author}  (назад — к ленте)")
+                Feed.text.isNotEmpty() && !Feed.byTag -> append("Поиск: «${Feed.query.ifEmpty { Feed.text }}»" + (if (Feed.query.isNotEmpty() && !Feed.query.equals(Feed.text, true)) " («${Feed.text}»)" else "") +
+                    (if (Feed.query.isNotEmpty()) " · точных совпадений: ${Feed.exact}" + (if (Feed.exact > 0) " (они первыми)" else "") else ""))
+                Feed.text.isNotEmpty() -> append("Поиск по тегам: " + Feed.query.ifEmpty { Feed.text }.split(",").joinToString(" + ") { "#$it" } + if (Feed.query.isNotEmpty() && !Feed.query.equals(Feed.text, true)) "  («${Feed.text}»)" else "")
+                else -> append(Feed.sort.label)
+            }
+            if (Feed.filtered) append(" · фильтр: " + listOfNotNull(Feed.DURATIONS.first { it.first == Feed.duration }.second.takeIf { Feed.duration != "any" }?.lowercase(), "со звуком".takeIf { Feed.audioOnly }).joinToString(", "))
+            if (Feed.items.isNotEmpty()) append(" · ${Feed.items.size}")
+            if (Feed.busy) append(" · загружаю…")
+            Feed.error?.let { append(" · $it") }
+            if (Feed.retryIn > 0) append(" · повтор через ${Feed.retryIn} с (нажмите — сейчас)")
+            if (!Feed.busy && Feed.error == null && Feed.items.isEmpty() && Feed.text.isNotEmpty()) append(" · ничего не нашлось")
+        }
+        if (!Feed.busy) swipe.isRefreshing = false
+        if (search.text.isBlank()) showChips(Feed.tags.map { it to 0 })
+        adapter.notifyDataSetChanged()
+    }
+
+    private inner class GridAdapter : RecyclerView.Adapter<GridAdapter.H>() {
+        inner class H(val box: FrameLayout, val img: ImageView, val dur: TextView) : RecyclerView.ViewHolder(box)
+        override fun getItemCount() = Feed.items.size
+        override fun onCreateViewHolder(p: ViewGroup, t: Int): H {
+            val img = ImageView(p.context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(0xFF1A1D23.toInt()) }
+            val dur = TextView(p.context).apply {
+                setTextColor(Color.WHITE); textSize = 12f; setPadding(dp(6), dp(2), dp(6), dp(2)); background = pill(0xAA000000.toInt())
+            }
+            val box = object : FrameLayout(p.context) {
+                // ячейка 3:4 — видно больше роликов, чем при 9:16
+                override fun onMeasure(w: Int, h: Int) { super.onMeasure(w, MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(w) * 4 / 3, MeasureSpec.EXACTLY)) }
+            }.apply {
+                addView(img, FrameLayout.LayoutParams(-1, -1))
+                addView(dur, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
+                layoutParams = RecyclerView.LayoutParams(-1, -2).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }
+                clipToOutline = true; background = pill(0xFF1A1D23.toInt(), 10f)
+            }
+            return H(box, img, dur)
+        }
+        override fun onBindViewHolder(h: H, pos: Int) {
+            val g = Feed.items[pos]
+            Thumbs.load(h.img, g.thumb)
+            h.dur.text = (if (g.hasAudio) "🔊 " else "") + time(g.duration)
+            h.box.setOnClickListener { startActivity(Intent(this@MainActivity, PlayerActivity::class.java).putExtra("pos", h.bindingAdapterPosition)) }
+            h.box.setOnLongClickListener { Downloads.get(this@MainActivity, g); true }
+        }
+    }
+
+    private fun chip(t: String, color: Int, click: (View) -> Unit) = TextView(this).apply {
+        text = t; setTextColor(Color.WHITE); textSize = 14f; setPadding(dp(12), dp(7), dp(12), dp(7)); background = pill(color)
+        setOnClickListener(click)
+    }
+
+    private fun pill(c: Int, r: Float = 40f) = GradientDrawable().apply { setColor(c); cornerRadius = r * resources.displayMetrics.density }
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).roundToInt()
+
+    companion object {
+        val TABS = listOf("♥ Для вас" to "foryou", "🔥 Популярное" to null, "Мои лайки" to "liked")
+        val BG = 0xFF0E1015.toInt(); val ACCENT = 0xFF7C3AED.toInt(); val CHIP = 0xFF262B34.toInt()
+        fun time(s: Double) = "%d:%02d".format(s.toInt() / 60, s.toInt() % 60)
+        fun count(n: Long) = when { n >= 1_000_000 -> "%.1fM".format(n / 1e6); n >= 1000 -> "%.0fK".format(n / 1e3); else -> "$n" }
+    }
+}

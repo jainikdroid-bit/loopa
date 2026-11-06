@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loopa — открытый просмотрщик коротких роликов для Android</title>
+<meta name="description" content="Loopa — лёгкий открытый Android-клиент для RedGIFs: лента без рекламы, плавная прокрутка, мгновенный старт видео. 18+. Неофициальное приложение.">
+<meta name="rating" content="adult">
+<meta name="robots" content="noai, noimageai">
+<link rel="icon" href="img/icon.svg" type="image/svg+xml">
+<meta property="og:title" content="Loopa">
+<meta property="og:description" content="Открытый Android-просмотрщик коротких роликов: без рекламы, быстрый, без трекеров.">
+<style>
+  :root {
+    --bg: #0c0a14; --bg2: #141021; --card: #1a1528; --line: rgba(255,255,255,.09);
+    --text: #f4f2fa; --muted: #a7a2b8; --violet: #7c3aed; --pink: #ec4899; --amber: #f59e0b;
+    --grad: linear-gradient(135deg, var(--violet), var(--pink) 60%, var(--amber));
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 Inter, "Segoe UI", Roboto, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+  .glow { position: fixed; inset: -20vh -20vw auto; height: 90vh; pointer-events: none; z-index: 0;
+    background: radial-gradient(40% 50% at 25% 30%, rgba(124,58,237,.35), transparent 70%),
+                radial-gradient(35% 45% at 80% 20%, rgba(236,72,153,.25), transparent 70%); }
+  header, main, footer { position: relative; z-index: 1; }
+
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; letter-spacing: -.02em; text-decoration: none; }
+  .brand img { width: 34px; height: 34px; }
+  .navlinks { display: flex; gap: 8px; align-items: center; }
+  .navlinks a, .lang button { color: var(--muted); text-decoration: none; font-size: 14px; padding: 6px 10px; border-radius: 10px; }
+  .navlinks a:hover { color: var(--text); background: rgba(255,255,255,.06); }
+  .lang { display: flex; background: rgba(255,255,255,.06); border-radius: 12px; padding: 3px; }
+  .lang button { border: 0; background: none; cursor: pointer; font: inherit; font-size: 13px; }
+  .lang button.on { background: rgba(255,255,255,.12); color: var(--text); }
+
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: center; padding-top: 40px; padding-bottom: 70px; }
+  .badge { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: #fecdd3; background: rgba(244,63,94,.12);
+    border: 1px solid rgba(244,63,94,.35); padding: 5px 12px; border-radius: 999px; }
+  h1 { font-size: clamp(40px, 6vw, 68px); line-height: 1.02; letter-spacing: -.04em; margin: 18px 0 18px; }
+  h1 span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lead { font-size: 19px; color: var(--muted); max-width: 520px; margin: 0 0 30px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 14px; font-weight: 700; text-decoration: none; transition: transform .15s, box-shadow .15s; }
+  .btn.primary { background: var(--grad); color: #fff; box-shadow: 0 12px 30px -10px rgba(236,72,153,.6); }
+  .btn.primary:hover { transform: translateY(-2px); box-shadow: 0 16px 36px -10px rgba(236,72,153,.75); }
+  .btn.ghost { border: 1px solid var(--line); background: rgba(255,255,255,.03); }
+  .btn.ghost:hover { background: rgba(255,255,255,.07); }
+  .meta { margin-top: 16px; font-size: 13px; color: var(--muted); }
+  .shot { width: 100%; height: auto; border-radius: 26px; box-shadow: 0 40px 80px -30px rgba(0,0,0,.8); }
+
+  section { padding: 70px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(28px, 4vw, 40px); letter-spacing: -.03em; margin: 0 0 10px; }
+  .sub { color: var(--muted); margin: 0 0 36px; max-width: 640px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015)); border: 1px solid var(--line); border-radius: 20px; padding: 22px; }
+  .card .ico { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; background: rgba(124,58,237,.18); margin-bottom: 14px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+  .steps { counter-reset: s; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .step { position: relative; padding: 22px 22px 22px 70px; border: 1px solid var(--line); border-radius: 20px; background: var(--bg2); }
+  .step::before { counter-increment: s; content: counter(s); position: absolute; left: 20px; top: 20px; width: 34px; height: 34px; border-radius: 10px;
+    background: var(--grad); display: grid; place-items: center; font-weight: 800; }
+  .step p { margin: 0; color: var(--muted); font-size: 14.5px; }
+  .step b { color: var(--text); }
+  code, .fp { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12.5px; }
+  .fp { display: block; margin-top: 18px; padding: 14px 16px; border-radius: 14px; background: #0f0c18; border: 1px solid var(--line); color: #c4b5fd; overflow-wrap: anywhere; }
+
+  .privacy { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .privacy li { margin: 0 0 10px; color: var(--muted); }
+  .privacy li b { color: var(--text); }
+  ul.clean { list-style: none; padding: 0; margin: 0; }
+  ul.clean li { padding-left: 26px; position: relative; }
+  ul.clean li::before { content: "✓"; position: absolute; left: 0; color: #a78bfa; font-weight: 800; }
+
+  details { border: 1px solid var(--line); border-radius: 16px; padding: 16px 20px; background: var(--bg2); margin-bottom: 10px; }
+  summary { cursor: pointer; font-weight: 700; }
+  details p { color: var(--muted); margin: 10px 0 0; }
+
+  .warn { border: 1px solid rgba(244,63,94,.35); background: rgba(244,63,94,.08); border-radius: 20px; padding: 22px 24px; color: #fecdd3; }
+  .warn b { color: #fff; }
+  footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); }
+  footer .row { display: flex; flex-wrap: wrap; gap: 18px; justify-content: space-between; }
+
+  [data-en] { display: none; }
+  html[lang="en"] [data-ru] { display: none; }
+  html[lang="en"] [data-en] { display: revert; }
+
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: minmax(0, 1fr); padding-top: 10px; }
+    .grid, .steps, .privacy { grid-template-columns: 1fr; }
+    .navlinks a { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<header class="wrap">
+  <nav>
+    <a class="brand" href="#"><img src="img/icon.svg" alt="">Loopa</a>
+    <div class="navlinks">
+      <a href="#features"><span data-ru>Возможности</span><span data-en>Features</span></a>
+      <a href="#install"><span data-ru>Установка</span><span data-en>Install</span></a>
+      <a href="#privacy"><span data-ru>Приватность</span><span data-en>Privacy</span></a>
+      <a href="https://github.com/jainikdroid-bit/loopa">GitHub</a>
+      <div class="lang"><button id="ru" class="on">RU</button><button id="en">EN</button></div>
+    </div>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div>
+      <span class="badge">🔞 <span data-ru>Только для взрослых · 18+</span><span data-en>Adults only · 18+</span></span>
+      <h1 data-ru>Короткие ролики. <span>Без лишнего.</span></h1>
+      <h1 data-en>Short videos. <span>Nothing extra.</span></h1>
+      <p class="lead" data-ru>Loopa — лёгкий открытый Android-просмотрщик для RedGIFs. Лента без рекламы, вертикальная прокрутка на весь экран и видео, которое стартует сразу.</p>
+      <p class="lead" data-en>Loopa is a lightweight open-source Android viewer for RedGIFs. An ad-free feed, full-screen vertical swiping and videos that start instantly.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/jainikdroid-bit/loopa/releases/latest">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 20h16"/></svg>
+          <span data-ru>Скачать APK</span><span data-en>Download APK</span>
+        </a>
+        <a class="btn ghost" href="https://github.com/jainikdroid-bit/loopa">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>
+          <span data-ru>Исходный код</span><span data-en>Source code</span>
+        </a>
+      </div>
+      <div class="meta" data-ru>Android 8.0+ · ~3,5 МБ · MIT · без трекеров</div>
+      <div class="meta" data-en>Android 8.0+ · ~3.5 MB · MIT · no trackers</div>
+    </div>
+    <img class="shot" src="img/screens.svg" alt="Loopa: сетка, плеер, поиск">
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <h2 data-ru>Всё, что нужно — и ничего больше</h2><h2 data-en>Everything you need, nothing you don't</h2>
+      <p class="sub" data-ru>Маленькое приложение без рекламных SDK, которое делает одну вещь хорошо.</p>
+      <p class="sub" data-en>A small app without ad SDKs that does one thing well.</p>
+      <div class="grid">
+        <div class="card"><div class="ico">🚫</div>
+          <h3 data-ru>Без рекламы</h3><h3 data-en>No ads</h3>
+          <p data-ru>Рекламные и продвигаемые ролики убираются из ленты.</p><p data-en>Boosted and promoted videos are filtered out of the feed.</p></div>
+        <div class="card"><div class="ico">⚡</div>
+          <h3 data-ru>Мгновенный старт</h3><h3 data-en>Instant start</h3>
+          <p data-ru>Соседние ролики грузятся заранее — видео начинается через полсекунды.</p><p data-en>Neighbouring videos are preloaded, so playback starts in half a second.</p></div>
+        <div class="card"><div class="ico">📱</div>
+          <h3 data-ru>Вертикальная лента</h3><h3 data-en>Vertical feed</h3>
+          <p data-ru>Листайте на весь экран, как в коротких видео: перемотка, пауза, звук.</p><p data-en>Full-screen swiping like short-video apps, with seek, pause and sound.</p></div>
+        <div class="card"><div class="ico">🎚️</div>
+          <h3 data-ru>Качество «Авто»</h3><h3 data-en>Auto quality</h3>
+          <p data-ru>HD на быстрой сети, SD на медленной — или закрепите вручную.</p><p data-en>HD on fast networks, SD on slow ones — or pin it yourself.</p></div>
+        <div class="card"><div class="ico">🏷️</div>
+          <h3 data-ru>Поиск и сортировка</h3><h3 data-en>Search &amp; sorting</h3>
+          <p data-ru>Теги с подсказками; релевантность, новые, лучшее, длинные или короткие, лайки, просмотры, рейтинг; фильтр по длительности и звуку.</p><p data-en>Tag suggestions; relevance, newest, top, longest or shortest, likes, views, rating; duration and sound filters.</p></div>
+        <div class="card"><div class="ico">📶</div>
+          <h3 data-ru>Плохая сеть — не помеха</h3><h3 data-en>Built for bad networks</h3>
+          <p data-ru>Обрывы повторяются сами, видео продолжает, как только вернулась связь; на медленном канале — SD без подвисаний.</p><p data-en>Drops are retried automatically and video resumes when the link is back; slow links get stall-free SD.</p></div>
+        <div class="card"><div class="ico">♥</div>
+          <h3 data-ru>Ваш аккаунт</h3><h3 data-en>Your account</h3>
+          <p data-ru>По желанию: «Для вас», лайки и «Мои лайки». Вход запоминается и продлевается сам.</p><p data-en>Optional: “For you”, likes and “My likes”. Sign-in persists and renews itself.</p></div>
+        <div class="card"><div class="ico">⬇️</div>
+          <h3 data-ru>Скачивание</h3><h3 data-en>Downloads</h3>
+          <p data-ru>Долгое нажатие или кнопка в плеере — ролик в «Загрузки/Loopa» через системный менеджер.</p><p data-en>Long-press or the player button saves a video to Downloads/Loopa via the system manager.</p></div>
+        <div class="card"><div class="ico">🪶</div>
+          <h3 data-ru>Лёгкое и открытое</h3><h3 data-en>Light and open</h3>
+          <p data-ru>~3,5 МБ, без трекеров и рекламных SDK, код под лицензией MIT.</p><p data-en>~3.5 MB, no trackers or ad SDKs, MIT-licensed code.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <h2 data-ru>Установка за минуту</h2><h2 data-en>Install in a minute</h2>
+      <p class="sub" data-ru>Приложения нет в Google Play — его ставят из APK, как и большинство открытых клиентов.</p>
+      <p class="sub" data-en>The app isn't on Google Play — install it from the APK like most open-source clients.</p>
+      <div class="steps">
+        <div class="step"><p data-ru><b>Скачайте APK</b> со страницы релизов на GitHub.</p><p data-en><b>Download the APK</b> from the GitHub releases page.</p></div>
+        <div class="step"><p data-ru><b>Откройте файл</b> и разрешите установку из этого источника.</p><p data-en><b>Open the file</b> and allow installs from that source.</p></div>
+        <div class="step"><p data-ru><b>Готово.</b> По желанию сверьте SHA-256 из файла <code>SHA256SUMS</code>.</p><p data-en><b>Done.</b> Optionally check the SHA-256 from <code>SHA256SUMS</code>.</p></div>
+      </div>
+      <span class="fp"><span data-ru>Отпечаток сертификата подписи (SHA-256):</span><span data-en>Signing certificate fingerprint (SHA-256):</span><br>32:9D:15:73:05:60:8C:5D:F2:1B:D7:7B:ED:3F:9C:70:DC:1C:38:D0:F9:44:A6:F8:C9:69:26:12:90:44:9C:84</span>
+    </div>
+  </section>
+
+  <section id="privacy">
+    <div class="wrap">
+      <h2 data-ru>Приватность по умолчанию</h2><h2 data-en>Private by default</h2>
+      <p class="sub" data-ru>Весь код открыт — проверить можно каждую строчку.</p><p class="sub" data-en>All code is open — every line can be checked.</p>
+      <div class="privacy">
+        <ul class="clean" data-ru>
+          <li><b>Никаких трекеров</b>, аналитики и рекламных SDK.</li>
+          <li><b>Только API RedGIFs</b> и их видео-серверы; окно входа — сам сайт redgifs.com.</li>
+          <li><b>Пароль не видит</b>: вы вводите его на странице сайта, сохраняется лишь токен сессии.</li>
+        </ul>
+        <ul class="clean" data-en>
+          <li><b>No trackers</b>, analytics or ad SDKs.</li>
+          <li><b>RedGIFs API only</b> plus its video servers; the sign-in window is redgifs.com itself.</li>
+          <li><b>Never sees your password</b>: you type it on the site; only the session token is kept.</li>
+        </ul>
+        <ul class="clean" data-ru>
+          <li><b>Данные остаются на телефоне</b>, облачная копия отключена.</li>
+          <li><b>Честный User-Agent</b> — приложение не маскируется под браузер.</li>
+          <li><b>Бережно к сервису</b>: грузит только то, что вы смотрите.</li>
+        </ul>
+        <ul class="clean" data-en>
+          <li><b>Data stays on your phone</b>; cloud backup is disabled.</li>
+          <li><b>Honest User-Agent</b> — the app doesn't pretend to be a browser.</li>
+          <li><b>Gentle on the service</b>: it loads only what you watch.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <h2>FAQ</h2>
+      <details><summary data-ru>Это официальное приложение RedGIFs?</summary><summary data-en>Is this an official RedGIFs app?</summary>
+        <p data-ru>Нет. Loopa — независимый открытый проект, не связанный с RedGIFs и не одобренный ими. RedGIFs — товарный знак его владельцев.</p>
+        <p data-en>No. Loopa is an independent open-source project, not affiliated with or endorsed by RedGIFs. RedGIFs is a trademark of its owners.</p></details>
+      <details><summary data-ru>Где хранятся ролики?</summary><summary data-en>Where are the videos stored?</summary>
+        <p data-ru>Нигде у нас: приложение показывает то, что сервис отдаёт любому браузеру, и кэширует просмотренное только на вашем телефоне.</p>
+        <p data-en>Nowhere on our side: the app shows what the service serves to any browser and caches watched videos only on your phone.</p></details>
+      <details><summary data-ru>Почему интерфейс на русском?</summary><summary data-en>Why is the interface in Russian?</summary>
+        <p data-ru>Так получилось исторически. Переводы приветствуются — присылайте pull request.</p>
+        <p data-en>Historical reasons. Translations are welcome — send a pull request.</p></details>
+      <details><summary data-ru>Я правообладатель — куда писать?</summary><summary data-en>I'm a rights holder — how do I reach you?</summary>
+        <p data-ru>Откройте issue в репозитории на GitHub — вопрос будет рассмотрен.</p>
+        <p data-en>Open an issue in the GitHub repository and it will be looked at.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="warn" data-ru><b>18+.</b> Приложение показывает материалы сервиса RedGIFs, среди которых есть откровенные. Устанавливайте его, только если вам есть 18 лет и такие материалы законны там, где вы находитесь.</div>
+      <div class="warn" data-en><b>18+.</b> The app shows content from RedGIFs, some of which is sexually explicit. Install it only if you are 18 or older and such content is legal where you live.</div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap row">
+    <span>Loopa · MIT · <a href="https://github.com/jainikdroid-bit/loopa">GitHub</a></span>
+    <span data-ru>Неофициальный клиент. Не связан с RedGIFs.</span><span data-en>Unofficial client. Not affiliated with RedGIFs.</span>
+  </div>
+</footer>
+
+<script>
+  // язык: из адреса (#en), иначе из браузера; выбор запоминается
+  (function () {
+    var saved = null; try { saved = localStorage.getItem('lang'); } catch (e) {}
+    var lang = location.hash === '#en' ? 'en' : saved || ((navigator.language || 'ru').slice(0, 2) === 'ru' ? 'ru' : 'en');
+    function set(l) {
+      document.documentElement.lang = l;
+      document.getElementById('ru').classList.toggle('on', l === 'ru');
+      document.getElementById('en').classList.toggle('on', l === 'en');
+      try { localStorage.setItem('lang', l); } catch (e) {}
+    }
+    document.getElementById('ru').onclick = function () { set('ru'); };
+    document.getElementById('en').onclick = function () { set('en'); };
+    set(lang);
+  })();
+</script>
+</body>
+</html>
