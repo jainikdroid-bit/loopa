@@ -28,7 +28,7 @@ object Downloads {
     fun get(ctx: Context, g: Gif) {
         val name = "${g.user.ifBlank { "loopa" }}_${g.id}.mp4".replace(Regex("[^A-Za-z0-9._-]"), "_")
         val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        if (File(dir, "Loopa/$name").exists()) { toast(ctx, "Уже скачано: Загрузки/Loopa/$name"); return }
+        if (File(dir, "Loopa/$name").exists()) { toast(ctx, tr("Уже скачано: Загрузки/Loopa/%s", name)); return }
         if (g.hls) { reddit(ctx.applicationContext, g, name); return }
         val rq = DownloadManager.Request(Uri.parse(g.hd))
             .setTitle(name)
@@ -37,15 +37,15 @@ object Downloads {
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Loopa/$name")
         runCatching { (ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(rq) }
-            .onSuccess { toast(ctx, "Скачиваю в Загрузки/Loopa") }
-            .onFailure { toast(ctx, "Не скачать: ${it.message}") }
+            .onSuccess { toast(ctx, tr("Скачиваю в Загрузки/Loopa")) }
+            .onFailure { toast(ctx, tr("Не скачать: %s", it.message)) }
     }
 
     private fun toast(ctx: Context, t: String) = ui.post { Toast.makeText(ctx, t, if (t.length > 40) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show() }
 
     /** v.redd.it: лучшая видеодорожка и звук из DASH-манифеста → один mp4. */
     private fun reddit(ctx: Context, g: Gif, name: String) {
-        toast(ctx, "Скачиваю в Загрузки/Loopa (видео и звук)…")
+        toast(ctx, tr("Скачиваю в Загрузки/Loopa (видео и звук)…"))
         thread {
             val tmp = ctx.cacheDir.resolve("dl").apply { mkdirs() }
             val v = File(tmp, "$name.v"); val a = File(tmp, "$name.a"); val out = File(tmp, name)
@@ -55,8 +55,8 @@ object Downloads {
                 val audio = au != null && g.hasAudio && runCatching { fetch(au, a) }.isSuccess
                 mux(v, if (audio) a else null, out)
                 save(ctx, out, name)
-            }.onSuccess { toast(ctx, "Сохранено: Загрузки/Loopa/$name") }
-                .onFailure { toast(ctx, "Не скачать: ${it.message ?: it.javaClass.simpleName}") }
+            }.onSuccess { toast(ctx, tr("Сохранено: Загрузки/Loopa/%s", name)) }
+                .onFailure { toast(ctx, tr("Не скачать: %s", it.message ?: it.javaClass.simpleName)) }
             v.delete(); a.delete(); out.delete()
         }
     }
@@ -77,7 +77,7 @@ object Downloads {
             }
         }
         fun abs(u: String) = if (u.startsWith("http")) u else base + u
-        val v = best?.second ?: throw IllegalStateException("в манифесте нет видео")
+        val v = best?.second ?: throw IllegalStateException(tr("в манифесте нет видео"))
         return abs(v) to audio?.second?.let(::abs)
     }
 
@@ -121,7 +121,7 @@ object Downloads {
                 put(MediaStore.Downloads.DISPLAY_NAME, name); put(MediaStore.Downloads.MIME_TYPE, "video/mp4")
                 put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Loopa")
             }
-            val uri = ctx.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv) ?: throw IllegalStateException("нет доступа к Загрузкам")
+            val uri = ctx.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv) ?: throw IllegalStateException(tr("нет доступа к Загрузкам"))
             ctx.contentResolver.openOutputStream(uri)!!.use { o -> f.inputStream().use { it.copyTo(o) } }
         } else {
             val d = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Loopa").apply { mkdirs() }

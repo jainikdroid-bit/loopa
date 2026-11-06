@@ -64,7 +64,7 @@ object ForYou {
             catch (e: Exception) { null }
         }?.let { r -> if (r.exceptionOrNull() is java.util.concurrent.TimeoutException) { pendingRd = rdF; null } else r }
         b?.exceptionOrNull()?.let { e -> val c = unwrap(e); redditNote = "Reddit: " + (c.message ?: c.javaClass.simpleName); android.util.Log.w("Loopa", "Для вас: Reddit не ответил", c) }
-            ?: run { if (b != null) redditNote = if (b.getOrNull().isNullOrEmpty()) redditNote ?: "Reddit: пусто" else null }
+            ?: run { if (b != null) redditNote = if (b.getOrNull().isNullOrEmpty()) redditNote ?: tr("Reddit: пусто") else null }
         if (a.isFailure && (b == null || b.isFailure)) throw unwrap(a.exceptionOrNull()!!)
         return synchronized(this) { mix(rank(a.getOrDefault(emptyList())), rank(b?.getOrNull().orEmpty()), if (b == null) 0.0 else share) }
     }
@@ -100,7 +100,7 @@ object ForYou {
 
     private fun mixBatch(): List<Gif> {
         if (subs.isEmpty()) subs = chooseSubs()
-        if (subs.isEmpty()) { redditDry = 3; redditNote = "Reddit: не нашлось сабреддитов по интересам"; android.util.Log.w("Loopa", "Для вас: нет сабреддитов"); return emptyList() }
+        if (subs.isEmpty()) { redditDry = 3; redditNote = tr("Reddit: не нашлось сабреддитов по интересам"); android.util.Log.w("Loopa", "Для вас: нет сабреддитов"); return emptyList() }
         // по одному сабреддиту за раз, по кругу (страница сайта смеси через «+» не открывает); у каждого — свой курсор
         val sub = synchronized(this) { subs[rr++ % subs.size] }
         if (subCursor.containsKey(sub) && subCursor[sub] == null) {             // этот кончился

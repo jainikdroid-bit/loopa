@@ -9,7 +9,10 @@ import kotlin.concurrent.thread
  * local — досортировка на телефоне (длительность, лайки, просмотры, рейтинг: сервер так не умеет), по убыванию;
  * dir — у сортировки есть направление ↑/↓ ([Feed.desc]).
  */
-class Sort(val id: String, val label: String, val short: String, val api: String, val local: Comparator<Gif>? = null, val dir: Boolean = false)
+class Sort(val id: String, private val labelRu: String, private val shortRu: String, val api: String, val local: Comparator<Gif>? = null, val dir: Boolean = false) {
+    val label get() = tr(labelRu)
+    val short get() = tr(shortRu)
+}
 
 /**
  * Текущая выдача (общая для сетки и плеера): запрос, сортировка, фильтры, автор, загруженные ролики. Подгрузка страниц —
@@ -260,7 +263,7 @@ object Feed {
         error = when {
             e.message == Api.LOGIN_EXPIRED || e.message == Reddit.LOGIN_EXPIRED || e.message == Reddit.LOGIN_NEEDED -> e.message
             e is HttpError -> e.message
-            Net.transient(e) -> "нет связи"
+            Net.transient(e) -> NO_NET
             else -> e.message ?: e.javaClass.simpleName
         }
         if (!Net.transient(e)) return

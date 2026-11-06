@@ -53,7 +53,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Api.init(this); Net.init(this); Reddit.init(this); Interests.init(this); ForYou.init(this); Video.init(this); Hide.init(this)
+        I18n.init(this); Api.init(this); Net.init(this); Reddit.init(this); Interests.init(this); ForYou.init(this); Video.init(this); Hide.init(this)
         preview.enabled = prefs.getBoolean("live", true)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
             Feed.duration = prefs.getString("duration", "any")!!; Feed.audioOnly = prefs.getBoolean("audio", false)
@@ -69,7 +69,7 @@ class MainActivity : Activity() {
         // строка поиска + сортировка
         val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10), dp(8), dp(10), dp(4)) }
         search = EditText(this).apply {
-            hint = "Поиск по тегам: blonde, POV, car…"; setHintTextColor(0xFF8A8F98.toInt()); setTextColor(Color.WHITE); textSize = 16f
+            hint = tr("Поиск по тегам: blonde, POV, car…"); setHintTextColor(0xFF8A8F98.toInt()); setTextColor(Color.WHITE); textSize = 16f
             isSingleLine = true; imeOptions = EditorInfo.IME_ACTION_SEARCH
             background = pill(0xFF1F232B.toInt()); setPadding(dp(14), dp(10), dp(14), dp(10))
             setOnEditorActionListener { _, a, e -> if (a == EditorInfo.IME_ACTION_SEARCH || e?.keyCode == KeyEvent.KEYCODE_ENTER) { go(text.toString()); true } else false }
@@ -80,7 +80,7 @@ class MainActivity : Activity() {
             })
         }
         bar.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
-        sortBtn = chip("⇅ Популярное", ACCENT) { sortMenu(it) }
+        sortBtn = chip("⇅ " + tr("Популярное"), ACCENT) { sortMenu(it) }
         bar.addView(sortBtn, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
         filterBtn = chip("⧩", CHIP) { filterMenu(it) }
         bar.addView(filterBtn, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(6) })
@@ -89,7 +89,7 @@ class MainActivity : Activity() {
         root.addView(bar)
         // вкладки: рекомендации по лайкам (нужен вход), популярное, лайкнутое
         tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(2), dp(10), dp(2)) }
-        TABS.forEach { (t, m) -> tabs.addView(chip(t, CHIP) { tab(m) }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) }) }
+        TABS.forEach { (t, m) -> tabs.addView(chip(tr(t), CHIP) { tab(m) }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) }) }
         // не влезают — строка прокручивается вбок, а не сжимает вкладки в столбик
         root.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(tabs) })
         chips = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(4), dp(10), dp(4)) }
@@ -139,7 +139,7 @@ class MainActivity : Activity() {
                 ok && atHome -> home()
                 else -> refresh()
             }
-            if (!ok && waiting) status.text = "Вход в ${site.title} истёк — нажмите здесь, чтобы войти снова"
+            if (!ok && waiting) status.text = tr("Вход в %s истёк — нажмите здесь, чтобы войти снова", site.title)
             if (ok && site === RgSite && Reddit.renewDue) renew(Reddit.SITE)
         }
     }
@@ -169,9 +169,12 @@ class MainActivity : Activity() {
     /** Аккаунты: вход и выход отдельно для RedGIFs и Reddit (выход стирает куки только этого сайта). */
     private fun account() {
         val m = PopupMenu(this, userBtn)
-        m.menu.add(0, 1, 0, if (Api.hadUser) "Выйти из RedGIFs" else "Войти в RedGIFs")
-        m.menu.add(0, 2, 1, if (Reddit.hadUser) "Выйти из Reddit" + Reddit.name.takeIf { it.isNotEmpty() }?.let { " (u/$it)" }.orEmpty() else "Войти в Reddit")
+        m.menu.add(0, 1, 0, if (Api.hadUser) tr("Выйти из RedGIFs") else tr("Войти в RedGIFs"))
+        m.menu.add(0, 2, 1, if (Reddit.hadUser) tr("Выйти из Reddit") + Reddit.name.takeIf { it.isNotEmpty() }?.let { " (u/$it)" }.orEmpty() else tr("Войти в Reddit"))
+        langMenu(m.menu)
         m.setOnMenuItemClickListener {
+            if (it.groupId == 12) { I18n.choice = LANG_IDS[it.itemId]; recreate(); return@setOnMenuItemClickListener true }
+            if (it.groupId != 0 || it.itemId == 3) return@setOnMenuItemClickListener false
             when (it.itemId) {
                 1 -> if (Api.hadUser) { Api.logout(); TokenCatcher.clearCookies("https://www.redgifs.com", ".redgifs.com"); home() } else { pendingTab = "foryou"; login(RgSite) }
                 2 -> if (Reddit.hadUser) { Reddit.logout(); if (Feed.reddit) home() else refresh() } else login(Reddit.SITE)
@@ -179,6 +182,17 @@ class MainActivity : Activity() {
             true
         }
         m.show()
+    }
+
+    /** Подменю «Язык»: авто (язык системы) или любой из поддерживаемых вручную. */
+    private fun langMenu(menu: android.view.Menu) {
+        val cur = I18n.choice
+        val sub = menu.addSubMenu(0, 3, 2, "🌐 " + tr("Язык") + ": " + if (cur == "auto") tr("авто") else I18n.LANGS[cur])
+        LANG_IDS.forEachIndexed { i, c ->
+            val t = if (c == "auto") tr("Авто — как в системе (%s)", I18n.LANGS[I18n.system]) else I18n.LANGS[c]!!
+            sub.add(12, i, i, t).isChecked = c == cur
+        }
+        sub.setGroupCheckable(12, true, true)
     }
 
     @Deprecated("Deprecated in Java")
@@ -312,29 +326,29 @@ class MainActivity : Activity() {
     private fun filterMenu(v: View) {
         val m = PopupMenu(this, v)
         if (Feed.mode == "foryou") {
-            m.menu.add(6, 0, 0, "Подмешивать Reddit").apply { isCheckable = true; isChecked = ForYou.mixReddit; isEnabled = Reddit.hadUser }
-            val sh = m.menu.addSubMenu(6, 1, 1, "Доля Reddit: " + (ForYou.SHARES.minByOrNull { kotlin.math.abs(it.first - ForYou.share) }?.second ?: "").lowercase())
-            ForYou.SHARES.forEachIndexed { i, (v, t) -> sh.add(7, i, i, t).isChecked = kotlin.math.abs(v - ForYou.share) < 0.01 }
+            m.menu.add(6, 0, 0, tr("Подмешивать Reddit")).apply { isCheckable = true; isChecked = ForYou.mixReddit; isEnabled = Reddit.hadUser }
+            val sh = m.menu.addSubMenu(6, 1, 1, tr("Доля Reddit: %s", tr(ForYou.SHARES.minByOrNull { kotlin.math.abs(it.first - ForYou.share) }?.second ?: "").let(I18n::lower)))
+            ForYou.SHARES.forEachIndexed { i, (v, t) -> sh.add(7, i, i, tr(t)).isChecked = kotlin.math.abs(v - ForYou.share) < 0.01 }
             sh.setGroupCheckable(7, true, true)
-            m.menu.add(6, 2, 2, "Мои интересы…")
-            m.menu.add(6, 3, 3, "Сбросить интересы")
+            m.menu.add(6, 2, 2, tr("Мои интересы…"))
+            m.menu.add(6, 3, 3, tr("Сбросить интересы"))
         }
-        val dur = m.menu.addSubMenu(2, 0, 100, "Длительность: " + if (Feed.duration == "any") "любая" else Feed.DURATIONS.first { it.first == Feed.duration }.second.lowercase())
-        Feed.DURATIONS.forEachIndexed { i, d -> dur.add(3, i, i, d.second).isChecked = d.first == Feed.duration }
+        val dur = m.menu.addSubMenu(2, 0, 100, tr("Длительность: %s", if (Feed.duration == "any") tr("любая") else tr(Feed.DURATIONS.first { it.first == Feed.duration }.second).let(I18n::lower)))
+        Feed.DURATIONS.forEachIndexed { i, d -> dur.add(3, i, i, tr(d.second)).isChecked = d.first == Feed.duration }
         dur.setGroupCheckable(3, true, true)
-        m.menu.add(4, 0, 101, "Только со звуком").apply { isCheckable = true; isChecked = Feed.audioOnly }
-        m.menu.add(11, 0, 102, "Искать и на Reddit").apply { isCheckable = true; isChecked = Feed.searchReddit; isEnabled = Reddit.hadUser }
-        m.menu.add(8, 0, 103, "Живые превью в сетке").apply { isCheckable = true; isChecked = preview.enabled }
-        val hide = m.menu.addSubMenu(9, 0, 104, "Скрывать…" + if (Hide.active) " (вкл.)" else "")
-        Hide.PRESETS.forEachIndexed { i, (id, t, _) -> hide.add(10, i, i, t).apply { isCheckable = true; isChecked = Hide.on(id) } }
-        hide.add(10, 99, 99, "Свои слова…" + Hide.custom.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty())
+        m.menu.add(4, 0, 101, tr("Только со звуком")).apply { isCheckable = true; isChecked = Feed.audioOnly }
+        m.menu.add(11, 0, 102, tr("Искать и на Reddit")).apply { isCheckable = true; isChecked = Feed.searchReddit; isEnabled = Reddit.hadUser }
+        m.menu.add(8, 0, 103, tr("Живые превью в сетке")).apply { isCheckable = true; isChecked = preview.enabled }
+        val hide = m.menu.addSubMenu(9, 0, 104, tr("Скрывать…") + if (Hide.active) " " + tr("(вкл.)") else "")
+        Hide.PRESETS.forEachIndexed { i, (id, t, _) -> hide.add(10, i, i, tr(t)).apply { isCheckable = true; isChecked = Hide.on(id) } }
+        hide.add(10, 99, 99, tr("Свои слова…") + Hide.custom.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty())
         m.setOnMenuItemClickListener {
             when (it.groupId) {
                 6 -> when (it.itemId) {
                     0 -> { ForYou.mixReddit = !ForYou.mixReddit; reload() }
-                    2 -> { android.app.AlertDialog.Builder(this).setTitle("Мои интересы").setMessage(Interests.summary()).setPositiveButton("OK", null).show(); return@setOnMenuItemClickListener true }
-                    3 -> { android.app.AlertDialog.Builder(this).setMessage("Забыть лайки, просмотры и поиски для «Для вас»?")
-                        .setPositiveButton("Сбросить") { _, _ -> Interests.reset(); reload() }.setNegativeButton("Отмена", null).show(); return@setOnMenuItemClickListener true }
+                    2 -> { android.app.AlertDialog.Builder(this).setTitle(tr("Мои интересы")).setMessage(Interests.summary()).setPositiveButton("OK", null).show(); return@setOnMenuItemClickListener true }
+                    3 -> { android.app.AlertDialog.Builder(this).setMessage(tr("Забыть лайки, просмотры и поиски для «Для вас»?"))
+                        .setPositiveButton(tr("Сбросить")) { _, _ -> Interests.reset(); reload() }.setNegativeButton(tr("Отмена"), null).show(); return@setOnMenuItemClickListener true }
                     else -> return@setOnMenuItemClickListener false
                 }
                 10 -> {
@@ -355,9 +369,9 @@ class MainActivity : Activity() {
 
     /** Свои слова для скрытия — через запятую. */
     private fun hideWords() {
-        val e = EditText(this).apply { setText(Hide.custom); hint = "например: cock, bbc"; setSingleLine() }
-        android.app.AlertDialog.Builder(this).setTitle("Скрывать ролики со словами").setView(e)
-            .setPositiveButton("Сохранить") { _, _ -> Hide.custom = e.text.toString().trim(); reload() }.setNegativeButton("Отмена", null).show()
+        val e = EditText(this).apply { setText(Hide.custom); hint = tr("например: cock, bbc"); setSingleLine() }
+        android.app.AlertDialog.Builder(this).setTitle(tr("Скрывать ролики со словами")).setView(e)
+            .setPositiveButton(tr("Сохранить")) { _, _ -> Hide.custom = e.text.toString().trim(); reload() }.setNegativeButton(tr("Отмена"), null).show()
     }
 
     private fun reload() = if (Feed.reddit) Feed.reddit(Feed.sub) else Feed.reset(Feed.text, Feed.order, Feed.author, Feed.mode, Feed.byTag && Feed.query == Feed.text)
@@ -392,10 +406,10 @@ class MainActivity : Activity() {
         val all = listOf("") + savedSubs()
         all.forEach { s ->
             val on = s == Feed.sub
-            chips.addView(chip(if (s.isEmpty()) "🏠 Подписки" else "r/$s", if (on) ACCENT else CHIP) { openSub(s) }.apply {
+            chips.addView(chip(if (s.isEmpty()) "🏠 " + tr("Подписки") else "r/$s", if (on) ACCENT else CHIP) { openSub(s) }.apply {
                 if (s.isNotEmpty()) setOnLongClickListener {
                     prefs.edit().putString("subs", savedSubs().filter { it != s }.joinToString("\n")).apply()
-                    android.widget.Toast.makeText(this@MainActivity, "r/$s убран из списка", android.widget.Toast.LENGTH_SHORT).show(); idleChips(); true
+                    android.widget.Toast.makeText(this@MainActivity, tr("r/%s убран из списка", s), android.widget.Toast.LENGTH_SHORT).show(); idleChips(); true
                 }
             }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
         }
@@ -403,7 +417,7 @@ class MainActivity : Activity() {
 
     private fun refresh() {
         userBtn.text = when { Api.loggedIn || Reddit.loggedIn -> "👤✓"; Api.hadUser || Reddit.hadUser -> "👤!"; else -> "👤" }
-        search.hint = if (Feed.reddit) "Сабреддит: r/… (через пробел — несколько)" else "Поиск по тегам: blonde, POV, car…"
+        search.hint = if (Feed.reddit) tr("Сабреддит: r/… (через пробел — несколько)") else tr("Поиск по тегам: blonde, POV, car…")
         for (i in 0 until tabs.childCount) tabs.getChildAt(i).background = pill(if (TABS[i].second == Feed.mode && Feed.author == null && Feed.text.isEmpty()) ACCENT else CHIP)
         sortBtn.visibility = if (Feed.mode == null || Feed.reddit || Feed.mode == "foryou") View.VISIBLE else View.GONE
         filterBtn.visibility = View.VISIBLE
@@ -417,7 +431,7 @@ class MainActivity : Activity() {
         val st = Feed.sort
         sortBtn.text = when {
             Feed.reddit -> "⇅ " + Reddit.sort(Feed.rorder).short
-            Feed.mode == "foryou" && !st.dir -> "⇅ Интересы"
+            Feed.mode == "foryou" && !st.dir -> "⇅ " + tr("Интересы")
             st.dir -> (if (Feed.desc) "↓ " else "↑ ") + st.short
             else -> "⇅ " + st.short
         }
@@ -425,30 +439,30 @@ class MainActivity : Activity() {
         filterBtn.background = pill(if (Feed.filtered || Hide.active) ACCENT else CHIP)
         status.text = buildString {
             when {
-                Feed.mode == "foryou" -> append("Для вас — " + listOfNotNull("RedGIFs", "Reddit".takeIf { ForYou.reddit }).joinToString(" + ") +
-                    (if (Interests.empty) " · лайкайте и досматривайте — подстроится" else " · по вашим интересам") +
+                Feed.mode == "foryou" -> append(tr("Для вас") + " — " + listOfNotNull("RedGIFs", "Reddit".takeIf { ForYou.reddit }).joinToString(" + ") +
+                    " · " + (if (Interests.empty) tr("лайкайте и досматривайте — подстроится") else tr("по вашим интересам")) +
                     ForYou.redditNote?.let { " · $it" }.orEmpty())
-                Feed.mode == "liked" -> append("Ваши лайки")
+                Feed.mode == "liked" -> append(tr("Ваши лайки"))
                 Feed.reddit -> append("Reddit · " + when {
-                    Feed.sub.isEmpty() -> "подписки" + Reddit.name.takeIf { it.isNotEmpty() }?.let { " u/$it" }.orEmpty()
-                    Feed.sub.startsWith("u/") -> "посты ${Feed.sub}"
+                    Feed.sub.isEmpty() -> tr("подписки") + Reddit.name.takeIf { it.isNotEmpty() }?.let { " u/$it" }.orEmpty()
+                    Feed.sub.startsWith("u/") -> tr("посты %s", Feed.sub)
                     else -> Feed.sub.split("+").joinToString(" + ") { "r/$it" }
                 } + " · " + Reddit.sort(Feed.rorder).label)
-                Feed.author != null -> append("Автор: ${Feed.author}  (назад — к ленте)")
-                Feed.text.isNotEmpty() && !Feed.byTag -> append("Поиск: «${Feed.text}»" + (if (Feed.busy) " · идёт поиск…" else "") + " · по теме ${Search.exact}" +
-                    Search.synonyms.takeIf { it.isNotEmpty() }?.let { " · + похожее: " + it.take(4).joinToString(", ") }.orEmpty())
-                Feed.text.isNotEmpty() && !Feed.byTag -> append("Поиск: «${Feed.query.ifEmpty { Feed.text }}»" + (if (Feed.query.isNotEmpty() && !Feed.query.equals(Feed.text, true)) " («${Feed.text}»)" else "") +
-                    (if (Feed.query.isNotEmpty()) " · точных совпадений: ${Feed.exact}" + (if (Feed.exact > 0) " (они первыми)" else "") else ""))
-                Feed.text.isNotEmpty() -> append("Поиск по тегам: " + Feed.query.ifEmpty { Feed.text }.split(",").joinToString(" + ") { "#$it" } + if (Feed.query.isNotEmpty() && !Feed.query.equals(Feed.text, true)) "  («${Feed.text}»)" else "")
+                Feed.author != null -> append(tr("Автор: %s  (назад — к ленте)", Feed.author))
+                Feed.text.isNotEmpty() && !Feed.byTag -> append(tr("Поиск: «%s»", Feed.text) + (if (Feed.busy) " · " + tr("идёт поиск…") else "") + " · " + tr("по теме %s", Search.exact) +
+                    Search.synonyms.takeIf { it.isNotEmpty() }?.let { " · " + tr("+ похожее:") + " " + it.take(4).joinToString(", ") }.orEmpty())
+                Feed.text.isNotEmpty() && !Feed.byTag -> append(tr("Поиск: «%s»", Feed.query.ifEmpty { Feed.text }) + (if (Feed.query.isNotEmpty() && !Feed.query.equals(Feed.text, true)) " («${Feed.text}»)" else "") +
+                    (if (Feed.query.isNotEmpty()) " · " + tr("точных совпадений: %s", Feed.exact) + (if (Feed.exact > 0) " " + tr("(они первыми)") else "") else ""))
+                Feed.text.isNotEmpty() -> append(tr("Поиск по тегам:") + " " + Feed.query.ifEmpty { Feed.text }.split(",").joinToString(" + ") { "#$it" } + if (Feed.query.isNotEmpty() && !Feed.query.equals(Feed.text, true)) "  («${Feed.text}»)" else "")
                 else -> append(Feed.sort.label)
             }
-            if (Feed.filtered) append(" · фильтр: " + listOfNotNull(Feed.DURATIONS.first { it.first == Feed.duration }.second.takeIf { Feed.duration != "any" }?.lowercase(), "со звуком".takeIf { Feed.audioOnly }).joinToString(", "))
+            if (Feed.filtered) append(" · " + tr("фильтр:") + " " + listOfNotNull(tr(Feed.DURATIONS.first { it.first == Feed.duration }.second).takeIf { Feed.duration != "any" }?.let(I18n::lower), tr("со звуком").takeIf { Feed.audioOnly }).joinToString(", "))
             if (Feed.items.isNotEmpty()) append(" · ${Feed.items.size}")
-            if (Feed.busy && !(Feed.text.isNotEmpty() && !Feed.byTag)) append(" · загружаю…")
-            Feed.error?.let { append(" · $it") }
-            if (Feed.retryIn > 0) append(" · повтор через ${Feed.retryIn} с (нажмите — сейчас)")
+            if (Feed.busy && !(Feed.text.isNotEmpty() && !Feed.byTag)) append(" · " + tr("загружаю…"))
+            Feed.error?.let { append(" · " + tr(it)) }
+            if (Feed.retryIn > 0) append(" · " + tr("повтор через %s с (нажмите — сейчас)", Feed.retryIn))
             if (!Feed.busy && Feed.error == null && Feed.items.isEmpty() && (Feed.text.isNotEmpty() || Feed.reddit || Feed.mode == "foryou"))
-                append(if (Feed.reddit) " · видео не нашлось — попробуйте другой сабреддит" else " · ничего не нашлось")
+                append(" · " + if (Feed.reddit) tr("видео не нашлось — попробуйте другой сабреддит") else tr("ничего не нашлось"))
         }
         if (!Feed.busy) swipe.isRefreshing = false
         if (search.text.isBlank()) idleChips()
@@ -504,6 +518,8 @@ class MainActivity : Activity() {
 
     companion object {
         val TABS = listOf("♥ Для вас" to "foryou", "🔥 Популярное" to null, "Мои лайки" to "liked", "Reddit" to "reddit")
+        /** Пункты меню языка: «auto», затем коды. */
+        val LANG_IDS = listOf("auto") + I18n.LANGS.keys
         val BG = 0xFF0E1015.toInt(); val ACCENT = 0xFF7C3AED.toInt(); val CHIP = 0xFF262B34.toInt()
         /** Метки источника: RedGIFs — малиновый, Reddit — фирменный оранжевый. */
         val RG_COLOR = 0xE0D6246E.toInt(); val RD_COLOR = 0xE0FF4500.toInt()

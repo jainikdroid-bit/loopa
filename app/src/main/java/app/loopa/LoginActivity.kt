@@ -37,6 +37,7 @@ class LoginActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        I18n.init(this)
         val site = if (intent.getStringExtra("site") == "reddit") Reddit.SITE else RgSite
         val reddit = site === Reddit.SITE
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(MainActivity.BG) }
@@ -44,12 +45,12 @@ class LoginActivity : Activity() {
             @Suppress("DEPRECATION") v.setPadding(ins.systemWindowInsetLeft, ins.systemWindowInsetTop, ins.systemWindowInsetRight, ins.systemWindowInsetBottom); ins
         }
         root.addView(TextView(this).apply {
-            text = if (reddit) "Войдите в Reddit — можно через Google. Не пускает — одноразовая ссылка: «Email me a one-time link», скопируйте ссылку из письма и нажмите кнопку ниже. Чтобы видеть 18+, включите его в настройках аккаунта."
-                else "Войдите в RedGIFs (почта или Reddit). Окно закроется само после входа."
+            text = if (reddit) tr("Войдите в Reddit — можно через Google. Не пускает — одноразовая ссылка: «Email me a one-time link», скопируйте ссылку из письма и нажмите кнопку ниже. Чтобы видеть 18+, включите его в настройках аккаунта.")
+                else tr("Войдите в RedGIFs (почта или Reddit). Окно закроется само после входа.")
             setTextColor(Color.WHITE); textSize = 14f; setPadding(dp(14), dp(10), dp(14), dp(6))
         })
         if (reddit) root.addView(TextView(this).apply {
-            text = "📋 Вставить ссылку из письма"; setTextColor(Color.WHITE); textSize = 15f; setPadding(dp(16), dp(9), dp(16), dp(9))
+            text = tr("📋 Вставить ссылку из письма"); setTextColor(Color.WHITE); textSize = 15f; setPadding(dp(16), dp(9), dp(16), dp(9))
             background = GradientDrawable().apply { setColor(MainActivity.ACCENT); cornerRadius = dp(20).toFloat() }
             setOnClickListener { pasteLink() }
         }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(dp(14), dp(2), dp(14), dp(8)) })
@@ -65,9 +66,9 @@ class LoginActivity : Activity() {
             Disguise.apply(web)
             web.settings.setSupportMultipleWindows(true); web.settings.javaScriptCanOpenWindowsAutomatically = true
         }
-        catcher = TokenCatcher(web, site, { url, err -> state.text = if (err != null) "Не открылось: $err — проверьте VPN/сеть и нажмите здесь, чтобы повторить" else Uri.parse(url).host.orEmpty() }) { t, exp ->
+        catcher = TokenCatcher(web, site, { url, err -> state.text = if (err != null) tr("Не открылось: %s — проверьте VPN/сеть и нажмите здесь, чтобы повторить", err) else Uri.parse(url).host.orEmpty() }) { t, exp ->
             Thread { site.save(this, t, exp); runOnUiThread {
-                Toast.makeText(this, "Вход в ${site.title} выполнен", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, tr("Вход в %s выполнен", site.title), Toast.LENGTH_SHORT).show()
                 setResult(RESULT_OK); finish()
             } }.start()
         }
@@ -118,7 +119,7 @@ class LoginActivity : Activity() {
         val link = Regex("https://\\S+").find(t)?.value
         val host = link?.let { Uri.parse(it).host.orEmpty() }.orEmpty()
         if (link == null || !(host == "reddit.com" || host.endsWith(".reddit.com") || host.endsWith(".redditmail.com"))) {
-            Toast.makeText(this, "В буфере нет ссылки Reddit — скопируйте ссылку из письма целиком", Toast.LENGTH_LONG).show(); return
+            Toast.makeText(this, tr("В буфере нет ссылки Reddit — скопируйте ссылку из письма целиком"), Toast.LENGTH_LONG).show(); return
         }
         web.loadUrl(link)
     }

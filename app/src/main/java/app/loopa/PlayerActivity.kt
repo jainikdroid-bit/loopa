@@ -55,7 +55,7 @@ class PlayerActivity : Activity() {
     /** Качество: auto (по скорости сети) / hd / sd. */
     private var quality get() = prefs.getString("quality", "auto")!!; set(v) { prefs.edit().putString("quality", v).apply() }
     private fun url(g: Gif) = when (quality) { "hd" -> g.hd; "sd" -> g.sd; else -> Video.auto(g) }
-    private fun qLabel() = when (quality) { "hd" -> "HD"; "sd" -> "SD"; else -> "Авто" }
+    private fun qLabel() = when (quality) { "hd" -> "HD"; "sd" -> "SD"; else -> tr("Авто") }
     /** Высота системных кнопок снизу и справа (экран от края до края) — панель управления над ними. */
     private var navBottom = 0
     private var navRight = 0
@@ -92,6 +92,7 @@ class PlayerActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        I18n.init(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.statusBarColor = Color.BLACK; window.navigationBarColor = Color.BLACK
         Video.init(this); Interests.init(this)
@@ -112,12 +113,12 @@ class PlayerActivity : Activity() {
                 override fun onPlaybackStateChanged(st: Int) {
                     holder?.spin?.visibility = if (st == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
                     bufferingSince = if (st == Player.STATE_BUFFERING) bufferingSince.takeIf { it > 0 } ?: System.currentTimeMillis() else 0L
-                    if (st == Player.STATE_READY) { fails = 0; holder?.spin?.text = "загрузка…" }
+                    if (st == Player.STATE_READY) { fails = 0; holder?.spin?.text = tr("загрузка…") }
                 }
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
                     // сеть: показать и повторить самим; прочее (битый файл) — следующий ролик
                     if (e.errorCode in 2000..2999) {
-                        holder?.spin?.apply { text = "нет связи — повторю…"; visibility = View.VISIBLE }
+                        holder?.spin?.apply { text = tr("нет связи — повторю…"); visibility = View.VISIBLE }
                         ui.removeCallbacks(replay); ui.postDelayed(replay, minOf(30_000L, 2000L shl minOf(fails, 4))); fails++
                     } else if (current + 1 < Feed.items.size) pager.setCurrentItem(current + 1, true)
                 }
@@ -230,7 +231,7 @@ class PlayerActivity : Activity() {
     inner class PageHolder(root: FrameLayout) : RecyclerView.ViewHolder(root) {
         val video = TextureView(this@PlayerActivity)
         val poster = ImageView(this@PlayerActivity).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
-        val spin = TextView(this@PlayerActivity).apply { text = "загрузка…"; setTextColor(Color.WHITE); textSize = 14f; visibility = View.GONE }
+        val spin = TextView(this@PlayerActivity).apply { text = tr("загрузка…"); setTextColor(Color.WHITE); textSize = 14f; visibility = View.GONE }
         val user = TextView(this@PlayerActivity).apply { setTextColor(Color.WHITE); textSize = 16f; setShadowLayer(4f, 0f, 0f, Color.BLACK) }
         /** Метка источника слева от автора: RG / RD. */
         val src = TextView(this@PlayerActivity).apply { setTextColor(Color.WHITE); textSize = 11f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(dp(7), dp(2), dp(7), dp(2)) }
@@ -303,8 +304,8 @@ class PlayerActivity : Activity() {
             user.setOnClickListener { if (g.user.isNotBlank()) { if (g.reddit) back("sub", "u/${g.user}") else back("author", g.user) } }
             info.maxLines = 3
             info.text = if (g.reddit) "${MainActivity.time(g.duration)} · ↑ ${MainActivity.count(g.likes)} · 💬 ${MainActivity.count(g.views)}" +
-                (if (!g.hasAudio) " · без звука" else "") + (if (g.description.isNotBlank()) "\n" + g.description else "")
-                else "${MainActivity.time(g.duration)} · ${MainActivity.count(g.views)} просмотров · ♥ ${MainActivity.count(g.likes)}" + if (!g.hasAudio) " · без звука" else ""
+                (if (!g.hasAudio) " · " + tr("без звука") else "") + (if (g.description.isNotBlank()) "\n" + g.description else "")
+                else "${MainActivity.time(g.duration)} · " + tr("%s просмотров", MainActivity.count(g.views)) + " · ♥ ${MainActivity.count(g.likes)}" + if (!g.hasAudio) " · " + tr("без звука") else ""
             tags.removeAllViews()
             g.tags.forEach { t ->
                 tags.addView(TextView(this@PlayerActivity).apply {
@@ -329,8 +330,8 @@ class PlayerActivity : Activity() {
                 }
                 val position = bindingAdapterPosition
                 kotlin.concurrent.thread {
-                    val err = runCatching { Api.like(g.id, on, src, position) }.getOrElse { it.message ?: "нет связи" }
-                    if (err != null) ui.post { setLiked(g.id, !on); showLike(); Interests.like(g, !on); android.widget.Toast.makeText(this@PlayerActivity, "Лайк не прошёл — $err", android.widget.Toast.LENGTH_LONG).show() }
+                    val err = runCatching { Api.like(g.id, on, src, position) }.getOrElse { it.message ?: tr(NO_NET) }
+                    if (err != null) ui.post { setLiked(g.id, !on); showLike(); Interests.like(g, !on); android.widget.Toast.makeText(this@PlayerActivity, tr("Лайк не прошёл — %s", err), android.widget.Toast.LENGTH_LONG).show() }
                 }
             }
             sound.text = if (muted) "🔇" else "🔊"
@@ -339,7 +340,7 @@ class PlayerActivity : Activity() {
             qBtn.setOnClickListener {
                 this@PlayerActivity.quality = when (this@PlayerActivity.quality) { "auto" -> "hd"; "hd" -> "sd"; else -> "auto" }
                 qBtn.text = qLabel()
-                android.widget.Toast.makeText(this@PlayerActivity, when (this@PlayerActivity.quality) { "hd" -> "Всегда HD"; "sd" -> "Всегда SD (быстрее)"; else -> "Авто: HD на быстрой сети, SD на медленной" }, android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(this@PlayerActivity, when (this@PlayerActivity.quality) { "hd" -> tr("Всегда HD"); "sd" -> tr("Всегда SD (быстрее)"); else -> tr("Авто: HD на быстрой сети, SD на медленной") }, android.widget.Toast.LENGTH_SHORT).show()
                 if (holder === this) requality()
             }
             pad()

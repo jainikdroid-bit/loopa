@@ -61,7 +61,7 @@
   separate video and audio tracks and muxed into one mp4 without re-encoding.
 - Small, with no trackers, analytics or ad SDKs.
 
-The interface is currently in Russian; tags on the service are in English. Translations are welcome.
+The interface is available in 10 languages (system language by default; change it via 👤 → “Language”); tags on the service are in English. Translations live in `i18n/strings.json` — improvements welcome.
 
 ## Install
 

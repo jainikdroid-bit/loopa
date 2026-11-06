@@ -24,7 +24,10 @@ object Reddit {
     private val pool = Executors.newFixedThreadPool(6)
 
     /** Сортировка Reddit: id → подпись, путь, период для «топа». */
-    class RSort(val id: String, val label: String, val short: String, val path: String, val t: String? = null)
+    class RSort(val id: String, private val labelRu: String, private val shortRu: String, val path: String, val t: String? = null) {
+        val label get() = tr(labelRu)
+        val short get() = tr(shortRu)
+    }
     val SORTS = listOf(
         RSort("hot", "Горячее", "Горячее", "hot"), RSort("new", "Новое", "Новое", "new"), RSort("rising", "Набирает", "Набирает", "rising"),
         RSort("top-hour", "Топ за час", "Топ: час", "top", "hour"), RSort("top-day", "Топ за день", "Топ: день", "top", "day"),
@@ -135,9 +138,9 @@ object Reddit {
         val key = "$sub|$sortId"
         val r = synchronized(rounds) {
             if (after == null || rounds[key] == null) {
-                val list = if (sub.isEmpty()) runCatching { subscribed() }.getOrElse { throw RuntimeException("Reddit: не получить подписки (${it.message})") }
+                val list = if (sub.isEmpty()) runCatching { subscribed() }.getOrElse { throw RuntimeException(tr("Reddit: не получить подписки (%s)", it.message)) }
                     else sub.split("+").filter { it.isNotBlank() }
-                if (list.isEmpty()) throw RuntimeException("Reddit: подписок нет — найдите сабреддит в поиске выше")
+                if (list.isEmpty()) throw RuntimeException(tr("Reddit: подписок нет — найдите сабреддит в поиске выше"))
                 rounds[key] = Round(list.filter { !isBad(it) }.shuffled())
             }
             rounds[key]!!
@@ -173,7 +176,7 @@ var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');
         val raw = if (url != null) WebJson.page(ctx, url, "(function(){$GRAB return JSON.stringify({posts:G(document),more:M(document)});})()")
             else WebJson.run(ctx, "(function(){$GRAB fetch(${JSONObject.quote(more)},{credentials:'include'}).then(function(r){return r.text()}).then(function(t){" +
                 "var d=new DOMParser().parseFromString(t,'text/html');window.__lp=JSON.stringify({posts:G(d),more:M(d)});}).catch(function(e){window.__lp=JSON.stringify({error:String(e)})});})()")
-        val j = runCatching { JSONObject(raw ?: "") }.getOrNull() ?: throw RuntimeException("Reddit: страница не открылась")
+        val j = runCatching { JSONObject(raw ?: "") }.getOrNull() ?: throw RuntimeException(tr("Reddit: страница не открылась"))
         j.optString("error").takeIf { it.isNotEmpty() }?.let { throw RuntimeException("Reddit: $it") }
         val a = j.optJSONArray("posts") ?: JSONArray()
         val posts = (0 until a.length()).map { a.getJSONObject(it) }.toMutableList()

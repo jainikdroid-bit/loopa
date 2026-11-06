@@ -179,8 +179,8 @@ object Interests {
             val t = top(axis, 12)
             if (t.isNotEmpty()) append(title).append(": ").append(t.joinToString(", ") { pre + it.first }).append("\n\n")
         }
-        line("Теги", "tag", "#"); line("Слова", "kw", ""); line("Сабреддиты", "sub", "r/"); line("Авторы", "user", "")
-        if (isEmpty()) append("Пока пусто: лайкайте, досматривайте и ищите — «Для вас» подстроится.")
+        line(tr("Теги"), "tag", "#"); line(tr("Слова"), "kw", ""); line(tr("Сабреддиты"), "sub", "r/"); line(tr("Авторы"), "user", "")
+        if (isEmpty()) append(tr("Пока пусто: лайкайте, досматривайте и ищите — «Для вас» подстроится."))
     }.trim()
 
     /** Сглаживание веса (логарифм): десяток лайков одного тега не должен перевешивать всё остальное. */
