@@ -30,7 +30,19 @@ object WebJson {
     }
 
     /** Открыть страницу и вернуть результат скрипта (строка; JSON — по договорённости со скриптом). */
-    fun page(ctx: Context, url: String, js: String, timeoutMs: Long = 20_000): String? = synchronized(lock) {
+    /** Открыть страницу; обрыв соединения (бывает на VPN) — ещё до 2 попыток с паузой. */
+    fun page(ctx: Context, url: String, js: String, timeoutMs: Long = 20_000): String? {
+        repeat(2) { n ->
+            pageOnce(ctx, url, js, timeoutMs)?.let { return it }
+            if (!lastWasError) return null                       // не ошибка, а тайм-аут — повтор не поможет
+            android.util.Log.i("Loopa", "WebJson повтор ${n + 1}: $url"); Thread.sleep(1500L * (n + 1))
+        }
+        return pageOnce(ctx, url, js, timeoutMs)
+    }
+    @Volatile private var lastWasError = false
+
+    private fun pageOnce(ctx: Context, url: String, js: String, timeoutMs: Long): String? = synchronized(lock) {
+        lastWasError = false
         val want = url.substringBefore('?').trimEnd('/').lowercase()
         val f = CompletableFuture<String?>()
         ui.post {
@@ -43,7 +55,12 @@ object WebJson {
                     android.util.Log.i("Loopa", "WebJson загружено: " + u.substringBefore('?'))
                     v.evaluateJavascript(js) { raw -> f.complete(str(raw)) }
                 }
-                override fun onReceivedError(v: WebView, r: WebResourceRequest, e: WebResourceError) { if (r.isForMainFrame) f.complete(null) }
+                // ошибка — только нашей страницы; обрыв прошлой (stopLoading → ERR_ABORTED) не в счёт
+                override fun onReceivedError(v: WebView, r: WebResourceRequest, e: WebResourceError) {
+                    if (r.isForMainFrame && e.errorCode != ERROR_UNKNOWN && r.url.toString().substringBefore('?').trimEnd('/').lowercase() == want) {
+                        android.util.Log.w("Loopa", "WebJson ошибка ${e.errorCode} ${e.description}: $want"); lastWasError = true; f.complete(null)
+                    }
+                }
             }
             w.stopLoading()
             w.loadUrl(url)

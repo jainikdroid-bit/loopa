@@ -207,7 +207,7 @@ object Search {
         val f = rdPending ?: java.util.concurrent.CompletableFuture.supplyAsync<List<Gif>> {
             runCatching {
                 val subs = rdSubs ?: (Reddit.searchSubs(q, 3) + (Api.words(q).take(2) + synonyms.take(2)).flatMap { runCatching { Reddit.searchSubs(it, 1) }.getOrDefault(emptyList()) })
-                    .distinct().take(5).also { rdSubs = it; android.util.Log.i("Loopa", "поиск «$q» на Reddit: $it") }
+                    .distinct().filter { !it.lowercase().contains("audio") && !it.lowercase().contains("writing") }.take(5).also { rdSubs = it; android.util.Log.i("Loopa", "поиск «$q» на Reddit: $it") }
                 if (subs.isEmpty() || p > 1 && rdNext == null) emptyList()
                 else Reddit.page(subs.joinToString("+"), "top-month", rdNext).let { (g, next) -> rdNext = next; g }
             }.onFailure { android.util.Log.w("Loopa", "поиск на Reddit", it) }.getOrDefault(emptyList())
