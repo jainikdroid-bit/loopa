@@ -20,6 +20,7 @@ import kotlin.math.ln
  */
 object ForYou {
     private val pool = Executors.newFixedThreadPool(3)
+    private const val WAIT_RD = 6_000L
     private var prefs: SharedPreferences? = null
     private var rgPage = 0
     private val tagPage = HashMap<String, Int>()
@@ -47,14 +48,21 @@ object ForYou {
     /** Почему Reddit не подмешался (для строки статуса); null — всё в порядке. */
     @Volatile var redditNote: String? = null; private set
 
-    @Synchronized fun reset() { redditNote = null; turn = 0; rr = 0; subCursor.clear(); searchAfter.clear(); rgPage = 0; tagPage.clear(); subs = emptyList(); after = null; redditDry = 0; shown.clear() }
+    @Synchronized fun reset() { pendingRd = null; redditNote = null; turn = 0; rr = 0; subCursor.clear(); searchAfter.clear(); rgPage = 0; tagPage.clear(); subs = emptyList(); after = null; redditDry = 0; shown.clear() }
 
     /** Следующая порция (в фоне). Пусто — источники кончились. Ошибка — только если не ответил ни один. */
+    /** Порция Reddit, не успевшая к прошлой выдаче, — войдёт в следующую. */
+    @Volatile private var pendingRd: java.util.concurrent.Future<List<Gif>>? = null
+
     fun page(): List<Gif> {
         val rgF = pool.submit<List<Gif>> { rg() }
-        val rdF = if (reddit && redditDry < 3) pool.submit<List<Gif>> { redditBatch() } else null
+        // Reddit (страница сайта) бывает медленным — RedGIFs его не ждёт: не успел за WAIT_RD после RedGIFs — в следующую порцию
+        val rdF = pendingRd ?: if (reddit && redditDry < 3) pool.submit<List<Gif>> { redditBatch() } else null
         val a = runCatching { rgF.get() }
-        val b = rdF?.let { f -> runCatching { f.get() } }
+        val b = rdF?.let { f ->
+            try { runCatching { f.get(WAIT_RD, java.util.concurrent.TimeUnit.MILLISECONDS) }.also { pendingRd = null } }
+            catch (e: Exception) { null }
+        }?.let { r -> if (r.exceptionOrNull() is java.util.concurrent.TimeoutException) { pendingRd = rdF; null } else r }
         b?.exceptionOrNull()?.let { e -> val c = unwrap(e); redditNote = "Reddit: " + (c.message ?: c.javaClass.simpleName); android.util.Log.w("Loopa", "Для вас: Reddit не ответил", c) }
             ?: run { if (b != null) redditNote = if (b.getOrNull().isNullOrEmpty()) redditNote ?: "Reddit: пусто" else null }
         if (a.isFailure && (b == null || b.isFailure)) throw unwrap(a.exceptionOrNull()!!)

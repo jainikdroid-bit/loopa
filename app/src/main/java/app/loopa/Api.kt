@@ -17,6 +17,8 @@ data class Gif(
     val w: Int, val h: Int, val duration: Double, val user: String, val tags: List<String>,
     val hasAudio: Boolean, val views: Long, val likes: Long, val description: String = "",
     val sub: String = "", val hls: Boolean = false, val dash: String = "",
+    /** Когда опубликован (unix, с); 0 — неизвестно. */
+    val created: Long = 0,
 ) {
     val reddit get() = sub.isNotEmpty()
 }
@@ -151,7 +153,8 @@ object Api {
         return Gif(g.getString("id"), u.optString("thumbnail").ifEmpty { u.optString("poster") }, hd,
             u.optString("sd").ifEmpty { hd }, g.optInt("width", 9), g.optInt("height", 16),
             g.optDouble("duration", 0.0).let { if (it.isNaN()) 0.0 else it }, g.optString("userName"), tags,
-            g.optBoolean("hasAudio"), g.optLong("views"), g.optLong("likes"), g.optString("description").takeIf { it != "null" }.orEmpty())
+            g.optBoolean("hasAudio"), g.optLong("views"), g.optLong("likes"), g.optString("description").takeIf { it != "null" }.orEmpty(),
+            created = g.optLong("createDate"))
     }
 
     private val known = java.util.Collections.synchronizedMap(object : LinkedHashMap<String, Gif?>(256, .75f, true) {
@@ -166,6 +169,65 @@ object Api {
         known[k] = g
         return g
     }
+
+    /**
+     * Расширение запроса похожими тегами: варианты написания (слитно, раздельно — «gearshift» → «gear shift») → подсказки
+     * RedGIFs по ним и по словам; берём теги, близкие к запросу (общее начало от 4 букв, содержит слово запроса или
+     * наоборот), самые частые сначала. Без самого запроса.
+     */
+    fun expand(q: String): List<String> {
+        val n = norm(q)
+        val ws = words(q).filter { it.length >= 3 }
+        val variants = LinkedHashSet<String>()
+        variants += q.trim(); variants += n
+        if (' ' !in q.trim() && n.length >= 7) for (i in 3..n.length - 3) variants += n.substring(0, i) + " " + n.substring(i)
+        ws.filter { it.length >= 4 }.forEach { variants += it }
+        val cand = HashMap<String, Int>()
+        variants.take(8).forEach { v ->
+            runCatching { suggest(v) }.getOrDefault(emptyList()).forEach { (t, c) ->
+                val tn = norm(t)
+                val close = tn.commonPrefixWith(n).length >= minOf(4, n.length) || ws.any { it.length >= 4 && tn.contains(it) } || n.contains(tn) && tn.length >= 4
+                if (close && tn != n) cand[t] = maxOf(cand[t] ?: 0, c)
+            }
+        }
+        val own = cand.entries.sortedByDescending { it.value }.map { it.key }.take(5)
+        // связи тегов с большого сайта: по запросу — теги найденных там видео, частые вместе; оставляем те, что есть на RedGIFs
+        val ph = phRelated(q).take(6).mapNotNull { t -> runCatching { suggest(t) }.getOrNull()?.firstOrNull { norm(it.first) == norm(t) }?.first }
+        return (own + ph).distinctBy { norm(it) }.filter { norm(it) != n }.take(8)
+    }
+
+    /**
+     * Связи тегов из открытого API Pornhub для вебмастеров (hubtraffic): видео по запросу и их теги → самые частые
+     * (кроме общих и возрастных). Нет ответа — пусто.
+     */
+    fun phRelated(q: String): List<String> = runCatching {
+        val j = JSONObject(Net.retry {
+            val c = Net.open("https://www.pornhub.com/webmasters/search?search=${enc(q)}&thumbsize=small")
+            try { if (c.responseCode !in 200..299) throw Net.fail(c); c.inputStream.bufferedReader().readText() } finally { c.disconnect() }
+        })
+        val v = j.optJSONArray("videos") ?: return@runCatching emptyList<String>()
+        val cnt = HashMap<String, Int>()
+        for (i in 0 until v.length()) v.getJSONObject(i).optJSONArray("tags")?.let { t ->
+            (0 until t.length()).map { t.getJSONObject(it).optString("tag_name").lowercase() }.distinct().forEach { cnt[it] = (cnt[it] ?: 0) + 1 }
+        }
+        cnt.entries.filter { it.value >= 2 && norm(it.key) !in GENERIC && it.key.split(" ").none { w -> w in AGE } }
+            .sortedByDescending { it.value }.map { it.key }.take(10)
+    }.getOrDefault(emptyList())
+    private val AGE = setOf("young", "teen", "teens", "teenager", "schoolgirl", "school", "barely", "tiny", "little", "small", "petite", "girl")
+
+    /** Теги, что чаще всего встречаются вместе в найденном (без общих вроде amateur, pussy) — «облако» связей запроса. */
+    fun related(gifs: List<Gif>, q: String, n: Int = 4): List<String> {
+        val qn = norm(q)
+        val cnt = HashMap<String, Int>()
+        gifs.forEach { g -> g.tags.filter { !it.startsWith("r/") }.distinct().forEach { t -> cnt[t] = (cnt[t] ?: 0) + 1 } }
+        return cnt.entries.filter { it.value >= 2 && norm(it.key) !in GENERIC && norm(it.key) != qn }
+            .sortedByDescending { it.value }.map { it.key }.take(n)
+    }
+    private fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]"), "")
+    private val GENERIC = setOf("amateur", "homemade", "nsfw", "porn", "sex", "pussy", "ass", "boobs", "tits", "bigtits", "naturaltits", "smalltits",
+        "masturbation", "masturbating", "orgasm", "femaleorgasm", "onlyfans", "brunette", "blonde", "redhead", "teen", "petite", "cute", "babe", "horny", "wet",
+        "solo", "solofemale", "female", "girl", "girls", "woman", "toy", "toys", "sextoy", "hardcore", "pov", "bigass", "booty", "thick", "curvy", "milf",
+        "nude", "naked", "hot", "sexy", "real", "verified", "oc", "selfie", "close up", "closeup", "gonewild", "18", "18yearsold", "college", "shaved", "pawg")
 
     /** Подсказки тегов: [(тег, сколько роликов)]. */
     fun suggest(q: String): List<Pair<String, Int>> {

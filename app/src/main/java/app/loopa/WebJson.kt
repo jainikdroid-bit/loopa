@@ -30,18 +30,22 @@ object WebJson {
     }
 
     /** Открыть страницу и вернуть результат скрипта (строка; JSON — по договорённости со скриптом). */
-    fun page(ctx: Context, url: String, js: String, timeoutMs: Long = 30_000): String? = synchronized(lock) {
+    fun page(ctx: Context, url: String, js: String, timeoutMs: Long = 20_000): String? = synchronized(lock) {
+        val want = url.substringBefore('?').trimEnd('/').lowercase()
         val f = CompletableFuture<String?>()
         ui.post {
             val w = view(ctx)
             w.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(v: WebView, u: String) {
                     if (f.isDone) return
+                    // запоздавшее окончание прошлой страницы — не наш ответ
+                    if (u.substringBefore('?').trimEnd('/').lowercase() != want) { android.util.Log.i("Loopa", "WebJson: не та страница " + u.substringBefore('?')); return }
                     android.util.Log.i("Loopa", "WebJson загружено: " + u.substringBefore('?'))
                     v.evaluateJavascript(js) { raw -> f.complete(str(raw)) }
                 }
                 override fun onReceivedError(v: WebView, r: WebResourceRequest, e: WebResourceError) { if (r.isForMainFrame) f.complete(null) }
             }
+            w.stopLoading()
             w.loadUrl(url)
         }
         val t0 = System.currentTimeMillis()

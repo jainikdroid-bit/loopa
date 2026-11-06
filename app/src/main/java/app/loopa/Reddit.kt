@@ -119,14 +119,40 @@ object Reddit {
             s.t?.let { append("&t=$it") }
             after?.let { append("&after=${enc(it)}") }
         }
+        // подписки и смесь «a+b»: главная и страница смеси у сайта ленту не отдают — листаем сабреддиты по кругу
+        if (sub.isEmpty() || sub.contains('+')) return roundRobin(sub, sortId, after)
         if (after?.startsWith(WEB) == true) return web(null, after.removePrefix(WEB))
         // ленты через API Reddit режет (403 или держит соединение без ответа минутами) — сразу со страницы сайта
-        return run {
-            // страница смеси «a+b» у нового сайта уводит на главную — берём случайный из смеси
-            val one = sub.split("+").filter { it.isNotBlank() }.randomOrNull() ?: sub
-            val url = WWW + when { sub.isEmpty() -> "/${s.path}/"; sub.startsWith("u/") -> "/user/${sub.substring(2)}/submitted/"; else -> "/r/$one/${s.path}/" } + (s.t?.let { "?t=$it" } ?: "")
-            web(url, null)
+        val url = WWW + (if (sub.startsWith("u/")) "/user/${sub.substring(2)}/submitted/" else "/r/$sub/${s.path}/") + (s.t?.let { "?t=$it" } ?: "")
+        return web(url, null)
+    }
+
+    /** Круг по сабреддитам: у каждого свой курсор; курсор круга — «rr:» (номер шага), конец — когда кончились все. */
+    private class Round(val subs: List<String>) { var i = 0; val cur = HashMap<String, String?>() }
+    private val rounds = HashMap<String, Round>()
+
+    private fun roundRobin(sub: String, sortId: String, after: String?): Pair<List<Gif>, String?> {
+        val key = "$sub|$sortId"
+        val r = synchronized(rounds) {
+            if (after == null || rounds[key] == null) {
+                val list = if (sub.isEmpty()) runCatching { subscribed() }.getOrElse { throw RuntimeException("Reddit: не получить подписки (${it.message})") }
+                    else sub.split("+").filter { it.isNotBlank() }
+                if (list.isEmpty()) throw RuntimeException("Reddit: подписок нет — найдите сабреддит в поиске выше")
+                rounds[key] = Round(list.filter { !isBad(it) }.shuffled())
+            }
+            rounds[key]!!
         }
+        // до 3 сабреддитов за шаг, пока не наберётся десяток роликов
+        val out = ArrayList<Gif>()
+        var tries = 0
+        while (out.size < 10 && tries++ < 3) {
+            val s = synchronized(rounds) { r.subs.filter { !r.cur.containsKey(it) || r.cur[it] != null }.let { open -> if (open.isEmpty()) null else open[r.i++ % open.size] } } ?: break
+            val (g, next) = runCatching { page(s, sortId, r.cur[s]) }.getOrElse { android.util.Log.w("Loopa", "Reddit r/$s: ${it.message}"); emptyList<Gif>() to null }
+            synchronized(rounds) { r.cur[s] = next }
+            out += g
+        }
+        val more = r.subs.any { !r.cur.containsKey(it) || r.cur[it] != null }
+        return out to (if (more) "rr:${r.i}" else null)
     }
 
     /** Курсор ленты со страницы сайта: адрес следующей порции (её подгружает сам сайт при прокрутке). */
@@ -137,7 +163,7 @@ object Reddit {
 var pl=p.querySelector('shreddit-player-2,shreddit-player');var im=p.querySelector('img[src*="preview.redd.it"],img[src*="external-preview.redd.it"],img[src*="i.redd.it"]');
 return{id:(p.getAttribute('id')||'').replace(/^t3_/,''),title:p.getAttribute('post-title')||'',author:p.getAttribute('author')||'',
 sub:(p.getAttribute('subreddit-prefixed-name')||'').replace(/^r\//,''),score:+(p.getAttribute('score')||0),comments:+(p.getAttribute('comment-count')||0),
-type:p.getAttribute('post-type')||'',href:p.getAttribute('content-href')||'',src:pl?(pl.getAttribute('src')||''):'',poster:pl?(pl.getAttribute('poster')||''):'',
+type:p.getAttribute('post-type')||'',ts:Math.floor((Date.parse(p.getAttribute('created-timestamp')||'')||0)/1000),href:p.getAttribute('content-href')||'',src:pl?(pl.getAttribute('src')||''):'',poster:pl?(pl.getAttribute('poster')||''):'',
 thumb:im?im.getAttribute('src'):''};});};
 var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');return m?m.getAttribute('src'):null;};"""
 
@@ -172,7 +198,7 @@ var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');
     private fun fromPage(o: JSONObject): Gif? {
         val src = o.optString("src"); val href = o.optString("href")
         val base = Gif("rd_" + o.optString("id"), o.optString("poster").ifEmpty { o.optString("thumb") }, "", "", 9, 16, 0.0, o.optString("author"),
-            listOf("r/" + o.optString("sub")), true, o.optLong("comments"), o.optLong("score"), o.optString("title"), sub = o.optString("sub"))
+            listOf("r/" + o.optString("sub")), true, o.optLong("comments"), o.optLong("score"), o.optString("title"), sub = o.optString("sub"), created = o.optLong("ts"))
         if (src.contains(".m3u8")) return base.copy(hd = src, sd = src, hls = true, dash = src.substringBefore('?').replace("HLSPlaylist.m3u8", "DASHPlaylist.mpd"))
         RG.find(href)?.let { m ->
             val g = Api.gif(m.groupValues[1]) ?: return null
@@ -251,7 +277,7 @@ var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');
         if (d.optBoolean("is_self")) return null
         val src = if (rv(d) == null) d.optJSONArray("crosspost_parent_list")?.optJSONObject(0)?.takeIf { rv(it) != null } ?: d else d
         val base = Gif("rd_" + d.optString("id"), thumb(src), "", "", 9, 16, 0.0, d.optString("author"), listOf("r/" + d.optString("subreddit")),
-            false, d.optLong("num_comments"), d.optLong("score"), d.optString("title"), sub = d.optString("subreddit"))
+            false, d.optLong("num_comments"), d.optLong("score"), d.optString("title"), sub = d.optString("subreddit"), created = d.optLong("created_utc"))
         rv(src)?.let { v ->
             val hls = v.optString("hls_url").ifEmpty { return@let null }
             return base.copy(hd = hls, sd = hls, hls = true, dash = v.optString("dash_url"), w = v.optInt("width", 9), h = v.optInt("height", 16),

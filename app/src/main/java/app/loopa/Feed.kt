@@ -6,9 +6,10 @@ import kotlin.concurrent.thread
 
 /**
  * Сортировка выдачи. api — порядок на сервере (search: score, trending, top7, top28, top, latest; у автора ещё oldest);
- * local — досортировка на телефоне (длительность, лайки, просмотры, рейтинг: сервер так не умеет).
+ * local — досортировка на телефоне (длительность, лайки, просмотры, рейтинг: сервер так не умеет), по убыванию;
+ * dir — у сортировки есть направление ↑/↓ ([Feed.desc]).
  */
-class Sort(val id: String, val label: String, val short: String, val api: String, val local: Comparator<Gif>? = null, val authorOnly: Boolean = false)
+class Sort(val id: String, val label: String, val short: String, val api: String, val local: Comparator<Gif>? = null, val dir: Boolean = false)
 
 /**
  * Текущая выдача (общая для сетки и плеера): запрос, сортировка, фильтры, автор, загруженные ролики. Подгрузка страниц —
@@ -22,14 +23,16 @@ object Feed {
         Sort("top7", "Лучшее за неделю", "Неделя", "top7"),
         Sort("top28", "Лучшее за месяц", "Месяц", "top28"),
         Sort("top", "Лучшее за всё время", "Всё время", "top"),
-        Sort("latest", "Сначала новые", "Новые", "latest"),
-        Sort("oldest", "Сначала старые", "Старые", "oldest", authorOnly = true),
-        Sort("long", "Сначала длинные", "Длинные", "top", compareByDescending { it.duration }),
-        Sort("short", "Сначала короткие", "Короткие", "top", compareBy { if (it.duration > 0) it.duration else Double.MAX_VALUE }),
-        Sort("likes", "Больше лайков", "Лайки", "top", compareByDescending { it.likes }),
-        Sort("views", "Больше просмотров", "Просмотры", "top", compareByDescending { it.views }),
-        Sort("rating", "Выше рейтинг (лайки / просмотры)", "Рейтинг", "top", compareByDescending { it.likes.toDouble() / maxOf(it.views, 200L) }),
+        Sort("date", "Дата", "Дата", "latest", compareByDescending { it.created }, dir = true),
+        Sort("duration", "Длительность", "Длительность", "top", compareByDescending { it.duration }, dir = true),
+        Sort("likes", "Лайки", "Лайки", "top", compareByDescending { it.likes }, dir = true),
+        Sort("views", "Просмотры", "Просмотры", "top", compareByDescending { it.views }, dir = true),
+        Sort("rating", "Рейтинг (лайки / просмотры)", "Рейтинг", "top", compareByDescending { it.likes.toDouble() / maxOf(it.views, 200L) }, dir = true),
     )
+    /** Направление сортировки: true — по убыванию (больше, длиннее, новее — сначала). */
+    var desc = true
+    /** Подмешивать Reddit в поиск. */
+    var searchReddit = true
     /** Фильтр длительности: id → подпись и границы, с. */
     val DURATIONS = listOf(Triple("any", "Любая длительность", 0.0..Double.MAX_VALUE), Triple("short", "До 15 с", 0.1..15.0),
         Triple("mid", "15–60 с", 15.0..60.0), Triple("long", "Дольше минуты", 60.0..Double.MAX_VALUE))
@@ -77,10 +80,24 @@ object Feed {
     init { Net.online += { if (error != null) retry() } }
 
     /** Сортировка, выбранная в прошлый раз (без загрузки). */
-    fun restore(order: String) { if (SORTS.any { it.id == order }) this.order = order }
+    fun restore(order: String) {
+        // старые id (до 1.5): длинные/короткие, новые/старые
+        when (order) { "long" -> { this.order = "duration"; desc = true }; "short" -> { this.order = "duration"; desc = false }
+            "latest" -> { this.order = "date"; desc = true }; "oldest" -> { this.order = "date"; desc = false }
+            else -> if (SORTS.any { it.id == order }) this.order = order }
+    }
+
+    /** Досортировка на телефоне с учётом направления; «дата ↓» — порядок сервера, «дата ↑» у автора — сервер (oldest). */
+    private fun localCmp(): Comparator<Gif>? {
+        val s = sort
+        if (s.id == "date" && (desc || author != null)) return null
+        val c = s.local ?: return null
+        return if (desc) c else c.reversed()
+    }
 
     fun reset(text: String, order: String, author: String? = null, mode: String? = null, tag: Boolean = false) {
         this.text = text; this.order = order; this.author = author; this.mode = mode; query = ""; tagOnly = tag; byTag = tag; exact = 0
+        rdPending = null
         items.clear(); page = 0; pages = 1; after = null; loading = false; error = null; fails = 0; chain = 0; stopRetry(); gen++
         if (mode == "foryou") ForYou.reset()
         changed(); more()
@@ -107,8 +124,9 @@ object Feed {
     private fun apiOrder(): String {
         val s = sort
         return when {
+            author != null && s.id == "date" -> if (desc) "latest" else "oldest"
             author != null -> if (s.api == "score") "latest" else s.api
-            s.authorOnly -> "latest"
+            s.id == "date" -> "latest"
             s.local != null && text.isNotBlank() -> "score"
             else -> s.api
         }
@@ -154,7 +172,25 @@ object Feed {
                     tagOnly -> text
                     else -> text.trim().let { t -> Api.toTags(t)?.also { bt = true } ?: t.also { bt = false } }
                 }
-                Triple(q, bt, Api.page(q, ord, p, author, mode, bt))
+                var pg = Api.page(q, ord, p, author, mode, bt)
+                // похожие теги (варианты написания, подсказки, часто встречающиеся вместе) — по одному на порцию
+                if (text.isNotBlank() && author == null && mode == null && !tagOnly && g == gen) runCatching {
+                    if (p == 1) { exp = Api.expand(text); expPage.clear(); expI = 0 }
+                    if (p == 1 || exp.size < 8) exp = (exp + Api.related(pg.gifs, text)).distinct().take(10)
+                    android.util.Log.i("Loopa", "поиск «$text»: похожие ${exp}")
+                    exp.getOrNull(expI++ % maxOf(exp.size, 1))?.let { t ->
+                        val n = (expPage[t] ?: 0) + 1; expPage[t] = n
+                        val more = Api.page(t, ord, n, byTag = true)
+                        pg = Page(pg.gifs + more.gifs, maxOf(pg.pages, p + 1), pg.tags)
+                    }
+                }
+                // поиск: подмешать Reddit — посты с сабреддитов, найденных по запросу (поиск постов Reddit режет)
+                // Reddit не задерживает выдачу: ждём не больше 6 с, опоздавшее — в следующую порцию
+                val rd = if (searchReddit && text.isNotBlank() && author == null && mode == null && Reddit.hadUser && g == gen) {
+                    val f = rdPending ?: rdPool.submit<List<Gif>> { runCatching { redditSearch(text, p) }.onFailure { android.util.Log.w("Loopa", "поиск на Reddit", it) }.getOrDefault(emptyList()) }
+                    try { f.get(6, java.util.concurrent.TimeUnit.SECONDS).also { rdPending = null } } catch (e: java.util.concurrent.TimeoutException) { rdPending = f; emptyList() } catch (e: Exception) { rdPending = null; emptyList() }
+                } else emptyList()
+                Triple(q, bt, if (rd.isEmpty()) pg else Page(interleave(pg.gifs, rd), maxOf(pg.pages, p + if (rdNext != null) 1 else 0), pg.tags))
             }
             ui.post {
                 if (g != gen) return@post
@@ -174,7 +210,7 @@ object Feed {
         // одинаковые ролики: тот же id, тот же файл или перезалив (тот же размер кадра и длительность до сотых секунды)
         val fresh = pg.gifs.filter { seen.add(it.id) && seen.add(it.hd) && twin(it)?.let { k -> same.add(k) } != false }
             .filter { duration == "any" || it.duration in range }.filter { !audioOnly || it.hasAudio }.filter { !Hide.hidden(it) }
-        val cmp = if (mode == null || mode == "foryou") sort.local else null
+        val cmp = if (mode == null || mode == "foryou") localCmp() else null
         if (cmp != null) {
             // досортировка: первые POOL роликов — целиком, дальше — каждая страница в себе (сетка выше не прыгает)
             if (items.size < POOL) { items += fresh; items.sortWith(cmp) } else items += fresh.sortedWith(cmp)
@@ -194,6 +230,40 @@ object Feed {
         if (need && page < pages && chain <= if (items.size < 20) 8 else 3) ui.post { more() }
     }
     private var chain = 0
+
+    // ---- похожие теги в поиске ----
+    @Volatile private var exp: List<String> = emptyList()
+    private val expPage = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    @Volatile private var expI = 0
+    /** Похожие теги текущего поиска — для чипов и строки статуса. */
+    val related get() = exp
+
+    // ---- Reddit в поиске ----
+    @Volatile private var rdSubs: List<String>? = null
+    @Volatile private var rdPending: java.util.concurrent.Future<List<Gif>>? = null
+    private val rdPool = java.util.concurrent.Executors.newSingleThreadExecutor()
+    @Volatile private var rdNext: String? = null
+    @Volatile private var rdFor = ""
+
+    /** Сабреддиты по запросу (по фразе и по словам) → их посты; курсор — круг по сабреддитам ([Reddit.page]). */
+    private fun redditSearch(text: String, p: Int): List<Gif> {
+        if (rdFor != text || p == 1) { rdFor = text; rdSubs = null; rdNext = null }
+        val subs = rdSubs ?: (Reddit.searchSubs(text, 3) + (Api.words(text).take(2) + exp.take(3)).flatMap { w -> runCatching { Reddit.searchSubs(w, 1) }.getOrDefault(emptyList()) })
+            .distinct().take(5).also { rdSubs = it; android.util.Log.i("Loopa", "поиск «$text» на Reddit: $it") }
+        if (subs.isEmpty() || p > 1 && rdNext == null) return emptyList()
+        val rs = when (order) { "date" -> "new"; "top7" -> "top-week"; "top28" -> "top-month"; "top" -> "top-all"; else -> "hot" }
+        val (g, next) = Reddit.page(subs.joinToString("+"), rs, if (p == 1) null else rdNext)
+        rdNext = next
+        return g
+    }
+
+    /** Вставить посты Reddit в выдачу RedGIFs: каждый третий. */
+    private fun interleave(a: List<Gif>, b: List<Gif>): List<Gif> {
+        val out = ArrayList<Gif>(a.size + b.size); var j = 0
+        a.forEachIndexed { i, x -> out += x; if (i % 2 == 1 && j < b.size) out += b[j++] }
+        while (j < b.size) out += b[j++]
+        return out
+    }
 
     /** Ключ перезалива: размер кадра + длительность до 0,01 с (у разных роликов совпадает редко); null — длительность неизвестна. */
     private fun twin(g: Gif) = if (g.duration > 0.5 && g.w > 16) "${g.w}x${g.h}@${Math.round(g.duration * 100)}" else null
