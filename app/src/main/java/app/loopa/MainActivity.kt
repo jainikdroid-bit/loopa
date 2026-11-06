@@ -203,8 +203,11 @@ class MainActivity : Activity() {
     private fun savedSubs() = prefs.getString("subs", "")!!.split("\n").filter { it.isNotBlank() }
 
     override fun onDestroy() { Feed.listeners -= onFeed; preview.release(); super.onDestroy() }
-    override fun onPause() { super.onPause(); preview.stopAll() }
-    override fun onResume() { super.onResume(); if (::grid.isInitialized) grid.postDelayed({ live() }, 300) }
+    // превью — только пока главный экран на виду: иначе (лента догрузилась, пока открыт плеер) они запускались в фоне
+    // и отбирали видеодекодеры у плеера — картинка вставала, а звук шёл дальше
+    private var shown = false
+    override fun onPause() { super.onPause(); shown = false; preview.stopAll() }
+    override fun onResume() { super.onResume(); shown = true; if (::grid.isInitialized) grid.postDelayed({ live() }, 300) }
 
     private val preview by lazy { GridPreview(this) }
     private var waits = 0
@@ -212,7 +215,7 @@ class MainActivity : Activity() {
 
     /** Обновить живые превью: ячейки, видимые целиком. */
     private fun live() {
-        if (!::grid.isInitialized || isFinishing) return
+        if (!::grid.isInitialized || isFinishing || !shown) return
         val lm = grid.layoutManager as GridLayoutManager
         val a = lm.findFirstVisibleItemPosition(); val b = lm.findLastVisibleItemPosition()
         // порядок важности: видимые целиком, затем частично (чем больше видно — тем раньше), ближе к центру — раньше;
