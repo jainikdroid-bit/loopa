@@ -29,3 +29,8 @@
 
 - Not on Google Play; installed from the APK. Signing certificate SHA-256: 32:9D:15:73:05:60:8C:5D:F2:1B:D7:7B:ED:3F:9C:70:DC:1C:38:D0:F9:44:A6:F8:C9:69:26:12:90:44:9C:84
 - Interface is in Russian; translations are welcome.
+
+## Guides
+
+- RedGIFs app for Android: https://jainikdroid-bit.github.io/loopa/guides/redgifs-app-android/
+- Download Reddit videos with sound on Android: https://jainikdroid-bit.github.io/loopa/guides/download-reddit-videos-with-sound-android/
