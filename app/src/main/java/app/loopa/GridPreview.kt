@@ -17,7 +17,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 
 /**
  * Живые превью в сетке: видимые целиком ячейки играют свой ролик без звука поверх картинки (картинка видна, пока не
- * пришёл первый кадр). Нарезкой, как превью на больших видеосайтах: кусочки из начала, около трети, около двух третей и
+ * пришёл первый кадр). Играют все ячейки на экране (на медленной сети — 3); коснулись ячейки — её превью первым. Нарезкой, как превью на больших видеосайтах: кусочки из начала, около трети, около двух третей и
  * концовка, по 1,5–2,5 с, по кругу — сюжет понятен сразу. Ролики короче [CUTS_MIN] с — целиком. Одновременно — до 3 ячеек, на медленной сети ([Video.slow]) — одна, выключено — ни одной.
  * Ролики идут через общий кэш [Video] — открыл в плеере, и он стартует с уже скачанного. Качество — SD (у потока Reddit
  * HLS сам берёт по сети).
@@ -56,7 +56,11 @@ class GridPreview(private val ctx: Context) {
     }
     var enabled = true
 
-    fun limit() = when { !enabled -> 0; Video.slow -> 1; else -> 3 }
+    /** Сколько играют сразу: все на экране (до 8), на медленной сети — 3. */
+    fun limit() = when { !enabled -> 0; Video.slow -> 3; else -> 8 }
+
+    /** Ячейка, которой коснулись, — первая в очереди: превью запускается сразу. */
+    @Volatile var touched: Slot? = null
 
     private fun player(): ExoPlayer = idle.removeLastOrNull() ?: ExoPlayer.Builder(ctx)
         .setMediaSourceFactory(DefaultMediaSourceFactory(Video.source))
@@ -66,7 +70,8 @@ class GridPreview(private val ctx: Context) {
 
     /** Какие ячейки играют: видимые целиком, первые [limit] по порядку. */
     fun update(visible: List<Pair<Slot, Gif>>) {
-        val want = visible.take(limit())
+        val t = touched
+        val want = visible.sortedBy { if (it.first === t) 0 else 1 }.take(limit())
         val keep = want.map { it.first }.toSet()
         active.keys.filter { it !in keep }.forEach { stop(it) }
         want.forEach { (s, g) -> if (s !in active) start(s, g) }

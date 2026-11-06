@@ -214,14 +214,23 @@ class MainActivity : Activity() {
     private fun live() {
         if (!::grid.isInitialized || isFinishing) return
         val lm = grid.layoutManager as GridLayoutManager
-        val a = lm.findFirstCompletelyVisibleItemPosition(); val b = lm.findLastCompletelyVisibleItemPosition()
+        val a = lm.findFirstVisibleItemPosition(); val b = lm.findLastVisibleItemPosition()
+        // порядок важности: видимые целиком, затем частично (чем больше видно — тем раньше), ближе к центру — раньше;
+        // при нехватке превью отключаются уехавшие за край экрана
+        val mid = grid.height / 2f
         val vis = if (a < 0) emptyList() else (a..b).mapNotNull { p ->
             val h = grid.findViewHolderForAdapterPosition(p) as? GridAdapter.H ?: return@mapNotNull null
-            Feed.items.getOrNull(p)?.let { h.slot to it }
-        }
+            val v = h.itemView
+            val shown = (minOf(v.bottom, grid.height) - maxOf(v.top, 0)).coerceAtLeast(0) / v.height.coerceAtLeast(1).toFloat()
+            Feed.items.getOrNull(p)?.let { Triple(h.slot, it, -shown * 10_000 + kotlin.math.abs((v.top + v.bottom) / 2f - mid)) }
+        }.sortedBy { it.third }.map { it.first to it.second }
         // сначала картинки: превью запускаем, только когда все видимые картинки догрузились (видео не отнимает у них канал)
         // (не дольше ~4 с: картинка могла не загрузиться вовсе)
-        if (vis.any { !Thumbs.has(it.second.thumb) } && waits++ < 6) { grid.removeCallbacks(liveLater); grid.postDelayed(liveLater, 700); return }
+        // (кроме ячейки, которой коснулись: её — сразу)
+        if (vis.any { !Thumbs.has(it.second.thumb) } && waits++ < 6) {
+            vis.firstOrNull { it.first === preview.touched }?.let { preview.update(listOf(it)) }
+            grid.removeCallbacks(liveLater); grid.postDelayed(liveLater, 700); return
+        }
         waits = 0
         preview.update(vis)
     }
@@ -474,6 +483,8 @@ class MainActivity : Activity() {
             Thumbs.load(h.img, g.thumb)
             h.dur.text = (if (g.hasAudio) "🔊 " else "") + time(g.duration)
             h.src.text = if (g.reddit) "RD" else "RG"; h.src.background = pill(if (g.reddit) RD_COLOR else RG_COLOR)
+            // касание — приоритет загрузки превью этой ячейки
+            h.box.setOnTouchListener { _, e -> if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) { preview.touched = h.slot; grid.post { live() } }; false }
             h.box.setOnClickListener { startActivity(Intent(this@MainActivity, PlayerActivity::class.java).putExtra("pos", h.bindingAdapterPosition)) }
             h.box.setOnLongClickListener { Downloads.get(this@MainActivity, g); Interests.download(g); true }
         }
