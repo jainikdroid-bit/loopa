@@ -46,7 +46,12 @@ object RgSite : Site("RedGIFs", "https://www.redgifs.com/login", "https://www.re
 }
 
 /** Ловит токен вошедшего пользователя со страницы сайта в WebView. Пароль приложение не видит. */
-class TokenCatcher(private val web: WebView, private val site: Site, private val onToken: (String, Long) -> Unit) {
+class TokenCatcher(
+    private val web: WebView, private val site: Site,
+    /** Страница: (адрес, ошибка загрузки или null) — для подписи в окне входа. */
+    private val onPage: ((String, String?) -> Unit)? = null,
+    private val onToken: (String, Long) -> Unit,
+) {
     private val ui = Handler(Looper.getMainLooper())
     private val checked = ConcurrentHashMap.newKeySet<String>()
     @Volatile var done = false; private set
@@ -60,6 +65,14 @@ class TokenCatcher(private val web: WebView, private val site: Site, private val
         web.webViewClient = object : WebViewClient() {
             // приложения Reddit/Google не открываем (intent://, reddit://) — вход идёт здесь же
             override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest) = !(r.url.scheme == "https" || r.url.scheme == "http")
+
+            override fun onPageStarted(v: WebView, url: String, f: android.graphics.Bitmap?) { onPage?.invoke(url, null) }
+            override fun onReceivedError(v: WebView, r: WebResourceRequest, e: android.webkit.WebResourceError) {
+                if (r.isForMainFrame) onPage?.invoke(r.url.toString(), e.description.toString())
+            }
+            override fun onReceivedHttpError(v: WebView, r: WebResourceRequest, e: WebResourceResponse) {
+                if (r.isForMainFrame && e.statusCode >= 400) onPage?.invoke(r.url.toString(), "HTTP ${e.statusCode}")
+            }
 
             override fun shouldInterceptRequest(v: WebView, r: WebResourceRequest): WebResourceResponse? {
                 if (r.url.host in site.hosts) {
