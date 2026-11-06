@@ -90,6 +90,8 @@ object Feed {
     /** Досортировка на телефоне с учётом направления; «дата ↓» — порядок сервера, «дата ↑» у автора — сервер (oldest). */
     private fun localCmp(): Comparator<Gif>? {
         val s = sort
+        // поиск собирается из многих источников — дату сортируем сами
+        if (s.id == "date" && text.isNotBlank() && author == null && mode == null) return if (desc) compareByDescending { it.created } else compareBy { it.created }
         if (s.id == "date" && (desc || author != null)) return null
         val c = s.local ?: return null
         return if (desc) c else c.reversed()
@@ -97,7 +99,7 @@ object Feed {
 
     fun reset(text: String, order: String, author: String? = null, mode: String? = null, tag: Boolean = false) {
         this.text = text; this.order = order; this.author = author; this.mode = mode; query = ""; tagOnly = tag; byTag = tag; exact = 0
-        rdPending = null
+        scoreOf.clear()
         items.clear(); page = 0; pages = 1; after = null; loading = false; error = null; fails = 0; chain = 0; stopRetry(); gen++
         if (mode == "foryou") ForYou.reset()
         changed(); more()
@@ -162,6 +164,23 @@ object Feed {
             }
             return
         }
+        if (text.isNotBlank() && author == null && mode == null && !tagOnly) {
+            // поиск текстом — живьём: каждый источник, как ответил, сразу в выдачу на своё место по релевантности ([Search])
+            val t = text
+            thread {
+                if (p == 1) Search.reset(t)
+                val r = runCatching { Search.run(p, ord, searchReddit && Reddit.hadUser) { part -> ui.post { if (g == gen) { addLive(part); changed() } } } }
+                ui.post {
+                    if (g != gen) return@post
+                    loading = false
+                    r.onSuccess { query = t; byTag = false; page = p; pages = if (it > 0) p + 1 else p; error = null; fails = 0 }.onFailure { fail(it) }
+                    changed()
+                    // мало прошло фильтры — сразу следующая порция
+                    if (r.isSuccess && items.size < 20 && page < pages && p < 4) more()
+                }
+            }
+            return
+        }
         thread {
             val r = runCatching {
                 // запрос → теги (если он целиком из тегов) или текст, как на сайте
@@ -172,25 +191,7 @@ object Feed {
                     tagOnly -> text
                     else -> text.trim().let { t -> Api.toTags(t)?.also { bt = true } ?: t.also { bt = false } }
                 }
-                var pg = Api.page(q, ord, p, author, mode, bt)
-                // похожие теги (варианты написания, подсказки, часто встречающиеся вместе) — по одному на порцию
-                if (text.isNotBlank() && author == null && mode == null && !tagOnly && g == gen) runCatching {
-                    if (p == 1) { exp = Api.expand(text); expPage.clear(); expI = 0 }
-                    if (p == 1 || exp.size < 8) exp = (exp + Api.related(pg.gifs, text)).distinct().take(10)
-                    android.util.Log.i("Loopa", "поиск «$text»: похожие ${exp}")
-                    exp.getOrNull(expI++ % maxOf(exp.size, 1))?.let { t ->
-                        val n = (expPage[t] ?: 0) + 1; expPage[t] = n
-                        val more = Api.page(t, ord, n, byTag = true)
-                        pg = Page(pg.gifs + more.gifs, maxOf(pg.pages, p + 1), pg.tags)
-                    }
-                }
-                // поиск: подмешать Reddit — посты с сабреддитов, найденных по запросу (поиск постов Reddit режет)
-                // Reddit не задерживает выдачу: ждём не больше 6 с, опоздавшее — в следующую порцию
-                val rd = if (searchReddit && text.isNotBlank() && author == null && mode == null && Reddit.hadUser && g == gen) {
-                    val f = rdPending ?: rdPool.submit<List<Gif>> { runCatching { redditSearch(text, p) }.onFailure { android.util.Log.w("Loopa", "поиск на Reddit", it) }.getOrDefault(emptyList()) }
-                    try { f.get(6, java.util.concurrent.TimeUnit.SECONDS).also { rdPending = null } } catch (e: java.util.concurrent.TimeoutException) { rdPending = f; emptyList() } catch (e: Exception) { rdPending = null; emptyList() }
-                } else emptyList()
-                Triple(q, bt, if (rd.isEmpty()) pg else Page(interleave(pg.gifs, rd), maxOf(pg.pages, p + if (rdNext != null) 1 else 0), pg.tags))
+                Triple(q, bt, Api.page(q, ord, p, author, mode, bt))
             }
             ui.post {
                 if (g != gen) return@post
@@ -231,38 +232,25 @@ object Feed {
     }
     private var chain = 0
 
-    // ---- похожие теги в поиске ----
-    @Volatile private var exp: List<String> = emptyList()
-    private val expPage = java.util.concurrent.ConcurrentHashMap<String, Int>()
-    @Volatile private var expI = 0
-    /** Похожие теги текущего поиска — для чипов и строки статуса. */
-    val related get() = exp
+    /** Оценка релевантности уже показанных роликов поиска — новые встают на своё место. */
+    private val scoreOf = HashMap<String, Double>()
 
-    // ---- Reddit в поиске ----
-    @Volatile private var rdSubs: List<String>? = null
-    @Volatile private var rdPending: java.util.concurrent.Future<List<Gif>>? = null
-    private val rdPool = java.util.concurrent.Executors.newSingleThreadExecutor()
-    @Volatile private var rdNext: String? = null
-    @Volatile private var rdFor = ""
-
-    /** Сабреддиты по запросу (по фразе и по словам) → их посты; курсор — круг по сабреддитам ([Reddit.page]). */
-    private fun redditSearch(text: String, p: Int): List<Gif> {
-        if (rdFor != text || p == 1) { rdFor = text; rdSubs = null; rdNext = null }
-        val subs = rdSubs ?: (Reddit.searchSubs(text, 3) + (Api.words(text).take(2) + exp.take(3)).flatMap { w -> runCatching { Reddit.searchSubs(w, 1) }.getOrDefault(emptyList()) })
-            .distinct().take(5).also { rdSubs = it; android.util.Log.i("Loopa", "поиск «$text» на Reddit: $it") }
-        if (subs.isEmpty() || p > 1 && rdNext == null) return emptyList()
-        val rs = when (order) { "date" -> "new"; "top7" -> "top-week"; "top28" -> "top-month"; "top" -> "top-all"; else -> "hot" }
-        val (g, next) = Reddit.page(subs.joinToString("+"), rs, if (p == 1) null else rdNext)
-        rdNext = next
-        return g
-    }
-
-    /** Вставить посты Reddit в выдачу RedGIFs: каждый третий. */
-    private fun interleave(a: List<Gif>, b: List<Gif>): List<Gif> {
-        val out = ArrayList<Gif>(a.size + b.size); var j = 0
-        a.forEachIndexed { i, x -> out += x; if (i % 2 == 1 && j < b.size) out += b[j++] }
-        while (j < b.size) out += b[j++]
-        return out
+    /** Часть живого поиска: без дублей и скрытого, по фильтрам; по релевантности — на место, иначе — по выбранной сортировке. */
+    private fun addLive(part: List<Pair<Gif, Double>>) {
+        val seen = HashSet<String>(); items.forEach { seen += it.id; seen += it.hd }
+        val same = items.mapNotNullTo(HashSet()) { twin(it) }
+        val range = range
+        val fresh = part.filter { (x, _) -> seen.add(x.id) && seen.add(x.hd) && twin(x)?.let { k -> same.add(k) } != false }
+            .filter { (x, _) -> (duration == "any" || x.duration in range) && (!audioOnly || x.hasAudio) && !Hide.hidden(x) }
+        if (fresh.isEmpty()) return
+        fresh.forEach { scoreOf[it.first.id] = it.second }
+        val cmp = localCmp()
+        if (cmp != null) { items += fresh.map { it.first }; items.sortWith(cmp) }
+        else fresh.sortedByDescending { it.second }.forEach { (x, sc) ->
+            val at = items.indexOfFirst { (scoreOf[it.id] ?: 0.0) < sc }.let { if (it < 0) items.size else it }
+            items.add(at, x)
+        }
+        exact = Search.exact
     }
 
     /** Ключ перезалива: размер кадра + длительность до 0,01 с (у разных роликов совпадает редко); null — длительность неизвестна. */

@@ -200,19 +200,22 @@ object Api {
      * Связи тегов из открытого API Pornhub для вебмастеров (hubtraffic): видео по запросу и их теги → самые частые
      * (кроме общих и возрастных). Нет ответа — пусто.
      */
-    fun phRelated(q: String): List<String> = runCatching {
+    fun phRelated(q: String): List<String> = phRelatedCounts(q).first.map { it.first }
+
+    /** То же с долями: (тег, в скольких видео), всего видео. */
+    fun phRelatedCounts(q: String): Pair<List<Pair<String, Int>>, Int> = runCatching {
         val j = JSONObject(Net.retry {
             val c = Net.open("https://www.pornhub.com/webmasters/search?search=${enc(q)}&thumbsize=small")
             try { if (c.responseCode !in 200..299) throw Net.fail(c); c.inputStream.bufferedReader().readText() } finally { c.disconnect() }
         })
-        val v = j.optJSONArray("videos") ?: return@runCatching emptyList<String>()
+        val v = j.optJSONArray("videos") ?: return@runCatching emptyList<Pair<String, Int>>() to 0
         val cnt = HashMap<String, Int>()
         for (i in 0 until v.length()) v.getJSONObject(i).optJSONArray("tags")?.let { t ->
             (0 until t.length()).map { t.getJSONObject(it).optString("tag_name").lowercase() }.distinct().forEach { cnt[it] = (cnt[it] ?: 0) + 1 }
         }
         cnt.entries.filter { it.value >= 2 && norm(it.key) !in GENERIC && it.key.split(" ").none { w -> w in AGE } }
-            .sortedByDescending { it.value }.map { it.key }.take(10)
-    }.getOrDefault(emptyList())
+            .sortedByDescending { it.value }.map { it.key to it.value }.take(12) to v.length()
+    }.getOrDefault(emptyList<Pair<String, Int>>() to 0)
     private val AGE = setOf("young", "teen", "teens", "teenager", "schoolgirl", "school", "barely", "tiny", "little", "small", "petite", "girl")
 
     /** Теги, что чаще всего встречаются вместе в найденном (без общих вроде amateur, pussy) — «облако» связей запроса. */
@@ -224,6 +227,8 @@ object Api {
             .sortedByDescending { it.value }.map { it.key }.take(n)
     }
     private fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]"), "")
+    /** Общий тег (amateur, pussy…) — для связей не годится. */
+    fun isGeneric(t: String) = norm(t) in GENERIC
     private val GENERIC = setOf("amateur", "homemade", "nsfw", "porn", "sex", "pussy", "ass", "boobs", "tits", "bigtits", "naturaltits", "smalltits",
         "masturbation", "masturbating", "orgasm", "femaleorgasm", "onlyfans", "brunette", "blonde", "redhead", "teen", "petite", "cute", "babe", "horny", "wet",
         "solo", "solofemale", "female", "girl", "girls", "woman", "toy", "toys", "sextoy", "hardcore", "pov", "bigass", "booty", "thick", "curvy", "milf",

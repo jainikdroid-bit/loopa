@@ -432,7 +432,8 @@ class MainActivity : Activity() {
                     else -> Feed.sub.split("+").joinToString(" + ") { "r/$it" }
                 } + " · " + Reddit.sort(Feed.rorder).label)
                 Feed.author != null -> append("Автор: ${Feed.author}  (назад — к ленте)")
-                Feed.text.isNotEmpty() && !Feed.byTag && Feed.related.isNotEmpty() -> append("Поиск: «${Feed.text}» + похожие: " + Feed.related.take(5).joinToString(", "))
+                Feed.text.isNotEmpty() && !Feed.byTag -> append("Поиск: «${Feed.text}»" + (if (Feed.busy) " · идёт поиск…" else "") + " · по теме ${Search.exact}" +
+                    Search.synonyms.takeIf { it.isNotEmpty() }?.let { " · + похожее: " + it.take(4).joinToString(", ") }.orEmpty())
                 Feed.text.isNotEmpty() && !Feed.byTag -> append("Поиск: «${Feed.query.ifEmpty { Feed.text }}»" + (if (Feed.query.isNotEmpty() && !Feed.query.equals(Feed.text, true)) " («${Feed.text}»)" else "") +
                     (if (Feed.query.isNotEmpty()) " · точных совпадений: ${Feed.exact}" + (if (Feed.exact > 0) " (они первыми)" else "") else ""))
                 Feed.text.isNotEmpty() -> append("Поиск по тегам: " + Feed.query.ifEmpty { Feed.text }.split(",").joinToString(" + ") { "#$it" } + if (Feed.query.isNotEmpty() && !Feed.query.equals(Feed.text, true)) "  («${Feed.text}»)" else "")
@@ -440,7 +441,7 @@ class MainActivity : Activity() {
             }
             if (Feed.filtered) append(" · фильтр: " + listOfNotNull(Feed.DURATIONS.first { it.first == Feed.duration }.second.takeIf { Feed.duration != "any" }?.lowercase(), "со звуком".takeIf { Feed.audioOnly }).joinToString(", "))
             if (Feed.items.isNotEmpty()) append(" · ${Feed.items.size}")
-            if (Feed.busy) append(" · загружаю…")
+            if (Feed.busy && !(Feed.text.isNotEmpty() && !Feed.byTag)) append(" · загружаю…")
             Feed.error?.let { append(" · $it") }
             if (Feed.retryIn > 0) append(" · повтор через ${Feed.retryIn} с (нажмите — сейчас)")
             if (!Feed.busy && Feed.error == null && Feed.items.isEmpty() && (Feed.text.isNotEmpty() || Feed.reddit || Feed.mode == "foryou"))
