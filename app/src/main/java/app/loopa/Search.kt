@@ -38,7 +38,16 @@ object Search {
     /** Сколько роликов со всеми словами запроса — после 20 частичные совпадения уже не показываем. */
     @Volatile private var full = 0
 
-    @Synchronized fun reset(q: String) { text = q; synonyms = emptyList(); tags = emptyList(); srcPage.clear(); turn = 0; rdPending = null; rdNext = null; rdSubs = null; exact = 0 }
+    /** Полные фразы, если запрос — сокращение (atp → ass to pussy). */
+    @Volatile private var alias: List<String> = emptyList()
+
+    @Synchronized fun reset(q: String) { text = q; alias = Thesaurus.expandAbbr(q); synonyms = emptyList(); tags = emptyList(); srcPage.clear(); turn = 0; rdPending = null; rdNext = null; rdSubs = null; exact = 0 }
+
+    /** Тег RedGIFs, совпадающий с фразой (без учёта регистра и пробелов), если он есть и не слишком общий. */
+    private val tagCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private fun exactTag(phrase: String): String? = tagCache.getOrPut(norm(phrase)) {
+        runCatching { Api.suggest(phrase) }.getOrNull()?.firstOrNull { norm(it.first) == norm(phrase) && it.second < GENERIC_COUNT * 5 }?.first.orEmpty()
+    }.takeIf { it.isNotEmpty() }
 
     private fun norm(s: String) = s.lowercase().replace(Regex("[^\\p{L}0-9]"), "")
     private fun stem(w: String) = if (w.length > 4 && w.endsWith("s")) w.dropLast(1) else w
@@ -57,6 +66,8 @@ object Search {
             synReady = false
             val nq = norm(q)
             (1..3).forEach { rg(q, false, it) }
+            // сокращение: по полным фразам; если фраза — готовый тег RedGIFs («Ass to Pussy»), то по тегу (текстом его не найти)
+            alias.forEach { a -> val t = exactTag(a); if (t != null) { rg(t, true, 1); rg(t, true, 2); rg(t, true, 3) } else { rg(a, false, 1); rg(a, false, 2) } }
             if (' ' in q.trim()) rg(nq, false, 1)                        // «bed post» → «bedpost»
             // синонимы и близкие теги ищутся, пока идёт основной запрос; Reddit — тоже параллельно
             cs.submit { val syn = runCatching { synonymsFor(q) }.getOrDefault(emptyList<String>() to emptyList()); synchronized(this) { synonyms = syn.first; tags = syn.second }; synReady = true; emptyList() }; n++
@@ -77,7 +88,8 @@ object Search {
             // синонимы готовы — сразу отправить поиски по ним (первая порция)
             if (!synDone && synReady) {
                 synDone = true
-                synonyms.take(6).forEach { rg(it, false, 1) }; tags.take(3).forEach { rg(it, true, 1) }
+                // синоним — готовый тег RedGIFs: по тегу, иначе текстом
+                synonyms.take(6).forEach { syn -> val t = exactTag(syn); if (t != null) rg(t, true, 1) else rg(syn, false, 1) }; tags.take(3).forEach { rg(it, true, 1) }
             }
             if (got.isEmpty()) continue
             total += got.size
@@ -117,6 +129,12 @@ object Search {
         val tagsN = g.tags.map { norm(it) }
         val textN = norm(g.description + " " + g.sub)
         val all = tagsN.joinToString(" ") + " " + textN
+        // короткие слова («dp», «atp») — только целым словом: иначе ловят что попало внутри других слов
+        val tokens = (g.tags.joinToString(" ") + " " + g.description + " " + g.sub).lowercase().split(Regex("[^\\p{L}0-9]+")).toSet()
+        fun inTags(w: String) = if (w.length <= 3) g.tags.any { t -> t.lowercase().split(Regex("[^\\p{L}0-9]+")).contains(w) } else tagsN.any { it.contains(w) }
+        fun inText(w: String) = if (w.length <= 3) w in tokens else textN.contains(w)
+        // запрос — сокращение: его полная фраза равна точному совпадению
+        if (alias.any { a -> norm(a).let { it.length >= 4 && all.contains(it) } }) return 20.0 + minOf(2.0, synonyms.count { norm(it).length >= 4 && all.contains(norm(it)) }.toDouble())
         val phrase = norm(q)
         val stemP = phrase.replace(Regex("(ers|er|ing|es|s)$"), "")
         var s = 0.0
@@ -125,13 +143,14 @@ object Search {
         words.forEach { w ->
             val root = w.replace(Regex("(ers|er|ing|es)$"), "").takeIf { it.length >= 4 } ?: w
             when {
-                tagsN.any { it.contains(w) } -> { part += 3; found++ }
-                textN.contains(w) -> { part += 2; found++ }
+                inTags(w) -> { part += 3; found++ }
+                inText(w) -> { part += 2; found++ }
                 root != w && all.contains(root) -> { part += 1; found++ }
             }
         }
         s += when {
             phrase.length >= 4 && all.contains(phrase) -> 20.0
+            phrase.length in 2..3 && words.size == 1 && found == 1 -> 20.0         // сокращение целым словом
             stemP.length >= 5 && all.contains(stemP) -> 16.0
             words.size >= 2 && tagsN.any { t -> words.all { t.contains(it) } } -> 12.0
             words.size >= 2 && found == words.size -> 6.0
