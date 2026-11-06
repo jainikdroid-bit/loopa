@@ -77,7 +77,7 @@ object Search {
             // синонимы готовы — сразу отправить поиски по ним (первая порция)
             if (!synDone && synReady) {
                 synDone = true
-                synonyms.take(4).forEach { rg(it, false, 1) }; tags.take(3).forEach { rg(it, true, 1) }
+                synonyms.take(6).forEach { rg(it, false, 1) }; tags.take(3).forEach { rg(it, true, 1) }
             }
             if (got.isEmpty()) continue
             total += got.size
@@ -138,7 +138,10 @@ object Search {
             else -> 0.0
         }
         s += part
-        if (s > 0) s += minOf(2.0, synonyms.count { syn -> norm(syn).let { it.length >= 4 && all.contains(it) } } * 1.0)
+        val synHits = synonyms.count { syn -> norm(syn).let { it.length >= 4 && all.contains(it) } }
+        // совпал только синоним («doorknob» на запрос «knob») — тоже по теме, но ниже точных
+        if (s == 0.0 && synHits > 0) s = 7.0 + minOf(2, synHits - 1)
+        else if (s > 0) s += minOf(2.0, synHits * 1.0)
         return s
     }
 
@@ -155,8 +158,10 @@ object Search {
         val roots = qWords.map { it.replace(Regex("(ers|er|ing|es)$"), "").take(5) }.filter { it.length >= 3 } + qn.take(5)
         // синоним — пересекается с запросом по слову («stick shift», «fucking bedpost») или встречается хотя бы в
         // четверти найденных видео («dwarf» у «midget»); и у него на RedGIFs нет тега или тег не слишком общий
-        val syn = ph.filter { (t, c) -> norm(t) != qn && (roots.any { r -> norm(t).contains(r) } || total > 0 && c * 4 >= total) }
-            .map { it.first }.filter { t -> (rgCount(t) ?: 0) < GENERIC_COUNT }.take(6)
+        // свой словарь — первым: у нишевых тем на сайтах ни тегов, ни внятных связей нет
+        val thes = Thesaurus.of(q)
+        val syn = (thes + ph.filter { (t, c) -> norm(t) != qn && (roots.any { r -> norm(t).contains(r) } || total > 0 && c * 10 >= total * 4) }
+            .map { it.first }.filter { t -> (rgCount(t) ?: 0) < GENERIC_COUNT }).distinctBy { norm(it) }.take(8)
         // близкие теги RedGIFs: подсказки по запросу и словам, похожие по написанию, не общие
         val own = Api.expand(q).filter { t -> (rgCount(t) ?: 0) in 1 until GENERIC_COUNT && qWords.any { w -> norm(t).contains(w.take(4)) } }
         return syn to own.take(4)

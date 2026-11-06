@@ -15,8 +15,8 @@ android {
         applicationId = "app.loopa"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.6.3"
+        versionCode = 17
+        versionName = "1.6.4"
     }
     signingConfigs {
         if (signing != null) create("release") {
