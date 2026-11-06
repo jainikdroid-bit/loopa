@@ -85,7 +85,8 @@ class MainActivity : Activity() {
         // вкладки: рекомендации по лайкам (нужен вход), популярное, лайкнутое
         tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(2), dp(10), dp(2)) }
         TABS.forEach { (t, m) -> tabs.addView(chip(t, CHIP) { tab(m) }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) }) }
-        root.addView(tabs)
+        // не влезают — строка прокручивается вбок, а не сжимает вкладки в столбик
+        root.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(tabs) })
         chips = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(4), dp(10), dp(4)) }
         root.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(chips) })
         status = TextView(this).apply { setTextColor(0xFFB0B5BD.toInt()); textSize = 13f; setPadding(dp(14), dp(2), dp(14), dp(6)) }
@@ -111,29 +112,28 @@ class MainActivity : Activity() {
         setContentView(root)
         Feed.listeners += onFeed
         root0 = root
-        when {
-            Api.renewDue -> renew(RgSite, startHome = Feed.items.isEmpty() && !Feed.busy)   // вход продлеваем до первой ленты
-            Feed.items.isEmpty() && !Feed.busy -> home()
-            else -> refresh()
-        }
-        if (!Api.renewDue && Reddit.renewDue) renew(Reddit.SITE)
+        // лента — сразу (без входа — популярное), вход продлевается в фоне: без VPN или на медленной сети это до 25 с
+        if (Feed.items.isEmpty() && !Feed.busy) home() else refresh()
+        if (Api.renewDue) renew(RgSite) else if (Reddit.renewDue) renew(Reddit.SITE)
     }
     private lateinit var root0: ViewGroup
 
     /** Продлить вход без окна; не вышло (нет сети или куки сайта тоже истекли) — следующий запуск попробует снова, а 👤 откроет вход. */
-    private fun renew(site: Site, startHome: Boolean = false) {
+    private fun renew(site: Site) {
         if (Renewer.running) return
-        status.text = "Обновляю вход в ${site.title}…"
         Renewer.run(root0, site) { ok ->
             if (isDestroyed) return@run
             if (!ok) status.setOnClickListener { login(site) }
             val waiting = Feed.error == Api.LOGIN_EXPIRED || Feed.error == Reddit.LOGIN_EXPIRED
+            // вход вернулся, пока на главной популярное, — переключить на «Для вас»
+            val atHome = site === RgSite && Feed.mode == null && Feed.text.isEmpty() && Feed.author == null
             when {
-                startHome -> home()
                 ok && waiting -> if (Feed.reddit) Feed.reddit(Feed.sub) else home()
+                ok && atHome -> home()
                 else -> refresh()
             }
-            if (!ok) status.text = "Вход в ${site.title} истёк — нажмите здесь, чтобы войти снова"
+            if (!ok && waiting) status.text = "Вход в ${site.title} истёк — нажмите здесь, чтобы войти снова"
+            if (ok && site === RgSite && Reddit.renewDue) renew(Reddit.SITE)
         }
     }
 
@@ -361,7 +361,7 @@ class MainActivity : Activity() {
     }
 
     private fun chip(t: String, color: Int, click: (View) -> Unit) = TextView(this).apply {
-        text = t; setTextColor(Color.WHITE); textSize = 14f; setPadding(dp(12), dp(7), dp(12), dp(7)); background = pill(color)
+        text = t; setTextColor(Color.WHITE); textSize = 14f; setPadding(dp(12), dp(7), dp(12), dp(7)); background = pill(color); isSingleLine = true
         setOnClickListener(click)
     }
 
