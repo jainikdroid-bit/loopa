@@ -42,7 +42,7 @@ object ForYou {
         get() = prefs?.getBoolean("fy_reddit", true) ?: true
         set(v) { prefs?.edit()?.putBoolean("fy_reddit", v)?.apply() }
     var share: Double
-        get() = prefs?.getFloat("fy_share", 0.34f)?.toDouble() ?: 0.34
+        get() = prefs?.getFloat("fy_share", 0.5f)?.toDouble() ?: 0.5
         set(v) { prefs?.edit()?.putFloat("fy_share", v.toFloat())?.apply() }
     val reddit get() = mixReddit && Reddit.hadUser
     /** Почему Reddit не подмешался (для строки статуса); null — всё в порядке. */
@@ -95,7 +95,7 @@ object ForYou {
                 }.onFailure { synchronized(this) { searchAfter[term] = null } }
             }
         }
-        return mixBatch()
+        return mixBatchMany()
     }
 
     private fun mixBatch(): List<Gif> {
@@ -112,8 +112,26 @@ object ForYou {
         synchronized(this) {
             subCursor[sub] = next
             redditDry = if (gifs.isEmpty()) redditDry + 1 else 0
+            // почти одни картинки (меньше 3 видео со страницы) — этот сабреддит больше не берём, место — следующему
+            if (gifs.size < 3) { lowYield += sub.lowercase(); subs = subs - sub }
         }
+        android.util.Log.i("Loopa", "Для вас: r/$sub дал ${gifs.size} видео")
         return gifs
+    }
+
+    /** Сабреддиты, где видео почти нет, — на эту сессию. */
+    private val lowYield = HashSet<String>()
+
+    /** До 10 видео за заход: несколько сабреддитов подряд (каждый — своя страница). */
+    private fun mixBatchMany(): List<Gif> {
+        val out = ArrayList<Gif>()
+        var tries = 0
+        while (out.size < 10 && tries++ < 3) {
+            val g = runCatching { mixBatch() }.getOrElse { if (out.isEmpty()) throw it else emptyList() }
+            out += g
+            if (subs.isEmpty()) break
+        }
+        return out
     }
 
     /** Смесь сабреддитов: профиль + найденные по тегам и словам + подписки; верхние 5 по весу и один случайный. */
@@ -127,9 +145,11 @@ object ForYou {
                 .onFailure { android.util.Log.w("Loopa", "поиск сабреддитов «$term»", it) }.getOrNull()?.also { Interests.map(term, it) } else null
             found?.forEach { add(it, x * 0.6) }
         }
-        runCatching { Reddit.subscribed() }.onFailure { android.util.Log.w("Loopa", "подписки Reddit", it) }.getOrDefault(emptyList()).forEach { add(it, 1.0) }
+        runCatching { Reddit.subscribedNsfw() }.onFailure { android.util.Log.w("Loopa", "подписки Reddit", it) }.getOrDefault(emptyList()).forEach { add(it, 1.0) }
         // аудио- и текстовые сабреддиты видео не дают; закрытые/карантин (403) — не брать
-        val ranked = w.entries.sortedByDescending { it.value }.map { it.key }.filter { !Reddit.isBad(it) && !it.contains("audio") && !it.contains("writing") }
+        // только сабреддиты 18+: обычные (из старых поисков, подписок) видео 18+ не дают
+        val ranked = w.entries.sortedByDescending { it.value }.map { it.key }.filter { !Reddit.isBad(it) && it !in lowYield && !it.contains("audio") && !it.contains("writing") }
+            .take(12).filter { Reddit.isNsfw(it) }
         val pick = ranked.take(5).toMutableList()
         ranked.drop(5).randomOrNull()?.let { pick += it }   // разведка: вдруг понравится
         return pick

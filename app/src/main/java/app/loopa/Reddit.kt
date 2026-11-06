@@ -254,7 +254,8 @@ var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');
         val a = j.getJSONObject("data").getJSONArray("children")
         return List(a.length()) { a.getJSONObject(it).getJSONObject("data") }
             .filter { it.optInt("subscribers") >= 2000 && it.optString("subreddit_type") == "public" && !it.optBoolean("quarantine") && !isBad(it.optString("display_name")) }
-            .sortedByDescending { it.optInt("subscribers") * (if (it.optBoolean("over18")) 3.0 else 1.0) }
+            .filter { it.optBoolean("over18") }
+            .sortedByDescending { it.optInt("subscribers") }
             .take(n).map { it.optString("display_name") }.filter { it.isNotBlank() }
     }
 
@@ -264,10 +265,22 @@ var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');
         mine?.takeIf { System.currentTimeMillis() - it.first < 3600_000L }?.let { return it.second }
         val j = JSONObject(get("/subreddits/mine/subscriber", "limit=100&raw_json=1"))
         val a = j.getJSONObject("data").getJSONArray("children")
-        val l = List(a.length()) { a.getJSONObject(it).getJSONObject("data").optString("display_name") }.filter { it.isNotBlank() && !it.startsWith("u_") }
+        val all = List(a.length()) { a.getJSONObject(it).getJSONObject("data") }.filter { it.optString("display_name").let { n -> n.isNotBlank() && !n.startsWith("u_") } }
+        val l = all.map { it.optString("display_name") }
+        nsfwMine = all.filter { it.optBoolean("over18") }.map { it.optString("display_name") }
         mine = System.currentTimeMillis() to l
         return l
     }
+
+    /** Сабреддит 18+? (about через API работает; ответ запоминаем). Не узнали — считаем, что да. */
+    private val nsfw = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    fun isNsfw(s: String): Boolean = nsfw.getOrPut(s.lowercase()) {
+        runCatching { JSONObject(get("/r/$s/about", "raw_json=1")).getJSONObject("data").optBoolean("over18", true) }.getOrDefault(true)
+    }
+
+    /** Подписки 18+ (для «Для вас»: обычные подписки видео 18+ не дают). */
+    @Volatile var nsfwMine: List<String> = emptyList(); private set
+    fun subscribedNsfw(): List<String> { subscribed(); return nsfwMine }
 
     private val RG = Regex("redgifs\\.com/(?:watch|ifr|i)/([A-Za-z]+)")
     private val IMGUR = Regex("i\\.imgur\\.com/(\\w+)\\.(?:gifv|mp4)")
