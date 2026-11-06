@@ -55,6 +55,8 @@
   searches and downloads — by tags, words in titles and descriptions, subreddits and creators; old tastes fade on their
   own. It picks RedGIFs videos and mixes in Reddit posts from matching subreddits (18+ included, which Reddit's own
   recommendations leave out). The Reddit share is adjustable; the profile is shown in “My interests” and stays on the phone.
+- **Hide topics:** gay content, sissy/femboy/trans (lesbian stays) and your own words. Duplicate videos and reuploads
+  are removed from the feed.
 - **Downloads** into `Downloads/Loopa`: RedGIFs and Imgur via the system download manager; Reddit videos are fetched as
   separate video and audio tracks and muxed into one mp4 without re-encoding.
 - Small, with no trackers, analytics or ad SDKs.

@@ -169,10 +169,12 @@ object Feed {
         query = q; byTag = bt; page = p; pages = pg.pages; error = null; fails = 0
         if (pg.tags.isNotEmpty() && p == 1) tags = pg.tags
         val seen = items.mapTo(HashSet()) { it.id }
+        val same = items.mapNotNullTo(HashSet()) { twin(it) }
         val range = range
-        val fresh = pg.gifs.filter { seen.add(it.id) }
-            .filter { duration == "any" || it.duration in range }.filter { !audioOnly || it.hasAudio }
-        val cmp = if (mode == null) sort.local else null
+        // одинаковые ролики: тот же id, тот же файл или перезалив (тот же размер кадра и длительность до сотых секунды)
+        val fresh = pg.gifs.filter { seen.add(it.id) && seen.add(it.hd) && twin(it)?.let { k -> same.add(k) } != false }
+            .filter { duration == "any" || it.duration in range }.filter { !audioOnly || it.hasAudio }.filter { !Hide.hidden(it) }
+        val cmp = if (mode == null || mode == "foryou") sort.local else null
         if (cmp != null) {
             // досортировка: первые POOL роликов — целиком, дальше — каждая страница в себе (сетка выше не прыгает)
             if (items.size < POOL) { items += fresh; items.sortWith(cmp) } else items += fresh.sortedWith(cmp)
@@ -186,12 +188,15 @@ object Feed {
             items.addAll(at, hits); items += fresh.filterNot(::hit)
         }
         // мало нового (реклама, фильтры) или копим пул для досортировки — сразу следующая страница
-        val need = fresh.size < 8 && (pg.gifs.isEmpty() || filtered) || cmp != null && items.size < POOL
+        val need = fresh.size < 8 && (pg.gifs.isEmpty() || filtered || Hide.active) || cmp != null && items.size < POOL
         // предел подряд: фильтр может отсеивать почти всё — не выкачивать сотни страниц
         chain = if (need) chain + 1 else 0
         if (need && page < pages && chain <= if (items.size < 20) 8 else 3) ui.post { more() }
     }
     private var chain = 0
+
+    /** Ключ перезалива: размер кадра + длительность до 0,01 с (у разных роликов совпадает редко); null — длительность неизвестна. */
+    private fun twin(g: Gif) = if (g.duration > 0.5 && g.w > 16) "${g.w}x${g.h}@${Math.round(g.duration * 100)}" else null
 
     private fun fail(e: Throwable) {
         error = when {

@@ -40,7 +40,16 @@ object Reddit {
         override fun save(ctx: Context, t: String, exp: Long) = setUser(ctx, t, exp, me(t).orEmpty())
     }
 
-    fun init(ctx: Context) { if (prefs == null) prefs = ctx.applicationContext.getSharedPreferences("loopa", Context.MODE_PRIVATE) }
+    fun init(ctx: Context) {
+        if (prefs == null) prefs = ctx.applicationContext.getSharedPreferences("loopa", Context.MODE_PRIVATE)
+        app = ctx.applicationContext
+        if (browserUa.isEmpty()) browserUa = runCatching { android.webkit.WebSettings.getDefaultUserAgent(ctx).replace("; wv", "").replace(Regex(" Version/\\d+(\\.\\d+)*"), "") }.getOrDefault("")
+    }
+    /** Подпись, которую Reddit требует от сторонних клиентов API: платформа:приложение:версия (by /u/имя). */
+    private val apiUa get() = "android:app.loopa:v${BuildConfig.VERSION_NAME}" + name.takeIf { it.isNotEmpty() }?.let { " (by /u/$it)" }.orEmpty()
+    private var app: Context? = null
+    /** Подпись браузера — как у окна входа ([Disguise]); для запасного пути через сайт. */
+    @Volatile private var browserUa = ""
     private fun setUser(ctx: Context, t: String, exp: Long, name: String) {
         init(ctx); prefs!!.edit().putString("rd_token", t).putLong("rd_exp", exp).putString("rd_name", name).apply()
     }
@@ -70,19 +79,23 @@ object Reddit {
     private fun get(path: String, query: String): String {
         val t = token() ?: throw RuntimeException(if (hadUser) LOGIN_EXPIRED else LOGIN_NEEDED)
         return try {
-            Net.retry { fetch("$OAUTH$path?$query") { it.setRequestProperty("Authorization", "Bearer $t") } }
+            Net.retry { fetch("$OAUTH$path?$query") { it.setRequestProperty("Authorization", "Bearer $t"); it.setRequestProperty("User-Agent", apiUa) } }
         } catch (e: HttpError) {
+            android.util.Log.w("Loopa", "Reddit $path: HTTP ${e.code}")
             if (e.code == 401) { prefs?.edit()?.putLong("rd_exp", 1)?.apply(); throw RuntimeException(LOGIN_EXPIRED) }
             if (e.code != 403) throw e
-            val ck = CookieManager.getInstance().getCookie(WWW) ?: throw e
-            Net.retry { fetch("$WWW$path.json?$query") { it.setRequestProperty("Cookie", ck) } }
+            throw e
         }
     }
 
     private fun fetch(url: String, auth: (java.net.HttpURLConnection) -> Unit): String {
         val c = Net.open(url); auth(c)
         try {
-            if (c.responseCode !in 200..299) throw Net.fail(c)
+            if (c.responseCode !in 200..299) {
+                val body = runCatching { c.errorStream?.bufferedReader()?.readText()?.take(300) }.getOrNull()
+                android.util.Log.w("Loopa", "Reddit ${c.responseCode} ${url.substringBefore('?')}: ${c.headerFields.filterKeys { it != null && (it.startsWith("x-", true) || it.equals("server", true)) }} ${body?.replace("\n", " ")}")
+                throw Net.fail(c)
+            }
             return c.inputStream.bufferedReader().readText()
         } finally { c.disconnect() }
     }
@@ -106,12 +119,100 @@ object Reddit {
             s.t?.let { append("&t=$it") }
             after?.let { append("&after=${enc(it)}") }
         }
-        val data = JSONObject(get(path, q)).getJSONObject("data")
+        if (after?.startsWith(WEB) == true) return web(null, after.removePrefix(WEB))
+        // ленты через API Reddit режет (403 или держит соединение без ответа минутами) — сразу со страницы сайта
+        return run {
+            // страница смеси «a+b» у нового сайта уводит на главную — берём случайный из смеси
+            val one = sub.split("+").filter { it.isNotBlank() }.randomOrNull() ?: sub
+            val url = WWW + when { sub.isEmpty() -> "/${s.path}/"; sub.startsWith("u/") -> "/user/${sub.substring(2)}/submitted/"; else -> "/r/$one/${s.path}/" } + (s.t?.let { "?t=$it" } ?: "")
+            web(url, null)
+        }
+    }
+
+    /** Курсор ленты со страницы сайта: адрес следующей порции (её подгружает сам сайт при прокрутке). */
+    private const val WEB = "web:"
+
+    /** Посты со страницы (shreddit-post) — для невидимого браузера; G(корень) → список, M(корень) → адрес следующей порции. */
+    private const val GRAB = """var G=function(r){return Array.prototype.map.call(r.querySelectorAll('shreddit-post'),function(p){
+var pl=p.querySelector('shreddit-player-2,shreddit-player');var im=p.querySelector('img[src*="preview.redd.it"],img[src*="external-preview.redd.it"],img[src*="i.redd.it"]');
+return{id:(p.getAttribute('id')||'').replace(/^t3_/,''),title:p.getAttribute('post-title')||'',author:p.getAttribute('author')||'',
+sub:(p.getAttribute('subreddit-prefixed-name')||'').replace(/^r\//,''),score:+(p.getAttribute('score')||0),comments:+(p.getAttribute('comment-count')||0),
+type:p.getAttribute('post-type')||'',href:p.getAttribute('content-href')||'',src:pl?(pl.getAttribute('src')||''):'',poster:pl?(pl.getAttribute('poster')||''):'',
+thumb:im?im.getAttribute('src'):''};});};
+var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');return m?m.getAttribute('src'):null;};"""
+
+    /** Порция со страницы: url — открыть страницу, иначе more — подгрузить следующую порцию из уже открытой. */
+    private fun web(url: String?, more: String?): Pair<List<Gif>, String?> {
+        val ctx = app ?: throw RuntimeException("нет контекста")
+        val raw = if (url != null) WebJson.page(ctx, url, "(function(){$GRAB return JSON.stringify({posts:G(document),more:M(document)});})()")
+            else WebJson.run(ctx, "(function(){$GRAB fetch(${JSONObject.quote(more)},{credentials:'include'}).then(function(r){return r.text()}).then(function(t){" +
+                "var d=new DOMParser().parseFromString(t,'text/html');window.__lp=JSON.stringify({posts:G(d),more:M(d)});}).catch(function(e){window.__lp=JSON.stringify({error:String(e)})});})()")
+        val j = runCatching { JSONObject(raw ?: "") }.getOrNull() ?: throw RuntimeException("Reddit: страница не открылась")
+        j.optString("error").takeIf { it.isNotEmpty() }?.let { throw RuntimeException("Reddit: $it") }
+        val a = j.optJSONArray("posts") ?: JSONArray()
+        val posts = (0 until a.length()).map { a.getJSONObject(it) }.toMutableList()
+        // сайт сначала рисует 3–5 постов — сразу подгрузить ещё (до ~25), как при прокрутке
+        var moreSrc = j.optString("more").takeIf { it.isNotBlank() && it != "null" }
+        var extra = 0
+        while (url != null && posts.size < 20 && moreSrc != null && extra++ < 2) {
+            val r2 = runCatching { JSONObject(WebJson.run(ctx, "(function(){$GRAB fetch(${JSONObject.quote(moreSrc)},{credentials:'include'}).then(function(r){return r.text()}).then(function(t){" +
+                "var d=new DOMParser().parseFromString(t,'text/html');window.__lp=JSON.stringify({posts:G(d),more:M(d)});}).catch(function(e){window.__lp=JSON.stringify({error:String(e)})});})()") ?: "") }.getOrNull() ?: break
+            val a2 = r2.optJSONArray("posts") ?: break
+            for (i in 0 until a2.length()) posts += a2.getJSONObject(i)
+            moreSrc = r2.optString("more").takeIf { it.isNotBlank() && it != "null" }
+        }
+        if (url != null) j.put("more", moreSrc ?: JSONObject.NULL)
+        android.util.Log.i("Loopa", "Reddit со страницы: ${posts.size} постов, пример ${posts.firstOrNull()}")
+        val jobs = posts.map { o -> pool.submit<Gif?> { runCatching { fromPage(o) }.getOrNull() } }
+        val next = j.optString("more").takeIf { it.isNotBlank() && it != "null" }?.let { if (it.startsWith("http")) it else WWW + it }
+        return jobs.mapNotNull { it.get() } to next?.let { WEB + it }
+    }
+
+    /** Пост со страницы → ролик: поток v.redd.it, ссылка на RedGIFs, Imgur, mp4 гифки; остальное — мимо. */
+    private fun fromPage(o: JSONObject): Gif? {
+        val src = o.optString("src"); val href = o.optString("href")
+        val base = Gif("rd_" + o.optString("id"), o.optString("poster").ifEmpty { o.optString("thumb") }, "", "", 9, 16, 0.0, o.optString("author"),
+            listOf("r/" + o.optString("sub")), true, o.optLong("comments"), o.optLong("score"), o.optString("title"), sub = o.optString("sub"))
+        if (src.contains(".m3u8")) return base.copy(hd = src, sd = src, hls = true, dash = src.substringBefore('?').replace("HLSPlaylist.m3u8", "DASHPlaylist.mpd"))
+        RG.find(href)?.let { m ->
+            val g = Api.gif(m.groupValues[1]) ?: return null
+            return base.copy(thumb = g.thumb, hd = g.hd, sd = g.sd, w = g.w, h = g.h, duration = g.duration, hasAudio = g.hasAudio, tags = base.tags + g.tags)
+        }
+        IMGUR.find(href)?.let { m -> return base.copy(hd = "https://i.imgur.com/${m.groupValues[1]}.mp4", sd = "https://i.imgur.com/${m.groupValues[1]}.mp4", hasAudio = false) }
+        if (src.contains(".mp4")) return base.copy(hd = src, sd = src, hasAudio = false)
+        return null
+    }
+
+    /** Поиск постов по всему Reddit (18+ включительно) — «Для вас» собирает не только из своих сабреддитов. */
+    @Suppress("UNUSED_PARAMETER")
+    fun searchPosts(term: String, after: String?): Pair<List<Gif>, String?> = emptyList<Gif>() to null   // поиск постов API режет (403)
+
+    private fun listing(path: String, q: String, sub: String): Pair<List<Gif>, String?> {
+        val data = try { JSONObject(get(path, q)).getJSONObject("data") } catch (e: HttpError) {
+            // 403 на смеси — среди сабреддитов закрытый, на карантине или забаненный: убрать плохие и повторить
+            if (e.code != 403 || !sub.contains('+')) throw e
+            val good = prune(sub.split("+"))
+            if (good.isEmpty() || good.size == sub.split("+").size) throw e
+            return listing(path.replace(sub, good.joinToString("+")), q, good.joinToString("+"))
+        }
         val kids = data.optJSONArray("children") ?: JSONArray()
         val posts = (0 until kids.length()).map { kids.getJSONObject(it).getJSONObject("data") }
         // ссылки на RedGIFs — параллельно (у RedGIFs нет запроса пачкой)
         val jobs = posts.map { d -> pool.submit<Gif?> { runCatching { video(d) }.getOrNull() } }
         return jobs.mapNotNull { it.get() } to data.optString("after").takeIf { it.isNotBlank() && it != "null" }
+    }
+
+    /** Сабреддиты, что отвечают 403 (закрытые, карантин, бан), — запоминаем и в смеси больше не берём. */
+    private val bad = java.util.Collections.synchronizedSet(HashSet<String>())
+    fun isBad(s: String) = s.lowercase() in bad || prefs?.getStringSet("rd_bad", emptySet())?.contains(s.lowercase()) == true
+
+    /** Проверить сабреддиты по одному (параллельно), плохие — в [bad]; вернуть хорошие. */
+    private fun prune(subs: List<String>): List<String> {
+        val ok = subs.map { s -> s to pool.submit<Boolean> { runCatching { get("/r/$s/about", "raw_json=1"); true }.getOrElse { it !is HttpError || it.code != 403 && it.code != 404 } } }
+            .filter { (s, f) -> f.get().also { good -> if (!good) bad += s.lowercase() } }.map { it.first }
+        prefs?.edit()?.putStringSet("rd_bad", (prefs?.getStringSet("rd_bad", emptySet()).orEmpty() + bad).toSet())?.apply()
+        android.util.Log.i("Loopa", "Reddit: убраны ${subs - ok.toSet()}")
+        return ok
     }
 
     /** Подсказки сабреддитов: [(имя, подписчиков)], 18+ включительно. */
@@ -126,7 +227,7 @@ object Reddit {
         val j = JSONObject(get("/subreddits/search", "q=${enc(q)}&include_over_18=on&limit=10&raw_json=1"))
         val a = j.getJSONObject("data").getJSONArray("children")
         return List(a.length()) { a.getJSONObject(it).getJSONObject("data") }
-            .filter { it.optInt("subscribers") >= 2000 && it.optString("subreddit_type") != "private" }
+            .filter { it.optInt("subscribers") >= 2000 && it.optString("subreddit_type") == "public" && !it.optBoolean("quarantine") && !isBad(it.optString("display_name")) }
             .sortedByDescending { it.optInt("subscribers") * (if (it.optBoolean("over18")) 3.0 else 1.0) }
             .take(n).map { it.optString("display_name") }.filter { it.isNotBlank() }
     }
