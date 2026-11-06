@@ -18,7 +18,8 @@
 > you are 18 or older and viewing such content is legal where you live.
 
 > [!NOTE]
-> **Unofficial app.** Loopa is not affiliated with or endorsed by RedGIFs. RedGIFs is a trademark of its owners.
+> **Unofficial app.** Loopa is not affiliated with or endorsed by RedGIFs or Reddit. RedGIFs and Reddit are trademarks
+> of their owners.
 > The app hosts and redistributes nothing: it only displays what the service already serves to any web browser.
 
 <p align="center">
@@ -43,7 +44,12 @@
 - **Creator pages** and tag jumps straight from the player.
 - **Optional sign-in** — “For you” feed, likes, “My likes”. Sign-in is remembered and silently renewed in the
   background, so you don't have to log in again.
-- **Downloads** via the system download manager into `Downloads/Loopa`.
+- **Reddit in the same client.** A Reddit tab with your subscriptions, any subreddits (several at once, space-separated)
+  and user posts; hot, new, rising and top of hour / day / week / month / year / all time. Videos are taken from posts:
+  Reddit-hosted videos (with sound), RedGIFs links, Imgur and GIFs. Sign-in happens on reddit.com in an embedded window,
+  just like RedGIFs; 18+ content appears if it's enabled in your Reddit account settings.
+- **Downloads** into `Downloads/Loopa`: RedGIFs and Imgur via the system download manager; Reddit videos are fetched as
+  separate video and audio tracks and muxed into one mp4 without re-encoding.
 - Small, with no trackers, analytics or ad SDKs.
 
 The interface is currently in Russian; tags on the service are in English. Translations are welcome.
@@ -58,8 +64,9 @@ Requires Android 8.0+.
 
 ## Privacy
 
-- The app talks only to `api.redgifs.com` and RedGIFs video servers. The sign-in window is the exception: it shows the
-  real `redgifs.com` site with everything that site loads.
+- The app talks only to the RedGIFs API and video servers, and on the Reddit tab to `oauth.reddit.com` /
+  `www.reddit.com`, `v.redd.it`, `i.redd.it`, `preview.redd.it` and `i.imgur.com`. The sign-in windows are the exception:
+  they show the real sites with everything those sites load.
 - Without sign-in it uses the temporary guest token the service hands to every website visitor.
 - Sign-in happens on the real `redgifs.com` page in an embedded window. You type your password into the site; the app
   never sees or stores it — only the session token is kept, in the app's private storage on your phone.

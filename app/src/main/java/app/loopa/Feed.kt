@@ -47,8 +47,13 @@ object Feed {
     var duration = "any"
     var audioOnly = false
     var author: String? = null; private set
-    /** foryou / liked / null (популярное или поиск). */
+    /** foryou / liked / reddit / null (популярное или поиск). */
     var mode: String? = null; private set
+    /** Reddit: сабреддиты через «+» (пусто — главная с подписками, «u/имя» — посты пользователя), сортировка, курсор. */
+    var sub = ""; private set
+    var rorder = "hot"
+    private var after: String? = null
+    val reddit get() = mode == "reddit"
     val items = ArrayList<Gif>()
     var tags: List<String> = emptyList(); private set
     var error: String? = null; private set
@@ -76,9 +81,12 @@ object Feed {
 
     fun reset(text: String, order: String, author: String? = null, mode: String? = null, tag: Boolean = false) {
         this.text = text; this.order = order; this.author = author; this.mode = mode; query = ""; tagOnly = tag; byTag = tag; exact = 0
-        items.clear(); page = 0; pages = 1; loading = false; error = null; fails = 0; chain = 0; stopRetry(); gen++
+        items.clear(); page = 0; pages = 1; after = null; loading = false; error = null; fails = 0; chain = 0; stopRetry(); gen++
         changed(); more()
     }
+
+    /** Лента Reddit: сабреддит(ы), пользователь или главная; sort — id из [Reddit.SORTS]. */
+    fun reddit(sub: String, sort: String = rorder) { this.sub = sub; rorder = sort; reset("", order, mode = "reddit") }
 
     /** Повторить сейчас (связь вернулась или нажали «повторить»). */
     fun retry() { stopRetry(); error = null; fails = 0; if (canMore) more() else changed() }
@@ -109,6 +117,19 @@ object Feed {
         if (!canMore) return
         loading = true
         val g = gen; val p = page + 1; val ord = apiOrder()
+        if (reddit) {
+            val s = sub; val o = rorder; val a = after
+            thread {
+                val r = runCatching { Reddit.page(s, o, a) }
+                ui.post {
+                    if (g != gen) return@post
+                    loading = false
+                    r.onSuccess { (gifs, next) -> after = next; add("", false, p, Page(gifs, if (next != null) p + 1 else p, emptyList())) }.onFailure { fail(it) }
+                    changed()
+                }
+            }
+            return
+        }
         thread {
             val r = runCatching {
                 // запрос → теги (если он целиком из тегов) или текст, как на сайте
@@ -160,12 +181,12 @@ object Feed {
 
     private fun fail(e: Throwable) {
         error = when {
-            e.message == Api.LOGIN_EXPIRED -> Api.LOGIN_EXPIRED
+            e.message == Api.LOGIN_EXPIRED || e.message == Reddit.LOGIN_EXPIRED || e.message == Reddit.LOGIN_NEEDED -> e.message
             e is HttpError -> e.message
             Net.transient(e) -> "нет связи"
             else -> e.message ?: e.javaClass.simpleName
         }
-        if (error == Api.LOGIN_EXPIRED || !Net.transient(e)) return
+        if (!Net.transient(e)) return
         // нестабильная сеть: повторять самим, с растущей паузой
         val wait = minOf(30, 2 shl minOf(fails, 4)); fails++
         retryAt = System.currentTimeMillis() + wait * 1000L

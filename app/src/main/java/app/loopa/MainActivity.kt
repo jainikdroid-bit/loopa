@@ -33,7 +33,8 @@ import kotlin.math.roundToInt
 /**
  * Главный экран: строка поиска, подсказки тегов (пока вводишь — из /v2/search/suggest,
  * иначе — популярные теги ленты), сортировка, сетка превью с бесконечной подгрузкой. Нажатие — плеер со свайпами,
- * долгое нажатие — скачать.
+ * долгое нажатие — скачать. Вкладка Reddit — та же сетка и плеер: поиск ищет сабреддиты, чипы — сохранённые
+ * сабреддиты (долгое нажатие — убрать), сортировки Reddit.
  */
 class MainActivity : Activity() {
     private val ui = Handler(Looper.getMainLooper())
@@ -51,10 +52,11 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Api.init(this); Net.init(this)
+        Api.init(this); Net.init(this); Reddit.init(this)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
             Feed.duration = prefs.getString("duration", "any")!!; Feed.audioOnly = prefs.getBoolean("audio", false)
             prefs.getString("order", null)?.let { Feed.restore(it) }
+            Feed.rorder = prefs.getString("rorder", "hot")!!
         }
         window.statusBarColor = BG; window.navigationBarColor = BG
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BG) }
@@ -110,22 +112,28 @@ class MainActivity : Activity() {
         Feed.listeners += onFeed
         root0 = root
         when {
-            Api.renewDue -> renew(startHome = Feed.items.isEmpty() && !Feed.busy)   // вход продлеваем до первой ленты
+            Api.renewDue -> renew(RgSite, startHome = Feed.items.isEmpty() && !Feed.busy)   // вход продлеваем до первой ленты
             Feed.items.isEmpty() && !Feed.busy -> home()
             else -> refresh()
         }
+        if (!Api.renewDue && Reddit.renewDue) renew(Reddit.SITE)
     }
     private lateinit var root0: ViewGroup
 
     /** Продлить вход без окна; не вышло (нет сети или куки сайта тоже истекли) — следующий запуск попробует снова, а 👤 откроет вход. */
-    private fun renew(startHome: Boolean = false) {
+    private fun renew(site: Site, startHome: Boolean = false) {
         if (Renewer.running) return
-        status.text = "Обновляю вход…"
-        Renewer.run(root0) { ok ->
+        status.text = "Обновляю вход в ${site.title}…"
+        Renewer.run(root0, site) { ok ->
             if (isDestroyed) return@run
-            if (!ok) status.setOnClickListener { login() }
-            if (startHome || ok && Feed.error == Api.LOGIN_EXPIRED) home() else refresh()
-            if (!ok) status.text = "Вход истёк — нажмите 👤, чтобы войти снова"
+            if (!ok) status.setOnClickListener { login(site) }
+            val waiting = Feed.error == Api.LOGIN_EXPIRED || Feed.error == Reddit.LOGIN_EXPIRED
+            when {
+                startHome -> home()
+                ok && waiting -> if (Feed.reddit) Feed.reddit(Feed.sub) else home()
+                else -> refresh()
+            }
+            if (!ok) status.text = "Вход в ${site.title} истёк — нажмите здесь, чтобы войти снова"
         }
     }
 
@@ -135,26 +143,52 @@ class MainActivity : Activity() {
     private fun homeOrder() = Feed.order.takeIf { it != "score" && it != "oldest" } ?: "trending"
 
     private fun tab(m: String?) {
-        if (m != null && !Api.loggedIn) { pendingTab = m; login(); return }
+        if (m == "reddit") {
+            if (!Reddit.hadUser) { login(Reddit.SITE); return }
+            search.setText(""); openSub(prefs.getString("last_sub", "")!!); return
+        }
+        if (m != null && !Api.loggedIn) { pendingTab = m; login(RgSite); return }
         search.setText(""); Feed.reset("", homeOrder(), mode = m); grid.scrollToPosition(0)
     }
     private var pendingTab: String? = null
 
-    private fun login() = @Suppress("DEPRECATION") startActivityForResult(Intent(this, LoginActivity::class.java), 1)
+    private fun login(site: Site = RgSite) = @Suppress("DEPRECATION")
+        startActivityForResult(Intent(this, LoginActivity::class.java).putExtra("site", if (site === Reddit.SITE) "reddit" else "rg"), if (site === Reddit.SITE) 2 else 1)
 
+    /** Аккаунты: вход и выход отдельно для RedGIFs и Reddit (выход стирает куки только этого сайта). */
     private fun account() {
-        if (!Api.loggedIn) { pendingTab = "foryou"; login(); return }
         val m = PopupMenu(this, userBtn)
-        m.menu.add(0, 1, 0, "Выйти из аккаунта")
-        m.setOnMenuItemClickListener { Api.logout(); android.webkit.CookieManager.getInstance().removeAllCookies(null); home(); true }
+        m.menu.add(0, 1, 0, if (Api.hadUser) "Выйти из RedGIFs" else "Войти в RedGIFs")
+        m.menu.add(0, 2, 1, if (Reddit.hadUser) "Выйти из Reddit" + Reddit.name.takeIf { it.isNotEmpty() }?.let { " (u/$it)" }.orEmpty() else "Войти в Reddit")
+        m.setOnMenuItemClickListener {
+            when (it.itemId) {
+                1 -> if (Api.hadUser) { Api.logout(); TokenCatcher.clearCookies("https://www.redgifs.com", ".redgifs.com"); home() } else { pendingTab = "foryou"; login(RgSite) }
+                2 -> if (Reddit.hadUser) { Reddit.logout(); if (Feed.reddit) home() else refresh() } else login(Reddit.SITE)
+            }
+            true
+        }
         m.show()
     }
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(rq: Int, rs: Int, data: Intent?) {
         @Suppress("DEPRECATION") super.onActivityResult(rq, rs, data)
-        if (rq == 1 && rs == RESULT_OK) { val t = pendingTab ?: "foryou"; pendingTab = null; tab(t) }
+        if (rs != RESULT_OK) return
+        if (rq == 1) { val t = pendingTab ?: "foryou"; pendingTab = null; tab(t) }
+        if (rq == 2) tab("reddit")
     }
+
+    /** Reddit: сабреддит(ы) через «+», «u/имя» или пусто (главная с подписками); сабреддит запоминается в чипах. */
+    private fun openSub(s: String) {
+        val sub = s.trim().removePrefix("/").removePrefix("r/").removePrefix("R/").split(Regex("[\\s,+]+")).filter { it.isNotEmpty() }
+            .joinToString("+").let { if (s.trim().startsWith("u/")) s.trim() else it }
+        if (sub.isNotEmpty() && !sub.startsWith("u/")) {
+            val saved = LinkedHashSet(savedSubs()); saved.add(sub); prefs.edit().putString("subs", saved.joinToString("\n")).apply()
+        }
+        prefs.edit().putString("last_sub", sub).apply()
+        Feed.reddit(sub); if (::grid.isInitialized) grid.scrollToPosition(0)
+    }
+    private fun savedSubs() = prefs.getString("subs", "")!!.split("\n").filter { it.isNotBlank() }
 
     override fun onDestroy() { Feed.listeners -= onFeed; super.onDestroy() }
 
@@ -168,12 +202,14 @@ class MainActivity : Activity() {
         super.onNewIntent(intent)
         intent.getStringExtra("tag")?.let { search.setText(it); go(it, tag = true) }
         intent.getStringExtra("author")?.let { search.setText(""); Feed.reset("", Feed.order, it); grid.scrollToPosition(0) }
-        if (intent.getBooleanExtra("login", false)) login()
+        intent.getStringExtra("sub")?.let { search.setText(""); openSub(it) }
+        if (intent.getBooleanExtra("login", false)) login(RgSite)
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (Feed.author != null || Feed.text.isNotEmpty()) home()
+        if (Feed.reddit && Feed.sub.isNotEmpty()) { prefs.edit().putString("last_sub", "").apply(); Feed.reddit("") }
+        else if (Feed.author != null || Feed.text.isNotEmpty() || Feed.reddit) home()
         else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
@@ -182,6 +218,7 @@ class MainActivity : Activity() {
     private fun go(q: String, tag: Boolean = false) {
         (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(search.windowToken, 0)
         search.clearFocus()
+        if (Feed.reddit) { openSub(q); return }
         if (q.isBlank()) { home(); return }
         Feed.reset(q.trim(), Feed.order, tag = tag)
         grid.scrollToPosition(0)
@@ -190,7 +227,11 @@ class MainActivity : Activity() {
     /** Сортировка (сервер или досортировка на телефоне) и фильтры: длительность, только со звуком. Выбор запоминается. */
     private fun sortMenu(v: View) {
         val m = PopupMenu(this, v)
-        val sorts = Feed.SORTS.filter { !it.authorOnly || Feed.author != null }.filter { it.id != "score" || Feed.text.isNotEmpty() }
+        if (Feed.reddit) {
+            Reddit.SORTS.forEachIndexed { i, s -> m.menu.add(5, i, i, s.label).isChecked = s.id == Feed.rorder }
+            m.menu.setGroupCheckable(5, true, true)
+        }
+        val sorts = if (Feed.reddit) emptyList() else Feed.SORTS.filter { !it.authorOnly || Feed.author != null }.filter { it.id != "score" || Feed.text.isNotEmpty() }
         sorts.forEachIndexed { i, s -> m.menu.add(1, i, i, s.label).isChecked = s.id == Feed.order }
         m.menu.setGroupCheckable(1, true, true)
         val dur = m.menu.addSubMenu(2, 0, 100, "Длительность: " + if (Feed.duration == "any") "любая" else Feed.DURATIONS.first { it.first == Feed.duration }.second.lowercase())
@@ -199,6 +240,7 @@ class MainActivity : Activity() {
         m.menu.add(4, 0, 101, "Только со звуком").apply { isCheckable = true; isChecked = Feed.audioOnly }
         m.setOnMenuItemClickListener {
             when (it.groupId) {
+                5 -> { Feed.reddit(Feed.sub, Reddit.SORTS[it.itemId].id); prefs.edit().putString("rorder", Feed.rorder).apply() }
                 1 -> Feed.reset(Feed.text, sorts[it.itemId].id, Feed.author, Feed.mode, Feed.byTag && Feed.query == Feed.text).also { _ -> prefs.edit().putString("order", Feed.order).apply() }
                 3 -> { Feed.duration = Feed.DURATIONS[it.itemId].first; prefs.edit().putString("duration", Feed.duration).apply(); reload() }
                 4 -> { Feed.audioOnly = !Feed.audioOnly; prefs.edit().putBoolean("audio", Feed.audioOnly).apply(); reload() }
@@ -209,17 +251,18 @@ class MainActivity : Activity() {
         m.show()
     }
 
-    private fun reload() = Feed.reset(Feed.text, Feed.order, Feed.author, Feed.mode, Feed.byTag && Feed.query == Feed.text)
+    private fun reload() = if (Feed.reddit) Feed.reddit(Feed.sub) else Feed.reset(Feed.text, Feed.order, Feed.author, Feed.mode, Feed.byTag && Feed.query == Feed.text)
     private val prefs by lazy { getSharedPreferences("loopa", MODE_PRIVATE) }
 
     /** Подсказки при вводе: через 350 мс после последней буквы. */
     private fun suggestLater(q: String) {
         val g = ++suggestGen
-        if (q.isBlank()) { showChips(Feed.tags.map { it to 0 }); return }
+        if (q.isBlank()) { idleChips(); return }
         ui.postDelayed({
             if (g != suggestGen) return@postDelayed
+            val rd = Feed.reddit
             thread {
-                val r = runCatching { Api.suggest(q.trim()) }.getOrDefault(emptyList())
+                val r = runCatching { if (rd) Reddit.suggest(q.trim().removePrefix("r/")).map { (n, c) -> "r/$n" to c } else Api.suggest(q.trim()) }.getOrDefault(emptyList())
                 ui.post { if (g == suggestGen) showChips(r) }
             }
         }, 350)
@@ -228,22 +271,49 @@ class MainActivity : Activity() {
     private fun showChips(list: List<Pair<String, Int>>) {
         chips.removeAllViews()
         list.take(30).forEach { (t, n) ->
-            chips.addView(chip(if (n > 0) "$t · ${count(n.toLong())}" else t, CHIP) { search.setText(t); search.setSelection(t.length); go(t, tag = true) },
+            chips.addView(chip(if (n > 0) "$t · ${count(n.toLong())}" else t, CHIP) { if (Feed.reddit) { search.setText(""); openSub(t) } else { search.setText(t); search.setSelection(t.length); go(t, tag = true) } },
                 LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
         }
     }
 
+    /** Чипы без ввода: теги ленты, а на Reddit — «Подписки» и сохранённые сабреддиты (долгое нажатие — убрать). */
+    private fun idleChips() {
+        if (!Feed.reddit) { showChips(Feed.tags.map { it to 0 }); return }
+        chips.removeAllViews()
+        val all = listOf("") + savedSubs()
+        all.forEach { s ->
+            val on = s == Feed.sub
+            chips.addView(chip(if (s.isEmpty()) "🏠 Подписки" else "r/$s", if (on) ACCENT else CHIP) { openSub(s) }.apply {
+                if (s.isNotEmpty()) setOnLongClickListener {
+                    prefs.edit().putString("subs", savedSubs().filter { it != s }.joinToString("\n")).apply()
+                    android.widget.Toast.makeText(this@MainActivity, "r/$s убран из списка", android.widget.Toast.LENGTH_SHORT).show(); idleChips(); true
+                }
+            }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
+        }
+    }
+
     private fun refresh() {
-        userBtn.text = when { Api.loggedIn -> "👤✓"; Api.hadUser -> "👤!"; else -> "👤" }
+        userBtn.text = when { Api.loggedIn || Reddit.loggedIn -> "👤✓"; Api.hadUser || Reddit.hadUser -> "👤!"; else -> "👤" }
+        search.hint = if (Feed.reddit) "Сабреддит: r/… (через пробел — несколько)" else "Поиск по тегам: blonde, POV, car…"
         for (i in 0 until tabs.childCount) tabs.getChildAt(i).background = pill(if (TABS[i].second == Feed.mode && Feed.author == null && Feed.text.isEmpty()) ACCENT else CHIP)
-        sortBtn.visibility = if (Feed.mode == null) View.VISIBLE else View.GONE
-        if (Feed.error == Api.LOGIN_EXPIRED && !Renewer.running) renew()
-        if (Feed.error != null && Feed.error != Api.LOGIN_EXPIRED) status.setOnClickListener { Feed.retry() }
-        sortBtn.text = "⇅ " + Feed.sort.short + if (Feed.filtered) " ⧩" else ""
+        sortBtn.visibility = if (Feed.mode == null || Feed.reddit) View.VISIBLE else View.GONE
+        when (Feed.error) {
+            Api.LOGIN_EXPIRED -> if (!Renewer.running) renew(RgSite)
+            Reddit.LOGIN_EXPIRED -> if (!Renewer.running) renew(Reddit.SITE)
+            Reddit.LOGIN_NEEDED -> status.setOnClickListener { login(Reddit.SITE) }
+            null -> {}
+            else -> status.setOnClickListener { Feed.retry() }
+        }
+        sortBtn.text = "⇅ " + (if (Feed.reddit) Reddit.sort(Feed.rorder).short else Feed.sort.short) + if (Feed.filtered) " ⧩" else ""
         status.text = buildString {
             when {
                 Feed.mode == "foryou" -> append("Для вас — по вашим лайкам")
                 Feed.mode == "liked" -> append("Ваши лайки")
+                Feed.reddit -> append("Reddit · " + when {
+                    Feed.sub.isEmpty() -> "подписки" + Reddit.name.takeIf { it.isNotEmpty() }?.let { " u/$it" }.orEmpty()
+                    Feed.sub.startsWith("u/") -> "посты ${Feed.sub}"
+                    else -> Feed.sub.split("+").joinToString(" + ") { "r/$it" }
+                } + " · " + Reddit.sort(Feed.rorder).label)
                 Feed.author != null -> append("Автор: ${Feed.author}  (назад — к ленте)")
                 Feed.text.isNotEmpty() && !Feed.byTag -> append("Поиск: «${Feed.query.ifEmpty { Feed.text }}»" + (if (Feed.query.isNotEmpty() && !Feed.query.equals(Feed.text, true)) " («${Feed.text}»)" else "") +
                     (if (Feed.query.isNotEmpty()) " · точных совпадений: ${Feed.exact}" + (if (Feed.exact > 0) " (они первыми)" else "") else ""))
@@ -258,7 +328,7 @@ class MainActivity : Activity() {
             if (!Feed.busy && Feed.error == null && Feed.items.isEmpty() && Feed.text.isNotEmpty()) append(" · ничего не нашлось")
         }
         if (!Feed.busy) swipe.isRefreshing = false
-        if (search.text.isBlank()) showChips(Feed.tags.map { it to 0 })
+        if (search.text.isBlank()) idleChips()
         adapter.notifyDataSetChanged()
     }
 
@@ -299,7 +369,7 @@ class MainActivity : Activity() {
     private fun dp(v: Int) = (v * resources.displayMetrics.density).roundToInt()
 
     companion object {
-        val TABS = listOf("♥ Для вас" to "foryou", "🔥 Популярное" to null, "Мои лайки" to "liked")
+        val TABS = listOf("♥ Для вас" to "foryou", "🔥 Популярное" to null, "Мои лайки" to "liked", "Reddit" to "reddit")
         val BG = 0xFF0E1015.toInt(); val ACCENT = 0xFF7C3AED.toInt(); val CHIP = 0xFF262B34.toInt()
         fun time(s: Double) = "%d:%02d".format(s.toInt() / 60, s.toInt() % 60)
         fun count(n: Long) = when { n >= 1_000_000 -> "%.1fM".format(n / 1e6); n >= 1000 -> "%.0fK".format(n / 1e3); else -> "$n" }

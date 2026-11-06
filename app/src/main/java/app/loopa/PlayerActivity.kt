@@ -152,7 +152,10 @@ class PlayerActivity : Activity() {
         super.onDestroy()
     }
 
-    private fun item(g: Gif) = url(g).let { MediaItem.Builder().setUri(it).setMediaId(it).build() }
+    /** v.redd.it — поток HLS (качество подстраивает сам плеер), остальное — mp4 выбранного качества. */
+    private fun item(g: Gif) = url(g).let { u ->
+        MediaItem.Builder().setUri(u).setMediaId(u).apply { if (g.hls) setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) }.build()
+    }
 
     /** Держать в PreloadManager окно вокруг текущего: −2…+6 (вперёд листают чаще). */
     private fun sync() {
@@ -276,18 +279,25 @@ class PlayerActivity : Activity() {
             poster.visibility = View.VISIBLE; pausedMark.visibility = View.GONE
             Thumbs.load(poster, g.thumb)
             fit(g.w, g.h)
-            user.text = "@${g.user}"
-            user.setOnClickListener { if (g.user.isNotBlank()) back("author", g.user) }
-            info.text = "${MainActivity.time(g.duration)} · ${MainActivity.count(g.views)} просмотров · ♥ ${MainActivity.count(g.likes)}" + if (!g.hasAudio) " · без звука" else ""
+            // пост Reddit: автор — его посты на Reddit, вместо просмотров — рейтинг и комментарии, ниже — заголовок
+            user.text = if (g.reddit) "u/${g.user}" else "@${g.user}"
+            user.setOnClickListener { if (g.user.isNotBlank()) { if (g.reddit) back("sub", "u/${g.user}") else back("author", g.user) } }
+            info.maxLines = 3
+            info.text = if (g.reddit) "${MainActivity.time(g.duration)} · ↑ ${MainActivity.count(g.likes)} · 💬 ${MainActivity.count(g.views)}" +
+                (if (!g.hasAudio) " · без звука" else "") + (if (g.description.isNotBlank()) "\n" + g.description else "")
+                else "${MainActivity.time(g.duration)} · ${MainActivity.count(g.views)} просмотров · ♥ ${MainActivity.count(g.likes)}" + if (!g.hasAudio) " · без звука" else ""
             tags.removeAllViews()
             g.tags.forEach { t ->
                 tags.addView(TextView(this@PlayerActivity).apply {
-                    text = "#$t"; setTextColor(Color.WHITE); textSize = 13f; setPadding(dp(10), dp(5), dp(10), dp(5))
+                    text = if (t.startsWith("r/")) t else "#$t"; setTextColor(Color.WHITE); textSize = 13f; setPadding(dp(10), dp(5), dp(10), dp(5))
                     background = GradientDrawable().apply { setColor(0x66FFFFFF); cornerRadius = dp(20).toFloat() }
-                    setOnClickListener { back("tag", t) }
+                    setOnClickListener { if (t.startsWith("r/")) back("sub", t.substring(2)) else back("tag", t) }
                 }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
             }
             dl.setOnClickListener { Downloads.get(this@PlayerActivity, g) }
+            // лайк — только у роликов RedGIFs; качество у потока HLS выбирает сам плеер
+            like.visibility = if (g.reddit) View.GONE else View.VISIBLE
+            qBtn.visibility = if (g.hls) View.GONE else View.VISIBLE
             fun showLike() { like.text = if (liked(g.id)) "♥" else "♡"; like.setTextColor(if (liked(g.id)) 0xFFFF4D5E.toInt() else Color.WHITE) }
             showLike()
             like.setOnClickListener {

@@ -8,12 +8,18 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-/** Ролик: превью, HD/SD mp4, теги, автор. */
+/**
+ * Ролик: превью, HD/SD mp4, теги, автор. Пост Reddit ([reddit]): sub — сабреддит, hls — поток v.redd.it (HD = SD = адрес
+ * плейлиста), dash — манифест v.redd.it для скачивания (видео и звук раздельно), likes — рейтинг поста.
+ */
 data class Gif(
     val id: String, val thumb: String, val hd: String, val sd: String,
     val w: Int, val h: Int, val duration: Double, val user: String, val tags: List<String>,
     val hasAudio: Boolean, val views: Long, val likes: Long, val description: String = "",
-)
+    val sub: String = "", val hls: Boolean = false, val dash: String = "",
+) {
+    val reddit get() = sub.isNotEmpty()
+}
 
 /** Страница выдачи: ролики, сколько всего страниц и актуальные теги (лента присылает их сама). */
 class Page(val gifs: List<Gif>, val pages: Int, val tags: List<String>)
@@ -131,17 +137,34 @@ object Api {
         for (i in 0 until arr.length()) {
             val g = arr.getJSONObject(i)
             if (g.has("cta") && !g.isNull("cta")) continue          // реклама
-            val u = g.optJSONObject("urls") ?: continue
-            val hd = u.optString("hd").ifEmpty { u.optString("sd") }
-            if (hd.isEmpty()) continue
-            val tags = g.optJSONArray("tags")?.let { t -> List(t.length()) { t.getString(it) } } ?: emptyList()
-            out += Gif(g.getString("id"), u.optString("thumbnail").ifEmpty { u.optString("poster") }, hd,
-                u.optString("sd").ifEmpty { hd }, g.optInt("width", 9), g.optInt("height", 16),
-                g.optDouble("duration", 0.0).let { if (it.isNaN()) 0.0 else it }, g.optString("userName"), tags,
-                g.optBoolean("hasAudio"), g.optLong("views"), g.optLong("likes"), g.optString("description").takeIf { it != "null" }.orEmpty())
+            parse(g)?.let { out += it }
         }
         val tags = j.optJSONArray("tags")?.let { t -> List(t.length()) { t.optString(it) } }?.filter { it.isNotBlank() } ?: emptyList()
         return Page(out, j.optInt("pages", 1), tags)
+    }
+
+    private fun parse(g: JSONObject): Gif? {
+        val u = g.optJSONObject("urls") ?: return null
+        val hd = u.optString("hd").ifEmpty { u.optString("sd") }
+        if (hd.isEmpty()) return null
+        val tags = g.optJSONArray("tags")?.let { t -> List(t.length()) { t.getString(it) } } ?: emptyList()
+        return Gif(g.getString("id"), u.optString("thumbnail").ifEmpty { u.optString("poster") }, hd,
+            u.optString("sd").ifEmpty { hd }, g.optInt("width", 9), g.optInt("height", 16),
+            g.optDouble("duration", 0.0).let { if (it.isNaN()) 0.0 else it }, g.optString("userName"), tags,
+            g.optBoolean("hasAudio"), g.optLong("views"), g.optLong("likes"), g.optString("description").takeIf { it != "null" }.orEmpty())
+    }
+
+    private val known = java.util.Collections.synchronizedMap(object : LinkedHashMap<String, Gif?>(256, .75f, true) {
+        override fun removeEldestEntry(e: MutableMap.MutableEntry<String, Gif?>) = size > 2000
+    })
+
+    /** Ролик по id (ссылка на RedGIFs из поста Reddit); null — удалён. Запомненные не запрашиваем снова. */
+    fun gif(id: String): Gif? {
+        val k = id.lowercase()
+        if (known.containsKey(k)) return known[k]
+        val g = try { parse(JSONObject(get("/v2/gifs/${enc(k)}")).getJSONObject("gif")) } catch (e: HttpError) { if (e.code == 404 || e.code == 410) null else throw e }
+        known[k] = g
+        return g
     }
 
     /** Подсказки тегов: [(тег, сколько роликов)]. */
