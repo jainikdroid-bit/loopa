@@ -8,6 +8,7 @@ package app.loopa
 object Thesaurus {
     private val MAP: Map<String, List<String>> = mapOf(
         "knob" to listOf("doorknob", "door knob", "gear knob", "gearshift", "gear shift", "stick shift", "bedpost", "object insertion"),
+        "gearknob" to listOf("gearshift", "gear shift", "gear stick", "stick shift", "shifter", "gear lever"),
         "gearshift" to listOf("gear shift", "gear stick", "stick shift", "gear knob", "shifter", "gear lever"),
         "gearstick" to listOf("gearshift", "gear shift", "stick shift", "gear knob"),
         "stickshift" to listOf("gearshift", "gear shift", "gear stick", "gear knob"),

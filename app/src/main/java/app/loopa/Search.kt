@@ -92,7 +92,7 @@ object Search {
             if (!synDone && synReady) {
                 synDone = true
                 // синоним — готовый тег RedGIFs: по тегу, иначе текстом
-                synonyms.take(6).forEach { syn -> val t = exactTag(syn); if (t != null) rg(t, true, 1) else rg(syn, false, 1) }; tags.take(3).forEach { rg(it, true, 1) }
+                synonyms.take(10).forEach { syn -> val t = exactTag(syn); if (t != null) rg(t, true, 1) else rg(syn, false, 1) }; tags.take(3).forEach { rg(it, true, 1) }
             }
             if (got.isEmpty()) continue
             total += got.size
@@ -113,7 +113,9 @@ object Search {
             // мимо — не показываем; у запроса из 2–3 слов, когда со всеми словами набралось 20+, частичные — тоже нет
             val multi = Api.words(q).size >= 2
             full += scored.count { it.second >= 6 }
-            part(scored.filter { it.second > 0 && (!multi || it.second >= 6 || full < 20 || it.first.reddit) })
+            // у запроса из 2+ слов ролик RedGIFs с одним совпавшим словом — мимо («gear» из «bondage gear» на «gear knob»);
+            // синоним (≥ 7) и все слова (≥ 6) — по теме; посты Reddit (сабреддит найден по запросу) — ниже, но остаются
+            part(scored.filter { it.second > 0 && (!multi || it.second >= 6 || it.first.reddit) })
         }
         android.util.Log.i("Loopa", "поиск «$q» p$p: $total роликов, по теме $exact, синонимы $synonyms, теги $tags")
         return total
@@ -194,7 +196,7 @@ object Search {
         // свой словарь — первым: у нишевых тем на сайтах ни тегов, ни внятных связей нет
         val thes = Thesaurus.of(q)
         val syn = (thes + ph.filter { (t, c) -> norm(t) != qn && (roots.any { r -> norm(t).contains(r) } || total > 0 && c * 10 >= total * 4) }
-            .map { it.first }.filter { t -> (rgCount(t) ?: 0) < GENERIC_COUNT }).distinctBy { norm(it) }.take(8)
+            .map { it.first }.filter { t -> (rgCount(t) ?: 0) < GENERIC_COUNT }).distinctBy { norm(it) }.filter { norm(it) != qn }.take(10)
         // близкие теги RedGIFs: подсказки по запросу и словам, похожие по написанию, не общие
         val own = Api.expand(q).filter { t -> (rgCount(t) ?: 0) in 1 until GENERIC_COUNT && qWords.any { w -> norm(t).contains(w.take(4)) } }
         return syn to own.take(4)
