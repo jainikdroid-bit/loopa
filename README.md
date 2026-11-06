@@ -6,7 +6,9 @@
 
 <p align="center">
   Лёгкий открытый Android-просмотрщик коротких роликов RedGIFs: лента без рекламы, плавная вертикальная прокрутка
-  и мгновенный старт видео.
+  и мгновенный старт видео. Видео Reddit — в том же клиенте, скачивание со звуком.
+  <br>
+  <i>Free open-source Android app for RedGIFs and Reddit videos: ad-free, instant playback, downloads with sound. 18+.</i>
   <br><br>
   <a href="https://github.com/jainikdroid-bit/loopa/releases/latest"><b>Скачать APK</b></a> ·
   <a href="https://jainikdroid-bit.github.io/loopa/">Сайт</a> ·

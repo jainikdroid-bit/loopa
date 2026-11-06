@@ -5,8 +5,8 @@
 <h1 align="center">Loopa</h1>
 
 <p align="center">
-  A lightweight open-source Android viewer for RedGIFs short videos: an ad-free feed, smooth vertical swiping and
-  instant playback.
+  A free, lightweight open-source Android app for RedGIFs and Reddit videos: an ad-free feed, smooth vertical
+  swiping, instant playback, tag search and downloads (Reddit videos with sound).
   <br><br>
   <a href="https://github.com/jainikdroid-bit/loopa/releases/latest"><b>Download APK</b></a> ·
   <a href="https://jainikdroid-bit.github.io/loopa/">Website</a> ·

@@ -3,13 +3,68 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Loopa — открытый просмотрщик коротких роликов для Android</title>
-<meta name="description" content="Loopa — лёгкий открытый Android-клиент для RedGIFs: лента без рекламы, плавная прокрутка, мгновенный старт видео. 18+. Неофициальное приложение.">
+<title>Loopa — RedGIFs and Reddit video app for Android · клиент RedGIFs и Reddit без рекламы</title>
+<meta name="description" content="Loopa is a free open-source Android app for RedGIFs and Reddit videos: ad-free vertical feed, instant playback, tag search, downloads with sound, works on slow networks. Бесплатный открытый клиент RedGIFs и Reddit для Android: без рекламы, поиск, скачивание. 18+, unofficial.">
 <meta name="rating" content="adult">
-<meta name="robots" content="noai, noimageai">
+<meta name="robots" content="index, follow, max-snippet:-1">
+<link rel="canonical" href="https://jainikdroid-bit.github.io/loopa/">
 <link rel="icon" href="img/icon.svg" type="image/svg+xml">
-<meta property="og:title" content="Loopa">
-<meta property="og:description" content="Открытый Android-просмотрщик коротких роликов: без рекламы, быстрый, без трекеров.">
+<link rel="alternate" type="text/plain" title="LLM summary" href="https://jainikdroid-bit.github.io/loopa/llms.txt">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://jainikdroid-bit.github.io/loopa/">
+<meta property="og:site_name" content="Loopa">
+<meta property="og:title" content="Loopa — RedGIFs and Reddit video app for Android">
+<meta property="og:description" content="Free, open-source, ad-free Android client for RedGIFs and Reddit videos: vertical feed, instant start, tag search, downloads with sound. 18+.">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Loopa",
+  "alternateName": ["Loopa for RedGIFs", "Loopa RedGIFs client"],
+  "description": "Unofficial open-source Android client for RedGIFs and Reddit videos. Ad-free vertical feed, instant playback with preloading, tag and text search with relevance sorting, live grid previews, Reddit subreddits and subscriptions, downloads (Reddit videos with sound), optional sign-in with a 'For you' feed, works on slow and unstable networks. Adults only (18+).",
+  "applicationCategory": "MultimediaApplication",
+  "applicationSubCategory": "Video player",
+  "operatingSystem": "Android 8.0+",
+  "url": "https://jainikdroid-bit.github.io/loopa/",
+  "downloadUrl": "https://github.com/jainikdroid-bit/loopa/releases/latest",
+  "installUrl": "https://github.com/jainikdroid-bit/loopa/releases/latest",
+  "codeRepository": "https://github.com/jainikdroid-bit/loopa",
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "contentRating": "18+",
+  "inLanguage": ["ru", "en"],
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "featureList": [
+    "Ad-free RedGIFs feed (boosted posts removed)",
+    "Reddit videos from subscriptions and any subreddit",
+    "Full-screen vertical swiping like short-video apps",
+    "Instant start: neighbouring videos are preloaded",
+    "Tag search with suggestions, synonyms and abbreviations; relevance, top, newest, duration, likes and views sorting",
+    "Live animated previews in the grid",
+    "Download videos; Reddit videos are saved with sound",
+    "Auto HD/SD quality and automatic retries on bad networks",
+    "No trackers, analytics or ad SDKs"
+  ],
+  "keywords": "RedGIFs app, RedGIFs Android, RedGIFs client, Reddit NSFW video app, Reddit video downloader with sound, ad-free, open source, APK"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Is there an app for RedGIFs on Android?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Loopa is a free, open-source, unofficial Android app for RedGIFs (and Reddit videos). It is installed from the APK on the GitHub releases page; Android 8.0 or newer." } },
+    { "@type": "Question", "name": "How do I download RedGIFs or Reddit videos on Android?",
+      "acceptedAnswer": { "@type": "Answer", "text": "In Loopa, long-press a video in the grid or tap the download button in the player. Files go to Downloads/Loopa; Reddit videos are saved with sound." } },
+    { "@type": "Question", "name": "Can I watch Reddit NSFW videos in a TikTok-style feed?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Loopa shows videos from your Reddit subscriptions or any subreddits in a full-screen vertical feed with sound. NSFW content appears if it is enabled in your Reddit account settings." } },
+    { "@type": "Question", "name": "Is Loopa official, and does it have ads or trackers?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No, Loopa is an independent open-source project (MIT), not affiliated with RedGIFs or Reddit. It has no ads, trackers or analytics." } }
+  ]
+}
+</script>
 <style>
   :root {
     --bg: #0c0a14; --bg2: #141021; --card: #1a1528; --line: rgba(255,255,255,.09);
@@ -195,22 +250,22 @@
       <div class="privacy">
         <ul class="clean" data-ru>
           <li><b>Никаких трекеров</b>, аналитики и рекламных SDK.</li>
-          <li><b>Только API RedGIFs</b> и их видео-серверы; окно входа — сам сайт redgifs.com.</li>
+          <li><b>Только сами сервисы</b>: API и видео-серверы RedGIFs и Reddit; окна входа — сами сайты redgifs.com и reddit.com.</li>
           <li><b>Пароль не видит</b>: вы вводите его на странице сайта, сохраняется лишь токен сессии.</li>
         </ul>
         <ul class="clean" data-en>
           <li><b>No trackers</b>, analytics or ad SDKs.</li>
-          <li><b>RedGIFs API only</b> plus its video servers; the sign-in window is redgifs.com itself.</li>
+          <li><b>Only the services themselves</b>: RedGIFs and Reddit APIs and video servers; sign-in windows are redgifs.com and reddit.com.</li>
           <li><b>Never sees your password</b>: you type it on the site; only the session token is kept.</li>
         </ul>
         <ul class="clean" data-ru>
           <li><b>Данные остаются на телефоне</b>, облачная копия отключена.</li>
-          <li><b>Честный User-Agent</b> — приложение не маскируется под браузер.</li>
+          <li><b>Без посредников</b>: запросы идут с телефона напрямую к сервисам, своего сервера у Loopa нет.</li>
           <li><b>Бережно к сервису</b>: грузит только то, что вы смотрите.</li>
         </ul>
         <ul class="clean" data-en>
           <li><b>Data stays on your phone</b>; cloud backup is disabled.</li>
-          <li><b>Honest User-Agent</b> — the app doesn't pretend to be a browser.</li>
+          <li><b>No middleman</b>: requests go straight from your phone to the services; Loopa has no server.</li>
           <li><b>Gentle on the service</b>: it loads only what you watch.</li>
         </ul>
       </div>
@@ -223,6 +278,18 @@
       <details><summary data-ru>Это официальное приложение RedGIFs?</summary><summary data-en>Is this an official RedGIFs app?</summary>
         <p data-ru>Нет. Loopa — независимый открытый проект, не связанный с RedGIFs и не одобренный ими. RedGIFs — товарный знак его владельцев.</p>
         <p data-en>No. Loopa is an independent open-source project, not affiliated with or endorsed by RedGIFs. RedGIFs is a trademark of its owners.</p></details>
+      <details><summary data-ru>Есть ли приложение RedGIFs для Android?</summary><summary data-en>Is there an app for RedGIFs on Android?</summary>
+        <p data-ru>Loopa — бесплатное открытое неофициальное Android-приложение для RedGIFs (и видео Reddit). Ставится из APK со страницы релизов на GitHub, нужен Android 8.0 или новее.</p>
+        <p data-en>Loopa is a free, open-source, unofficial Android app for RedGIFs (and Reddit videos). It is installed from the APK on the GitHub releases page; Android 8.0 or newer.</p></details>
+      <details><summary data-ru>Как скачать видео с RedGIFs или Reddit на Android?</summary><summary data-en>How do I download RedGIFs or Reddit videos on Android?</summary>
+        <p data-ru>В Loopa — долгое нажатие на ролик в сетке или кнопка скачивания в плеере. Файлы попадают в «Загрузки/Loopa», видео Reddit сохраняются со звуком.</p>
+        <p data-en>In Loopa, long-press a video in the grid or tap the download button in the player. Files go to Downloads/Loopa; Reddit videos are saved with sound.</p></details>
+      <details><summary data-ru>Можно смотреть видео Reddit 18+ лентой, как в TikTok?</summary><summary data-en>Can I watch Reddit NSFW videos in a TikTok-style feed?</summary>
+        <p data-ru>Да. Loopa показывает видео из ваших подписок Reddit или любых сабреддитов вертикальной лентой на весь экран, со звуком. Контент 18+ — если он включён в настройках вашего аккаунта Reddit.</p>
+        <p data-en>Yes. Loopa shows videos from your Reddit subscriptions or any subreddits in a full-screen vertical feed with sound. NSFW content appears if it is enabled in your Reddit account settings.</p></details>
+      <details><summary data-ru>Есть ли в Loopa реклама или трекеры?</summary><summary data-en>Does Loopa have ads or trackers?</summary>
+        <p data-ru>Нет. Это независимый открытый проект (MIT), без рекламы, трекеров и аналитики.</p>
+        <p data-en>No. It is an independent open-source project (MIT) with no ads, trackers or analytics.</p></details>
       <details><summary data-ru>Где хранятся ролики?</summary><summary data-en>Where are the videos stored?</summary>
         <p data-ru>Нигде у нас: приложение показывает то, что сервис отдаёт любому браузеру, и кэширует просмотренное только на вашем телефоне.</p>
         <p data-en>Nowhere on our side: the app shows what the service serves to any browser and caches watched videos only on your phone.</p></details>
