@@ -94,7 +94,7 @@ class PlayerActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.statusBarColor = Color.BLACK; window.navigationBarColor = Color.BLACK
-        Video.init(this)
+        Video.init(this); Interests.init(this)
         Net.init(this)
         // буфер как в демо shortform: старт после 0,5 с, держим 5–20 с вперёд; после подвисания — 2,5 с запаса
         val load = DefaultLoadControl.Builder().setBufferDurationsMs(5_000, 20_000, 500, 2_500)
@@ -144,8 +144,8 @@ class PlayerActivity : Activity() {
         tick()
     }
 
-    override fun onPause() { super.onPause(); player.pause() }
-    override fun onResume() { super.onResume(); if (current >= 0) player.play() }
+    override fun onPause() { super.onPause(); player.pause(); report() }
+    override fun onResume() { super.onResume(); if (current >= 0) { player.play(); shownAt = System.currentTimeMillis() } }
     override fun onDestroy() {
         Feed.listeners -= onFeed; Net.online -= onOnline; ui.removeCallbacksAndMessages(null)
         player.release(); preload.release()
@@ -166,10 +166,22 @@ class PlayerActivity : Activity() {
         preload.invalidate()
     }
 
+    /** Сколько текущий ролик был на экране — сигнал для «Для вас» ([Interests.watched]). */
+    private var shownAt = 0L
+    private fun report() {
+        val g = Feed.items.getOrNull(current) ?: return
+        if (shownAt == 0L) return
+        val sec = (System.currentTimeMillis() - shownAt) / 1000.0
+        val dur = if (g.duration > 0) g.duration else player.duration.takeIf { it > 0 }?.div(1000.0) ?: 0.0
+        Interests.watched(g, if (dur > 0) sec / dur else 0.0, sec)
+        shownAt = 0L
+    }
+
     /** Страница выбрана — играть её ролик (источник уже подгружен PreloadManager). */
     private fun settle(pos: Int) {
         if (pos == current || pos !in Feed.items.indices) return
         val h = rv.findViewHolderForAdapterPosition(pos) as? PageHolder ?: run { pager.post { settle(pos) }; return }
+        report(); shownAt = System.currentTimeMillis()
         holder?.poster?.visibility = View.VISIBLE
         current = pos; holder = h
         control.cur = pos; preload.setCurrentPlayingIndex(pos)
@@ -294,15 +306,16 @@ class PlayerActivity : Activity() {
                     setOnClickListener { if (t.startsWith("r/")) back("sub", t.substring(2)) else back("tag", t) }
                 }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
             }
-            dl.setOnClickListener { Downloads.get(this@PlayerActivity, g) }
-            // лайк — только у роликов RedGIFs; качество у потока HLS выбирает сам плеер
-            like.visibility = if (g.reddit) View.GONE else View.VISIBLE
+            dl.setOnClickListener { Downloads.get(this@PlayerActivity, g); Interests.download(g) }
+            // качество у потока HLS выбирает сам плеер
             qBtn.visibility = if (g.hls) View.GONE else View.VISIBLE
             fun showLike() { like.text = if (liked(g.id)) "♥" else "♡"; like.setTextColor(if (liked(g.id)) 0xFFFF4D5E.toInt() else Color.WHITE) }
             showLike()
             like.setOnClickListener {
+                // Reddit: лайк — только у себя, для «Для вас» (голос на Reddit не ставим)
+                if (g.reddit) { val on = !liked(g.id); setLiked(g.id, on); showLike(); Interests.like(g, on); return@setOnClickListener }
                 if (!Api.loggedIn) { back("login", "1"); return@setOnClickListener }
-                val on = !liked(g.id); setLiked(g.id, on); showLike()
+                val on = !liked(g.id); setLiked(g.id, on); showLike(); Interests.like(g, on)
                 val src = when {
                     Feed.mode == "foryou" -> "for-you"; Feed.mode == "liked" -> "favourites"; Feed.author != null -> "profile"
                     Feed.text.isNotEmpty() -> if (Feed.byTag) "tag-gifs" else "search-gifs"; else -> "trending"
@@ -310,7 +323,7 @@ class PlayerActivity : Activity() {
                 val position = bindingAdapterPosition
                 kotlin.concurrent.thread {
                     val err = runCatching { Api.like(g.id, on, src, position) }.getOrElse { it.message ?: "нет связи" }
-                    if (err != null) ui.post { setLiked(g.id, !on); showLike(); android.widget.Toast.makeText(this@PlayerActivity, "Лайк не прошёл — $err", android.widget.Toast.LENGTH_LONG).show() }
+                    if (err != null) ui.post { setLiked(g.id, !on); showLike(); Interests.like(g, !on); android.widget.Toast.makeText(this@PlayerActivity, "Лайк не прошёл — $err", android.widget.Toast.LENGTH_LONG).show() }
                 }
             }
             sound.text = if (muted) "🔇" else "🔊"

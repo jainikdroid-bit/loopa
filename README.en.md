@@ -48,6 +48,10 @@
   and user posts; hot, new, rising and top of hour / day / week / month / year / all time. Videos are taken from posts:
   Reddit-hosted videos (with sound), RedGIFs links, Imgur and GIFs. Sign-in happens on reddit.com in an embedded window,
   just like RedGIFs; 18+ content appears if it's enabled in your Reddit account settings.
+- **“For you” with its own algorithm.** An interest profile learns from likes, full watches and rewatches, skips,
+  searches and downloads — by tags, words in titles and descriptions, subreddits and creators; old tastes fade on their
+  own. It picks RedGIFs videos and mixes in Reddit posts from matching subreddits (18+ included, which Reddit's own
+  recommendations leave out). The Reddit share is adjustable; the profile is shown in “My interests” and stays on the phone.
 - **Downloads** into `Downloads/Loopa`: RedGIFs and Imgur via the system download manager; Reddit videos are fetched as
   separate video and audio tracks and muxed into one mp4 without re-encoding.
 - Small, with no trackers, analytics or ad SDKs.

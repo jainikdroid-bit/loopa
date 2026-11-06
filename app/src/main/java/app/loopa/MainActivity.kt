@@ -52,7 +52,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Api.init(this); Net.init(this); Reddit.init(this)
+        Api.init(this); Net.init(this); Reddit.init(this); Interests.init(this); ForYou.init(this)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
             Feed.duration = prefs.getString("duration", "any")!!; Feed.audioOnly = prefs.getBoolean("audio", false)
             prefs.getString("order", null)?.let { Feed.restore(it) }
@@ -138,7 +138,11 @@ class MainActivity : Activity() {
     }
 
     /** Домашняя лента: после входа — «Для вас», иначе популярное. */
-    private fun home() { search.setText(""); Feed.reset("", homeOrder(), mode = if (Api.loggedIn) "foryou" else null); if (::grid.isInitialized) grid.scrollToPosition(0) }
+    private fun home() {
+        search.setText("")
+        val fy = Api.loggedIn || ForYou.reddit || !Interests.empty
+        Feed.reset("", homeOrder(), mode = if (fy) "foryou" else null); if (::grid.isInitialized) grid.scrollToPosition(0)
+    }
     /** Без поиска релевантности нет — тогда популярное. */
     private fun homeOrder() = Feed.order.takeIf { it != "score" && it != "oldest" } ?: "trending"
 
@@ -147,7 +151,7 @@ class MainActivity : Activity() {
             if (!Reddit.hadUser) { login(Reddit.SITE); return }
             search.setText(""); openSub(prefs.getString("last_sub", "")!!); return
         }
-        if (m != null && !Api.loggedIn) { pendingTab = m; login(RgSite); return }
+        if (m == "liked" && !Api.loggedIn) { pendingTab = m; login(RgSite); return }
         search.setText(""); Feed.reset("", homeOrder(), mode = m); grid.scrollToPosition(0)
     }
     private var pendingTab: String? = null
@@ -186,6 +190,7 @@ class MainActivity : Activity() {
             val saved = LinkedHashSet(savedSubs()); saved.add(sub); prefs.edit().putString("subs", saved.joinToString("\n")).apply()
         }
         prefs.edit().putString("last_sub", sub).apply()
+        Interests.openSub(sub)
         Feed.reddit(sub); if (::grid.isInitialized) grid.scrollToPosition(0)
     }
     private fun savedSubs() = prefs.getString("subs", "")!!.split("\n").filter { it.isNotBlank() }
@@ -220,6 +225,7 @@ class MainActivity : Activity() {
         search.clearFocus()
         if (Feed.reddit) { openSub(q); return }
         if (q.isBlank()) { home(); return }
+        if (tag) Interests.openTag(q.trim()) else Interests.search(q)
         Feed.reset(q.trim(), Feed.order, tag = tag)
         grid.scrollToPosition(0)
     }
@@ -231,7 +237,15 @@ class MainActivity : Activity() {
             Reddit.SORTS.forEachIndexed { i, s -> m.menu.add(5, i, i, s.label).isChecked = s.id == Feed.rorder }
             m.menu.setGroupCheckable(5, true, true)
         }
-        val sorts = if (Feed.reddit) emptyList() else Feed.SORTS.filter { !it.authorOnly || Feed.author != null }.filter { it.id != "score" || Feed.text.isNotEmpty() }
+        if (Feed.mode == "foryou") {
+            m.menu.add(6, 0, 0, "Подмешивать Reddit").apply { isCheckable = true; isChecked = ForYou.mixReddit; isEnabled = Reddit.hadUser }
+            val sh = m.menu.addSubMenu(6, 1, 1, "Доля Reddit: " + (ForYou.SHARES.minByOrNull { kotlin.math.abs(it.first - ForYou.share) }?.second ?: "").lowercase())
+            ForYou.SHARES.forEachIndexed { i, (v, t) -> sh.add(7, i, i, t).isChecked = kotlin.math.abs(v - ForYou.share) < 0.01 }
+            sh.setGroupCheckable(7, true, true)
+            m.menu.add(6, 2, 2, "Мои интересы…")
+            m.menu.add(6, 3, 3, "Сбросить интересы")
+        }
+        val sorts = if (Feed.reddit || Feed.mode == "foryou") emptyList() else Feed.SORTS.filter { !it.authorOnly || Feed.author != null }.filter { it.id != "score" || Feed.text.isNotEmpty() }
         sorts.forEachIndexed { i, s -> m.menu.add(1, i, i, s.label).isChecked = s.id == Feed.order }
         m.menu.setGroupCheckable(1, true, true)
         val dur = m.menu.addSubMenu(2, 0, 100, "Длительность: " + if (Feed.duration == "any") "любая" else Feed.DURATIONS.first { it.first == Feed.duration }.second.lowercase())
@@ -240,6 +254,14 @@ class MainActivity : Activity() {
         m.menu.add(4, 0, 101, "Только со звуком").apply { isCheckable = true; isChecked = Feed.audioOnly }
         m.setOnMenuItemClickListener {
             when (it.groupId) {
+                6 -> when (it.itemId) {
+                    0 -> { ForYou.mixReddit = !ForYou.mixReddit; reload() }
+                    2 -> { android.app.AlertDialog.Builder(this).setTitle("Мои интересы").setMessage(Interests.summary()).setPositiveButton("OK", null).show(); return@setOnMenuItemClickListener true }
+                    3 -> { android.app.AlertDialog.Builder(this).setMessage("Забыть лайки, просмотры и поиски для «Для вас»?")
+                        .setPositiveButton("Сбросить") { _, _ -> Interests.reset(); reload() }.setNegativeButton("Отмена", null).show(); return@setOnMenuItemClickListener true }
+                    else -> return@setOnMenuItemClickListener false
+                }
+                7 -> { ForYou.share = ForYou.SHARES[it.itemId].first; reload() }
                 5 -> { Feed.reddit(Feed.sub, Reddit.SORTS[it.itemId].id); prefs.edit().putString("rorder", Feed.rorder).apply() }
                 1 -> Feed.reset(Feed.text, sorts[it.itemId].id, Feed.author, Feed.mode, Feed.byTag && Feed.query == Feed.text).also { _ -> prefs.edit().putString("order", Feed.order).apply() }
                 3 -> { Feed.duration = Feed.DURATIONS[it.itemId].first; prefs.edit().putString("duration", Feed.duration).apply(); reload() }
@@ -296,7 +318,7 @@ class MainActivity : Activity() {
         userBtn.text = when { Api.loggedIn || Reddit.loggedIn -> "👤✓"; Api.hadUser || Reddit.hadUser -> "👤!"; else -> "👤" }
         search.hint = if (Feed.reddit) "Сабреддит: r/… (через пробел — несколько)" else "Поиск по тегам: blonde, POV, car…"
         for (i in 0 until tabs.childCount) tabs.getChildAt(i).background = pill(if (TABS[i].second == Feed.mode && Feed.author == null && Feed.text.isEmpty()) ACCENT else CHIP)
-        sortBtn.visibility = if (Feed.mode == null || Feed.reddit) View.VISIBLE else View.GONE
+        sortBtn.visibility = if (Feed.mode == null || Feed.reddit || Feed.mode == "foryou") View.VISIBLE else View.GONE
         when (Feed.error) {
             Api.LOGIN_EXPIRED -> if (!Renewer.running) renew(RgSite)
             Reddit.LOGIN_EXPIRED -> if (!Renewer.running) renew(Reddit.SITE)
@@ -304,10 +326,11 @@ class MainActivity : Activity() {
             null -> {}
             else -> status.setOnClickListener { Feed.retry() }
         }
-        sortBtn.text = "⇅ " + (if (Feed.reddit) Reddit.sort(Feed.rorder).short else Feed.sort.short) + if (Feed.filtered) " ⧩" else ""
+        sortBtn.text = "⇅ " + (when { Feed.reddit -> Reddit.sort(Feed.rorder).short; Feed.mode == "foryou" -> "Настроить"; else -> Feed.sort.short }) + if (Feed.filtered) " ⧩" else ""
         status.text = buildString {
             when {
-                Feed.mode == "foryou" -> append("Для вас — по вашим лайкам")
+                Feed.mode == "foryou" -> append("Для вас — " + listOfNotNull("RedGIFs", "Reddit".takeIf { ForYou.reddit }).joinToString(" + ") +
+                    if (Interests.empty) " · лайкайте и досматривайте — подстроится" else " · по вашим интересам")
                 Feed.mode == "liked" -> append("Ваши лайки")
                 Feed.reddit -> append("Reddit · " + when {
                     Feed.sub.isEmpty() -> "подписки" + Reddit.name.takeIf { it.isNotEmpty() }?.let { " u/$it" }.orEmpty()
@@ -356,7 +379,7 @@ class MainActivity : Activity() {
             Thumbs.load(h.img, g.thumb)
             h.dur.text = (if (g.hasAudio) "🔊 " else "") + time(g.duration)
             h.box.setOnClickListener { startActivity(Intent(this@MainActivity, PlayerActivity::class.java).putExtra("pos", h.bindingAdapterPosition)) }
-            h.box.setOnLongClickListener { Downloads.get(this@MainActivity, g); true }
+            h.box.setOnLongClickListener { Downloads.get(this@MainActivity, g); Interests.download(g); true }
         }
     }
 

@@ -1,0 +1,113 @@
+package app.loopa
+
+import android.content.Context
+import android.content.SharedPreferences
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
+import kotlin.math.ln
+
+/**
+ * Лента «Для вас»: RedGIFs + Reddit по профилю [Interests].
+ *
+ * Кандидаты:
+ *  - RedGIFs: рекомендации самого RedGIFs (если вошли) и подборка по любимому тегу (случайный из верхних, по весу);
+ *  - Reddit: «горячее» смеси из ~6 сабреддитов — сабреддиты из профиля, найденные по верхним тегам и словам
+ *    (поиск сабреддитов Reddit, 18+ вперёд, кэш на сутки), подписки; плюс один случайный для разведки. Свои рекомендации
+ *    Reddit 18+ не показывает, поэтому подбираем сами. Лента смеси кончилась — набираем новую смесь.
+ * Ранжирование внутри каждого источника: сглаженный вес по профилю + немного популярности + шум (чтобы не застревать
+ * в одном и том же). Просмотренные раньше и повторы (тот же ролик RedGIFs из поста Reddit) выкидываем.
+ * Смешивание: доля Reddit [share] равномерно по ленте.
+ */
+object ForYou {
+    private val pool = Executors.newFixedThreadPool(3)
+    private var prefs: SharedPreferences? = null
+    private var rgPage = 0
+    private val tagPage = HashMap<String, Int>()
+    private var subs: List<String> = emptyList()
+    private var after: String? = null
+    private var redditDry = 0
+    /** Адреса уже показанных в этой ленте — один ролик и с RedGIFs, и из Reddit не должен прийти дважды. */
+    private val shown = HashSet<String>()
+
+    val SHARES = listOf(0.25 to "Мало (1 из 4)", 0.34 to "Треть", 0.5 to "Поровну", 0.67 to "Много (2 из 3)")
+
+    fun init(ctx: Context) { if (prefs == null) prefs = ctx.applicationContext.getSharedPreferences("loopa", Context.MODE_PRIVATE) }
+    var mixReddit: Boolean
+        get() = prefs?.getBoolean("fy_reddit", true) ?: true
+        set(v) { prefs?.edit()?.putBoolean("fy_reddit", v)?.apply() }
+    var share: Double
+        get() = prefs?.getFloat("fy_share", 0.34f)?.toDouble() ?: 0.34
+        set(v) { prefs?.edit()?.putFloat("fy_share", v.toFloat())?.apply() }
+    val reddit get() = mixReddit && Reddit.hadUser
+
+    @Synchronized fun reset() { rgPage = 0; tagPage.clear(); subs = emptyList(); after = null; redditDry = 0; shown.clear() }
+
+    /** Следующая порция (в фоне). Пусто — источники кончились. Ошибка — только если не ответил ни один. */
+    fun page(): List<Gif> {
+        val rgF = pool.submit<List<Gif>> { rg() }
+        val rdF = if (reddit && redditDry < 3) pool.submit<List<Gif>> { redditBatch() } else null
+        val a = runCatching { rgF.get() }
+        val b = rdF?.let { f -> runCatching { f.get() } }
+        if (a.isFailure && (b == null || b.isFailure)) throw unwrap(a.exceptionOrNull()!!)
+        return synchronized(this) { mix(rank(a.getOrDefault(emptyList())), rank(b?.getOrNull().orEmpty()), if (b == null) 0.0 else share) }
+    }
+
+    private fun unwrap(e: Throwable) = (e as? ExecutionException)?.cause ?: e
+
+    private fun rg(): List<Gif> {
+        val out = ArrayList<Gif>()
+        if (Api.loggedIn) out += Api.page("", "trending", synchronized(this) { ++rgPage }, mode = "foryou").gifs
+        val tag = Interests.pickTag()
+        if (tag != null) {
+            val p = synchronized(this) { (tagPage[tag] ?: 0) + 1 }.also { synchronized(this) { tagPage[tag] = it } }
+            out += runCatching { Api.page(tag, "trending", p, byTag = true).gifs }.getOrElse { if (out.isEmpty()) throw it else emptyList() }
+        } else if (!Api.loggedIn) out += Api.page("", "trending", synchronized(this) { ++rgPage }).gifs
+        return out
+    }
+
+    private fun redditBatch(): List<Gif> {
+        if (subs.isEmpty()) subs = chooseSubs()
+        if (subs.isEmpty()) { redditDry = 3; return emptyList() }
+        val (gifs, next) = Reddit.page(subs.joinToString("+"), "hot", after)
+        synchronized(this) {
+            after = next
+            if (next == null) { subs = emptyList() }            // смесь кончилась — в следующий раз новая
+            redditDry = if (gifs.isEmpty()) redditDry + 1 else 0
+        }
+        return gifs
+    }
+
+    /** Смесь сабреддитов: профиль + найденные по тегам и словам + подписки; верхние 5 по весу и один случайный. */
+    private fun chooseSubs(): List<String> {
+        val w = HashMap<String, Double>()
+        fun add(s: String, x: Double) { val k = s.lowercase(); w[k] = (w[k] ?: 0.0) + x }
+        Interests.top("sub", 10).forEach { (s, x) -> add(s, x) }
+        var lookups = 0
+        (Interests.top("tag", 5) + Interests.top("kw", 3)).forEach { (term, x) ->
+            val found = Interests.mapped(term) ?: if (lookups++ < 3) runCatching { Reddit.searchSubs(term) }.getOrNull()?.also { Interests.map(term, it) } else null
+            found?.forEach { add(it, x * 0.6) }
+        }
+        runCatching { Reddit.subscribed() }.getOrDefault(emptyList()).forEach { add(it, 1.0) }
+        val ranked = w.entries.sortedByDescending { it.value }.map { it.key }
+        val pick = ranked.take(5).toMutableList()
+        ranked.drop(5).randomOrNull()?.let { pick += it }   // разведка: вдруг понравится
+        return pick
+    }
+
+    /** Порядок внутри источника: вкус, популярность, шум; без просмотренного и повторов. */
+    private fun rank(l: List<Gif>): List<Gif> = l
+        .filter { !Interests.isSeen(it.id) && shown.add(it.hd) }
+        .map { it to (Interests.damp(Interests.score(it)) + 0.08 * ln(1.0 + it.likes.coerceAtLeast(0)) + Math.random() * 0.5) }
+        .sortedByDescending { it.second }.map { it.first }
+
+    /** Чередование: на каждой позиции берём Reddit, если его пока меньше доли [share]; остатки — в конец. */
+    private fun mix(a: List<Gif>, b: List<Gif>, share: Double): List<Gif> {
+        val out = ArrayList<Gif>(a.size + b.size)
+        var i = 0; var j = 0
+        while (i < a.size || j < b.size) {
+            val wantB = j < b.size && (i >= a.size || j < (out.size + 1) * share)
+            if (wantB) out += b[j++] else out += a[i++]
+        }
+        return out
+    }
+}

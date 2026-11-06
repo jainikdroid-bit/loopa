@@ -121,6 +121,27 @@ object Reddit {
         return List(a.length()) { a.getJSONObject(it).getJSONObject("data").let { d -> d.optString("display_name") to d.optInt("subscribers") } }.filter { it.first.isNotBlank() }
     }
 
+    /** Сабреддиты по слову (для «Для вас»): 18+ вперёд, по числу подписчиков, мелкие (< 2000) отбрасываем. */
+    fun searchSubs(q: String, n: Int = 2): List<String> {
+        val j = JSONObject(get("/subreddits/search", "q=${enc(q)}&include_over_18=on&limit=10&raw_json=1"))
+        val a = j.getJSONObject("data").getJSONArray("children")
+        return List(a.length()) { a.getJSONObject(it).getJSONObject("data") }
+            .filter { it.optInt("subscribers") >= 2000 && it.optString("subreddit_type") != "private" }
+            .sortedByDescending { it.optInt("subscribers") * (if (it.optBoolean("over18")) 3.0 else 1.0) }
+            .take(n).map { it.optString("display_name") }.filter { it.isNotBlank() }
+    }
+
+    /** Подписки пользователя (кэш на час). */
+    @Volatile private var mine: Pair<Long, List<String>>? = null
+    fun subscribed(): List<String> {
+        mine?.takeIf { System.currentTimeMillis() - it.first < 3600_000L }?.let { return it.second }
+        val j = JSONObject(get("/subreddits/mine/subscriber", "limit=100&raw_json=1"))
+        val a = j.getJSONObject("data").getJSONArray("children")
+        val l = List(a.length()) { a.getJSONObject(it).getJSONObject("data").optString("display_name") }.filter { it.isNotBlank() && !it.startsWith("u_") }
+        mine = System.currentTimeMillis() to l
+        return l
+    }
+
     private val RG = Regex("redgifs\\.com/(?:watch|ifr|i)/([A-Za-z]+)")
     private val IMGUR = Regex("i\\.imgur\\.com/(\\w+)\\.(?:gifv|mp4)")
 

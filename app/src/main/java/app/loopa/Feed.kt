@@ -82,6 +82,7 @@ object Feed {
     fun reset(text: String, order: String, author: String? = null, mode: String? = null, tag: Boolean = false) {
         this.text = text; this.order = order; this.author = author; this.mode = mode; query = ""; tagOnly = tag; byTag = tag; exact = 0
         items.clear(); page = 0; pages = 1; after = null; loading = false; error = null; fails = 0; chain = 0; stopRetry(); gen++
+        if (mode == "foryou") ForYou.reset()
         changed(); more()
     }
 
@@ -117,6 +118,19 @@ object Feed {
         if (!canMore) return
         loading = true
         val g = gen; val p = page + 1; val ord = apiOrder()
+        if (mode == "foryou") {
+            // «Для вас» — RedGIFs + Reddit по профилю интересов; пусто — источники кончились
+            thread {
+                val r = runCatching { ForYou.page() }
+                ui.post {
+                    if (g != gen) return@post
+                    loading = false
+                    r.onSuccess { add("", false, p, Page(it, if (it.isEmpty()) p else p + 1, emptyList())) }.onFailure { fail(it) }
+                    changed()
+                }
+            }
+            return
+        }
         if (reddit) {
             val s = sub; val o = rorder; val a = after
             thread {
