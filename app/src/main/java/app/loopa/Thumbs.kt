@@ -24,6 +24,9 @@ object Thumbs {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
+    /** Картинка уже в памяти — ячейка показана, можно запускать живое превью. */
+    fun has(url: String) = url.isEmpty() || cache.get(url) != null
+
     fun load(iv: ImageView, url: String) {
         iv.tag = url
         cache.get(url)?.let { iv.setImageBitmap(it); return }

@@ -29,6 +29,9 @@
 ## Features
 
 - **Ad-free feed** — boosted and promoted videos are filtered out.
+- **Live grid previews** — cut like big video sites do: snippets from the start, a third, two thirds and the end, on a
+  loop, so you get the gist at once. Thumbnails load first, video fades in when ready. **RG** / **RD** badges show
+  RedGIFs or Reddit. Fewer previews on slow networks; can be turned off in the menu.
 - **Instant start** — neighbouring videos are preloaded (Media3 PreloadManager), playback starts after half a second of
   buffer, watched videos come from cache.
 - **Full-screen vertical swiping**, seek bar, pause, sound toggle.

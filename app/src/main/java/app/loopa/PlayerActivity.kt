@@ -232,6 +232,8 @@ class PlayerActivity : Activity() {
         val poster = ImageView(this@PlayerActivity).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
         val spin = TextView(this@PlayerActivity).apply { text = "загрузка…"; setTextColor(Color.WHITE); textSize = 14f; visibility = View.GONE }
         val user = TextView(this@PlayerActivity).apply { setTextColor(Color.WHITE); textSize = 16f; setShadowLayer(4f, 0f, 0f, Color.BLACK) }
+        /** Метка источника слева от автора: RG / RD. */
+        val src = TextView(this@PlayerActivity).apply { setTextColor(Color.WHITE); textSize = 11f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(dp(7), dp(2), dp(7), dp(2)) }
         val info = TextView(this@PlayerActivity).apply { setTextColor(0xFFDDDDDD.toInt()); textSize = 12f; setShadowLayer(4f, 0f, 0f, Color.BLACK) }
         val tags = LinearLayout(this@PlayerActivity).apply { orientation = LinearLayout.HORIZONTAL }
         val seek = SeekBar(this@PlayerActivity)
@@ -265,7 +267,10 @@ class PlayerActivity : Activity() {
             this.col = col
             val bottom = LinearLayout(this@PlayerActivity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(8), dp(12), dp(16))
                 background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(0xCC000000.toInt(), 0x00000000))
-                addView(user); addView(info)
+                addView(LinearLayout(this@PlayerActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                    addView(src); addView(user, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
+                }); addView(info)
                 addView(HorizontalScrollView(this@PlayerActivity).apply { isHorizontalScrollBarEnabled = false; addView(tags) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
                 addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
             }
@@ -291,6 +296,8 @@ class PlayerActivity : Activity() {
             poster.visibility = View.VISIBLE; pausedMark.visibility = View.GONE
             Thumbs.load(poster, g.thumb)
             fit(g.w, g.h)
+            src.text = if (g.reddit) "RD" else "RG"
+            src.background = GradientDrawable().apply { setColor(if (g.reddit) MainActivity.RD_COLOR else MainActivity.RG_COLOR); cornerRadius = dp(10).toFloat() }
             // пост Reddit: автор — его посты на Reddit, вместо просмотров — рейтинг и комментарии, ниже — заголовок
             user.text = if (g.reddit) "u/${g.user}" else "@${g.user}"
             user.setOnClickListener { if (g.user.isNotBlank()) { if (g.reddit) back("sub", "u/${g.user}") else back("author", g.user) } }

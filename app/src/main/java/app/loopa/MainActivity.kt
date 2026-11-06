@@ -52,7 +52,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Api.init(this); Net.init(this); Reddit.init(this); Interests.init(this); ForYou.init(this)
+        Api.init(this); Net.init(this); Reddit.init(this); Interests.init(this); ForYou.init(this); Video.init(this)
+        preview.enabled = prefs.getBoolean("live", true)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
             Feed.duration = prefs.getString("duration", "any")!!; Feed.audioOnly = prefs.getBoolean("audio", false)
             prefs.getString("order", null)?.let { Feed.restore(it) }
@@ -96,6 +97,8 @@ class MainActivity : Activity() {
             adapter = this@MainActivity.adapter
             setPadding(dp(4), 0, dp(4), 0); clipToPadding = false
             addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                // живые превью — когда прокрутка остановилась (на ходу только картинки)
+                override fun onScrollStateChanged(rv: RecyclerView, st: Int) { if (st == RecyclerView.SCROLL_STATE_IDLE) live() else preview.stopAll() }
                 override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
                     val lm = rv.layoutManager as GridLayoutManager
                     if (lm.findLastVisibleItemPosition() > Feed.items.size - 12) Feed.more()
@@ -195,7 +198,29 @@ class MainActivity : Activity() {
     }
     private fun savedSubs() = prefs.getString("subs", "")!!.split("\n").filter { it.isNotBlank() }
 
-    override fun onDestroy() { Feed.listeners -= onFeed; super.onDestroy() }
+    override fun onDestroy() { Feed.listeners -= onFeed; preview.release(); super.onDestroy() }
+    override fun onPause() { super.onPause(); preview.stopAll() }
+    override fun onResume() { super.onResume(); if (::grid.isInitialized) grid.postDelayed({ live() }, 300) }
+
+    private val preview by lazy { GridPreview(this) }
+    private var waits = 0
+    private val liveLater = Runnable { if (grid.scrollState == RecyclerView.SCROLL_STATE_IDLE) live() }
+
+    /** Обновить живые превью: ячейки, видимые целиком. */
+    private fun live() {
+        if (!::grid.isInitialized || isFinishing) return
+        val lm = grid.layoutManager as GridLayoutManager
+        val a = lm.findFirstCompletelyVisibleItemPosition(); val b = lm.findLastCompletelyVisibleItemPosition()
+        val vis = if (a < 0) emptyList() else (a..b).mapNotNull { p ->
+            val h = grid.findViewHolderForAdapterPosition(p) as? GridAdapter.H ?: return@mapNotNull null
+            Feed.items.getOrNull(p)?.let { h.slot to it }
+        }
+        // сначала картинки: превью запускаем, только когда все видимые картинки догрузились (видео не отнимает у них канал)
+        // (не дольше ~4 с: картинка могла не загрузиться вовсе)
+        if (vis.any { !Thumbs.has(it.second.thumb) } && waits++ < 6) { grid.removeCallbacks(liveLater); grid.postDelayed(liveLater, 700); return }
+        waits = 0
+        preview.update(vis)
+    }
 
     override fun onConfigurationChanged(c: Configuration) {
         super.onConfigurationChanged(c)
@@ -252,6 +277,7 @@ class MainActivity : Activity() {
         Feed.DURATIONS.forEachIndexed { i, d -> dur.add(3, i, i, d.second).isChecked = d.first == Feed.duration }
         dur.setGroupCheckable(3, true, true)
         m.menu.add(4, 0, 101, "Только со звуком").apply { isCheckable = true; isChecked = Feed.audioOnly }
+        m.menu.add(8, 0, 102, "Живые превью в сетке").apply { isCheckable = true; isChecked = preview.enabled }
         m.setOnMenuItemClickListener {
             when (it.groupId) {
                 6 -> when (it.itemId) {
@@ -261,6 +287,7 @@ class MainActivity : Activity() {
                         .setPositiveButton("Сбросить") { _, _ -> Interests.reset(); reload() }.setNegativeButton("Отмена", null).show(); return@setOnMenuItemClickListener true }
                     else -> return@setOnMenuItemClickListener false
                 }
+                8 -> { preview.enabled = !preview.enabled; prefs.edit().putBoolean("live", preview.enabled).apply(); if (preview.enabled) live() else preview.stopAll(); return@setOnMenuItemClickListener true }
                 7 -> { ForYou.share = ForYou.SHARES[it.itemId].first; reload() }
                 5 -> { Feed.reddit(Feed.sub, Reddit.SORTS[it.itemId].id); prefs.edit().putString("rorder", Feed.rorder).apply() }
                 1 -> Feed.reset(Feed.text, sorts[it.itemId].id, Feed.author, Feed.mode, Feed.byTag && Feed.query == Feed.text).also { _ -> prefs.edit().putString("order", Feed.order).apply() }
@@ -353,31 +380,40 @@ class MainActivity : Activity() {
         if (!Feed.busy) swipe.isRefreshing = false
         if (search.text.isBlank()) idleChips()
         adapter.notifyDataSetChanged()
+        grid.post { if (grid.scrollState == RecyclerView.SCROLL_STATE_IDLE) live() }
     }
 
     private inner class GridAdapter : RecyclerView.Adapter<GridAdapter.H>() {
-        inner class H(val box: FrameLayout, val img: ImageView, val dur: TextView) : RecyclerView.ViewHolder(box)
+        inner class H(val box: FrameLayout, val img: ImageView, val dur: TextView, val src: TextView, val slot: GridPreview.Slot) : RecyclerView.ViewHolder(box)
+        override fun onViewRecycled(h: H) { preview.stop(h.slot) }
         override fun getItemCount() = Feed.items.size
         override fun onCreateViewHolder(p: ViewGroup, t: Int): H {
             val img = ImageView(p.context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(0xFF1A1D23.toInt()) }
             val dur = TextView(p.context).apply {
                 setTextColor(Color.WHITE); textSize = 12f; setPadding(dp(6), dp(2), dp(6), dp(2)); background = pill(0xAA000000.toInt())
             }
+            // откуда ролик: RG — RedGIFs, RD — Reddit
+            val tex = android.view.TextureView(p.context).apply { alpha = 0f }   // живое превью поверх картинки
+            val src = TextView(p.context).apply { setTextColor(Color.WHITE); textSize = 10f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(dp(6), dp(1), dp(6), dp(1)) }
             val box = object : FrameLayout(p.context) {
                 // ячейка 3:4 — видно больше роликов, чем при 9:16
                 override fun onMeasure(w: Int, h: Int) { super.onMeasure(w, MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(w) * 4 / 3, MeasureSpec.EXACTLY)) }
             }.apply {
                 addView(img, FrameLayout.LayoutParams(-1, -1))
+                addView(tex, FrameLayout.LayoutParams(-1, -1))
                 addView(dur, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
+                addView(src, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
                 layoutParams = RecyclerView.LayoutParams(-1, -2).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }
                 clipToOutline = true; background = pill(0xFF1A1D23.toInt(), 10f)
             }
-            return H(box, img, dur)
+            return H(box, img, dur, src, GridPreview.Slot(tex))
         }
         override fun onBindViewHolder(h: H, pos: Int) {
             val g = Feed.items[pos]
+            preview.stop(h.slot); h.slot.pos = pos
             Thumbs.load(h.img, g.thumb)
             h.dur.text = (if (g.hasAudio) "🔊 " else "") + time(g.duration)
+            h.src.text = if (g.reddit) "RD" else "RG"; h.src.background = pill(if (g.reddit) RD_COLOR else RG_COLOR)
             h.box.setOnClickListener { startActivity(Intent(this@MainActivity, PlayerActivity::class.java).putExtra("pos", h.bindingAdapterPosition)) }
             h.box.setOnLongClickListener { Downloads.get(this@MainActivity, g); Interests.download(g); true }
         }
@@ -394,6 +430,8 @@ class MainActivity : Activity() {
     companion object {
         val TABS = listOf("♥ Для вас" to "foryou", "🔥 Популярное" to null, "Мои лайки" to "liked", "Reddit" to "reddit")
         val BG = 0xFF0E1015.toInt(); val ACCENT = 0xFF7C3AED.toInt(); val CHIP = 0xFF262B34.toInt()
+        /** Метки источника: RedGIFs — малиновый, Reddit — фирменный оранжевый. */
+        val RG_COLOR = 0xE0D6246E.toInt(); val RD_COLOR = 0xE0FF4500.toInt()
         fun time(s: Double) = "%d:%02d".format(s.toInt() / 60, s.toInt() % 60)
         fun count(n: Long) = when { n >= 1_000_000 -> "%.1fM".format(n / 1e6); n >= 1000 -> "%.0fK".format(n / 1e3); else -> "$n" }
     }
