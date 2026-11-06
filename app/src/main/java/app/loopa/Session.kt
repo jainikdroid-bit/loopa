@@ -45,6 +45,20 @@ object RgSite : Site("RedGIFs", "https://www.redgifs.com/login", "https://www.re
     override fun save(ctx: Context, t: String, exp: Long) = Api.setUser(ctx, t, exp)
 }
 
+/**
+ * Окно входа под видом обычного Chrome: без пометки «wv» в User-Agent и без заголовка X-Requested-With с именем
+ * приложения. По ним Google узнаёт встроенное окно и не пускает войти («Continue with Google» на Reddit висел).
+ * Только для окна входа — ленты и API ходят с честным [Api.UA].
+ */
+object Disguise {
+    fun apply(w: WebView) {
+        w.settings.userAgentString = android.webkit.WebSettings.getDefaultUserAgent(w.context)
+            .replace("; wv", "").replace(Regex(" Version/\\d+(\\.\\d+)*"), "")
+        if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST))
+            androidx.webkit.WebSettingsCompat.setRequestedWithHeaderOriginAllowList(w.settings, emptySet())
+    }
+}
+
 /** Ловит токен вошедшего пользователя со страницы сайта в WebView. Пароль приложение не видит. */
 class TokenCatcher(
     private val web: WebView, private val site: Site,
@@ -148,7 +162,8 @@ object Renewer {
     fun run(host: ViewGroup, site: Site, done: (Boolean) -> Unit) {
         if (running) return
         running = true
-        val web = WebView(host.context).apply { alpha = 0f }
+        // Reddit — тем же «браузером», что и при входе: сессия не видит смены клиента
+        val web = WebView(host.context).apply { alpha = 0f; if (site === Reddit.SITE) Disguise.apply(this) }
         host.addView(web, ViewGroup.LayoutParams(1, 1))
         lateinit var catcher: TokenCatcher
         fun finish(ok: Boolean) {

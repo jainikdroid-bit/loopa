@@ -15,8 +15,8 @@ android {
         applicationId = "app.loopa"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.1.2"
+        versionCode = 5
+        versionName = "1.1.3"
     }
     signingConfigs {
         if (signing != null) create("release") {
@@ -47,6 +47,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.8.0")   // видео v.redd.it
     implementation("androidx.media3:media3-database:1.8.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.webkit:webkit:1.12.1")   // окно входа без заголовка X-Requested-With
     implementation("androidx.viewpager2:viewpager2:1.1.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 }
