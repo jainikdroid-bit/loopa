@@ -35,6 +35,8 @@ object Search {
     /** Сколько роликов прямо по теме (оценка ≥ 3) — для строки статуса. */
     @Volatile var exact = 0; private set
     @Volatile private var synReady = false
+    /** Сколько роликов со всеми словами запроса — после 20 частичные совпадения уже не показываем. */
+    @Volatile private var full = 0
 
     @Synchronized fun reset(q: String) { text = q; synonyms = emptyList(); tags = emptyList(); srcPage.clear(); turn = 0; rdPending = null; rdNext = null; rdSubs = null; exact = 0 }
 
@@ -66,6 +68,7 @@ object Search {
         if (reddit) { cs.submit { redditPart(q, p) }; n++ }
         var total = 0
         var synDone = p != 1
+        if (p == 1) full = 0
         val relCnt = HashMap<String, Int>()
         var relDone = false
         var i = 0
@@ -90,36 +93,52 @@ object Search {
                     android.util.Log.i("Loopa", "поиск «$q»: теги из найденного по теме $rel")
                 }
             }
-            exact += scored.count { it.second >= 3 }
-            part(scored)
+            exact += scored.count { it.second >= 6 || Api.words(q).size < 2 && it.second >= 3 }
+            // мимо — не показываем; у запроса из 2–3 слов, когда со всеми словами набралось 20+, частичные — тоже нет
+            val multi = Api.words(q).size >= 2
+            full += scored.count { it.second >= 6 }
+            part(scored.filter { it.second > 0 && (!multi || it.second >= 6 || full < 20) })
         }
         android.util.Log.i("Loopa", "поиск «$q» p$p: $total роликов, по теме $exact, синонимы $synonyms, теги $tags")
         return total
     }
 
-    /** Оценка релевантности ролика запросу. */
+    /**
+     * Оценка релевантности, строгая — по уровням:
+     *  - фраза целиком, слова подряд («standing dildo» в названии или теге) — 20 (без окончания — 16);
+     *  - все слова в одном теге — 12;
+     *  - все слова, но в разных тегах/местах («Standing Doggy» + «Dildo» — уже другое) — 6;
+     *  - часть слов: в теге 3, в тексте 2, по корню 1;
+     *  - синоним — +1 (не больше 2). 0 — мимо, в выдачу не идёт.
+     */
     fun score(g: Gif): Double {
         val q = text
         val words = Api.words(q).map(::stem).filter { it.length >= 2 }
         val tagsN = g.tags.map { norm(it) }
-        val textN = norm(g.description + " " + g.sub + " " + g.user)
+        val textN = norm(g.description + " " + g.sub)
         val all = tagsN.joinToString(" ") + " " + textN
-        var s = 0.0
         val phrase = norm(q)
-        // фраза целиком — 8; без окончания (-er, -ers, -ing, -s: «gear shifter» ~ «gearshift») — 6
         val stemP = phrase.replace(Regex("(ers|er|ing|es|s)$"), "")
-        if (phrase.length >= 4 && all.contains(phrase)) s += 8 else if (stemP.length >= 5 && all.contains(stemP)) s += 6
+        var s = 0.0
         var found = 0
+        var part = 0.0
         words.forEach { w ->
             val root = w.replace(Regex("(ers|er|ing|es)$"), "").takeIf { it.length >= 4 } ?: w
             when {
-                tagsN.any { it.contains(w) } -> { s += 4; found++ }
-                textN.contains(w) -> { s += 3; found++ }
-                root != w && all.contains(root) -> { s += 2; found++ }          // «shifter» ~ «shift»
+                tagsN.any { it.contains(w) } -> { part += 3; found++ }
+                textN.contains(w) -> { part += 2; found++ }
+                root != w && all.contains(root) -> { part += 1; found++ }
             }
         }
-        if (words.size >= 2 && found == words.size) s += 5
-        s += minOf(4.0, synonyms.count { syn -> norm(syn).let { it.length >= 4 && all.contains(it) } } * 2.0)
+        s += when {
+            phrase.length >= 4 && all.contains(phrase) -> 20.0
+            stemP.length >= 5 && all.contains(stemP) -> 16.0
+            words.size >= 2 && tagsN.any { t -> words.all { t.contains(it) } } -> 12.0
+            words.size >= 2 && found == words.size -> 6.0
+            else -> 0.0
+        }
+        s += part
+        if (s > 0) s += minOf(2.0, synonyms.count { syn -> norm(syn).let { it.length >= 4 && all.contains(it) } } * 1.0)
         return s
     }
 
