@@ -43,6 +43,9 @@ object Search {
 
     @Synchronized fun reset(q: String) { text = q; alias = Thesaurus.expandAbbr(q); synonyms = emptyList(); tags = emptyList(); srcPage.clear(); turn = 0; rdPending = null; rdNext = null; rdSubs = null; exact = 0 }
 
+    /** Окончания, с которыми слово ещё «то же самое». */
+    private val ENDINGS = setOf("s", "es", "ed", "er", "ers", "ing", "ings", "y", "ies", "d")
+
     /** Тег RedGIFs, совпадающий с фразой (без учёта регистра и пробелов), если он есть и не слишком общий. */
     private val tagCache = java.util.concurrent.ConcurrentHashMap<String, String>()
     private fun exactTag(phrase: String): String? = tagCache.getOrPut(norm(phrase)) {
@@ -97,7 +100,8 @@ object Search {
             // теги, частые у роликов прямо по теме (оценка ≥ 8), — тоже искать (у «midget» — «Little People»)
             if (p == 1 && !relDone) {
                 scored.filter { it.second >= 8 }.forEach { (g, _) -> g.tags.forEach { t -> relCnt[t] = (relCnt[t] ?: 0) + 1 } }
-                val rel = relCnt.filter { (t, c) -> c >= 2 && t !in tags && !Api.isGeneric(t) }.entries.sortedByDescending { it.value }.map { it.key }.take(3)
+                val rel = relCnt.filter { (t, c) -> c >= 2 && t !in tags && !Api.isGeneric(t) && !Hide.hidden(Gif("", "", "", "", 0, 0, 0.0, "", listOf(t), false, 0, 0)) }
+                    .entries.sortedByDescending { it.value }.map { it.key }.take(3)
                 if (rel.size >= 2 || i >= 3 && rel.isNotEmpty()) {
                     relDone = true
                     synchronized(this) { tags = (tags + rel).distinct() }
@@ -109,7 +113,7 @@ object Search {
             // мимо — не показываем; у запроса из 2–3 слов, когда со всеми словами набралось 20+, частичные — тоже нет
             val multi = Api.words(q).size >= 2
             full += scored.count { it.second >= 6 }
-            part(scored.filter { it.second > 0 && (!multi || it.second >= 6 || full < 20) })
+            part(scored.filter { it.second > 0 && (!multi || it.second >= 6 || full < 20 || it.first.reddit) })
         }
         android.util.Log.i("Loopa", "поиск «$q» p$p: $total роликов, по теме $exact, синонимы $synonyms, теги $tags")
         return total
@@ -130,9 +134,19 @@ object Search {
         val textN = norm(g.description + " " + g.sub)
         val all = tagsN.joinToString(" ") + " " + textN
         // короткие слова («dp», «atp») — только целым словом: иначе ловят что попало внутри других слов
-        val tokens = (g.tags.joinToString(" ") + " " + g.description + " " + g.sub).lowercase().split(Regex("[^\\p{L}0-9]+")).toSet()
-        fun inTags(w: String) = if (w.length <= 3) g.tags.any { t -> t.lowercase().split(Regex("[^\\p{L}0-9]+")).contains(w) } else tagsN.any { it.contains(w) }
-        fun inText(w: String) = if (w.length <= 3) w in tokens else textN.contains(w)
+        val split = Regex("[^\\p{L}0-9]+")
+        val tagTok = g.tags.map { t -> t.lowercase().split(split).filter { it.isNotEmpty() } }
+        val textTok = (g.description + " " + g.sub).lowercase().split(split).filter { it.isNotEmpty() }
+        // слово совпадает целым словом с обычным окончанием (twin, twins, twinned) или как начало слитного имени
+        // (TwinGirls, 69er) — но не как кусок другого слова («twin» в «twink»)
+        fun tokMatch(tok: String, w: String): Boolean {
+            if (tok == w) return true
+            if (!tok.startsWith(w)) return false
+            val rest = tok.substring(w.length)
+            return rest in ENDINGS || rest.length >= 4
+        }
+        fun inTags(w: String) = tagTok.any { ts -> ts.any { tokMatch(it, w) } }
+        fun inText(w: String) = textTok.any { tokMatch(it, w) }
         // запрос — сокращение: его полная фраза равна точному совпадению
         if (alias.any { a -> norm(a).let { it.length >= 4 && all.contains(it) } }) return 20.0 + minOf(2.0, synonyms.count { norm(it).length >= 4 && all.contains(norm(it)) }.toDouble())
         val phrase = norm(q)
@@ -145,14 +159,14 @@ object Search {
             when {
                 inTags(w) -> { part += 3; found++ }
                 inText(w) -> { part += 2; found++ }
-                root != w && all.contains(root) -> { part += 1; found++ }
+                root != w && (inTags(root) || inText(root)) -> { part += 1; found++ }
             }
         }
         s += when {
             phrase.length >= 4 && all.contains(phrase) -> 20.0
             phrase.length in 2..3 && words.size == 1 && found == 1 -> 20.0         // сокращение целым словом
             stemP.length >= 5 && all.contains(stemP) -> 16.0
-            words.size >= 2 && tagsN.any { t -> words.all { t.contains(it) } } -> 12.0
+            words.size >= 2 && tagTok.any { ts -> words.all { w -> ts.any { tokMatch(it, w) } } } -> 12.0
             words.size >= 2 && found == words.size -> 6.0
             else -> 0.0
         }
