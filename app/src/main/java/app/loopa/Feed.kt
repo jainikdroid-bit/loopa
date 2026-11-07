@@ -274,4 +274,45 @@ object Feed {
     }
 
     private fun changed() = listeners.toList().forEach { it() }
+
+    /** Номер ролика, на котором закрыли плеер, — сетка прокручивается к нему; -1 — нет. */
+    var lastSeen = -1
+
+    /** Снимок выдачи для «Назад»: всё нужное, чтобы вернуть ту же страницу без перезагрузки, и где была прокрутка. */
+    class Snap(
+        val text: String, val query: String, val byTag: Boolean, val tagOnly: Boolean, val exact: Int, val order: String, val desc: Boolean,
+        val author: String?, val mode: String?, val sub: String, val rorder: String, val after: String?, val items: List<Gif>,
+        val tags: List<String>, val page: Int, val pages: Int, val scoreOf: Map<String, Double>, val search: Search.Snap?, val pos: Int,
+    )
+
+    /** Предыдущие страницы (последняя — сверху); не больше [HISTORY]. */
+    private val history = ArrayDeque<Snap>()
+    private const val HISTORY = 15
+    val canBack get() = history.isNotEmpty()
+
+    /** Запомнить текущую выдачу перед переходом; pos — первый видимый ролик. Пустую или ту же страницу не запоминаем. */
+    fun push(pos: Int) {
+        if (items.isEmpty() && !loading) return
+        val textSearch = text.isNotBlank() && author == null && mode == null && !tagOnly
+        history.addLast(Snap(text, query, byTag, tagOnly, exact, order, desc, author, mode, sub, rorder, after, ArrayList(items), tags,
+            // первая порция ещё грузилась, но что-то уже показано — считать её загруженной (дальше — следующие)
+            // (порцию, что грузилась, — потом догрузить)
+            maxOf(page, if (items.isNotEmpty()) 1 else 0), if (loading) maxOf(pages, page + 2) else pages, HashMap(scoreOf), if (textSearch) Search.save() else null, pos))
+        while (history.size > HISTORY) history.removeFirst()
+    }
+
+    /** Вернуть предыдущую страницу; null — истории нет. Возвращает позицию прокрутки. */
+    fun back(): Int? {
+        val s = history.removeLastOrNull() ?: return null
+        stopRetry(); gen++
+        text = s.text; query = s.query; byTag = s.byTag; tagOnly = s.tagOnly; exact = s.exact; order = s.order; desc = s.desc
+        author = s.author; mode = s.mode; sub = s.sub; rorder = s.rorder; after = s.after; tags = s.tags
+        items.clear(); items += s.items; page = s.page; pages = maxOf(s.pages, s.page); loading = false; error = null; fails = 0; chain = 0
+        scoreOf.clear(); scoreOf += s.scoreOf
+        s.search?.let(Search::load)
+        // пусто (ушли, пока грузилось) — загрузить заново
+        if (items.isEmpty()) { page = 0; pages = 1; if (mode == "foryou") ForYou.reset() }
+        changed(); if (items.isEmpty()) more()
+        return s.pos
+    }
 }

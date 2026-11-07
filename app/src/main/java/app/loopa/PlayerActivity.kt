@@ -145,7 +145,7 @@ class PlayerActivity : Activity() {
         tick()
     }
 
-    override fun onPause() { super.onPause(); player.pause(); report() }
+    override fun onPause() { super.onPause(); player.pause(); report(); if (current >= 0) Feed.lastSeen = current }
     override fun onResume() { super.onResume(); if (current >= 0) { player.play(); shownAt = System.currentTimeMillis() } }
     override fun onDestroy() {
         Feed.listeners -= onFeed; Net.online -= onOnline; ui.removeCallbacksAndMessages(null)

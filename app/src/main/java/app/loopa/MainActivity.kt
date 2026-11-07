@@ -101,9 +101,11 @@ class MainActivity : Activity() {
             adapter = this@MainActivity.adapter
             setPadding(dp(4), 0, dp(4), 0); clipToPadding = false
             addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                // живые превью — когда прокрутка остановилась (на ходу только картинки)
-                override fun onScrollStateChanged(rv: RecyclerView, st: Int) { if (st == RecyclerView.SCROLL_STATE_IDLE) live() else preview.stopAll() }
+                // живые превью играют и на ходу: при прокрутке набор играющих обновляется не чаще раза в [LIVE_SCROLL_MS]
+                override fun onScrollStateChanged(rv: RecyclerView, st: Int) { if (st == RecyclerView.SCROLL_STATE_IDLE) live() }
                 override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
+                    val now = android.os.SystemClock.uptimeMillis()
+                    if (now - liveAt > LIVE_SCROLL_MS) { liveAt = now; live() }
                     val lm = rv.layoutManager as GridLayoutManager
                     if (lm.findLastVisibleItemPosition() > Feed.items.size - 12) Feed.more()
                 }
@@ -156,10 +158,26 @@ class MainActivity : Activity() {
     private fun tab(m: String?) {
         if (m == "reddit") {
             if (!Reddit.hadUser) { login(Reddit.SITE); return }
-            search.setText(""); openSub(prefs.getString("last_sub", "")!!); return
+            nav(); search.setText(""); openSub(prefs.getString("last_sub", "")!!); return
         }
         if (m == "liked" && !Api.loggedIn) { pendingTab = m; login(RgSite); return }
+        nav()
         search.setText(""); Feed.reset("", homeOrder(), mode = m); grid.scrollToPosition(0)
+    }
+
+    /** Переход на другую страницу: запомнить текущую (с прокруткой, а из плеера — с роликом, на котором закрыли) для «Назад». */
+    private fun nav() {
+        val at = Feed.lastSeen.takeIf { it >= 0 } ?: (grid.layoutManager as GridLayoutManager).findFirstVisibleItemPosition().coerceAtLeast(0)
+        Feed.lastSeen = -1
+        Feed.push(at)
+    }
+
+    /** «Назад» вернул прежнюю страницу — строку поиска и прокрутку как были. */
+    private fun restored(pos: Int) {
+        suggestGen++
+        search.setText(if (Feed.reddit) "" else Feed.text); search.clearFocus(); suggestGen++
+        refresh()
+        (grid.layoutManager as GridLayoutManager).scrollToPositionWithOffset(pos.coerceIn(0, maxOf(0, Feed.items.size - 1)), 0)
     }
     private var pendingTab: String? = null
 
@@ -221,11 +239,22 @@ class MainActivity : Activity() {
     // и отбирали видеодекодеры у плеера — картинка вставала, а звук шёл дальше
     private var shown = false
     override fun onPause() { super.onPause(); shown = false; preview.stopAll() }
-    override fun onResume() { super.onResume(); shown = true; if (::grid.isInitialized) grid.postDelayed({ live() }, 300) }
+    override fun onResume() {
+        super.onResume(); shown = true
+        if (!::grid.isInitialized) return
+        // из плеера: ролик, на котором закрыли, — на экране (листали дальше — сетка за ним)
+        Feed.lastSeen.takeIf { it in Feed.items.indices }?.let { p ->
+            val lm = grid.layoutManager as GridLayoutManager
+            if (p < lm.findFirstCompletelyVisibleItemPosition() || p > lm.findLastCompletelyVisibleItemPosition()) lm.scrollToPositionWithOffset(p, 0)
+        }
+        Feed.lastSeen = -1
+        grid.postDelayed({ live() }, 300)
+    }
 
     private val preview by lazy { GridPreview(this) }
     private var waits = 0
-    private val liveLater = Runnable { if (grid.scrollState == RecyclerView.SCROLL_STATE_IDLE) live() }
+    private val liveLater = Runnable { live() }
+    private var liveAt = 0L
 
     /** Обновить живые превью: ячейки, видимые целиком. */
     private fun live() {
@@ -261,13 +290,15 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.getStringExtra("tag")?.let { search.setText(it); go(it, tag = true) }
-        intent.getStringExtra("author")?.let { search.setText(""); Feed.reset("", Feed.order, it); grid.scrollToPosition(0) }
-        intent.getStringExtra("sub")?.let { search.setText(""); openSub(it) }
+        intent.getStringExtra("author")?.let { nav(); search.setText(""); Feed.reset("", Feed.order, it); grid.scrollToPosition(0) }
+        intent.getStringExtra("sub")?.let { nav(); search.setText(""); openSub(it) }
         if (intent.getBooleanExtra("login", false)) login(RgSite)
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        // назад — на прежнюю страницу (поиск, тег, автор…), как в браузере; истории нет — как раньше
+        Feed.back()?.let { restored(it); return }
         if (Feed.reddit && Feed.sub.isNotEmpty()) { prefs.edit().putString("last_sub", "").apply(); Feed.reddit("") }
         else if (Feed.author != null || Feed.text.isNotEmpty() || Feed.reddit) home()
         else @Suppress("DEPRECATION") super.onBackPressed()
@@ -278,6 +309,7 @@ class MainActivity : Activity() {
     private fun go(q: String, tag: Boolean = false) {
         (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(search.windowToken, 0)
         search.clearFocus()
+        nav()
         if (Feed.reddit) { openSub(q); return }
         if (q.isBlank()) { home(); return }
         if (tag) Interests.openTag(q.trim()) else Interests.search(q)
@@ -394,7 +426,7 @@ class MainActivity : Activity() {
     private fun showChips(list: List<Pair<String, Int>>) {
         chips.removeAllViews()
         list.take(30).forEach { (t, n) ->
-            chips.addView(chip(if (n > 0) "$t · ${count(n.toLong())}" else t, CHIP) { if (Feed.reddit) { search.setText(""); openSub(t) } else { search.setText(t); search.setSelection(t.length); go(t, tag = true) } },
+            chips.addView(chip(if (n > 0) "$t · ${count(n.toLong())}" else t, CHIP) { if (Feed.reddit) { nav(); search.setText(""); openSub(t) } else { search.setText(t); search.setSelection(t.length); go(t, tag = true) } },
                 LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
         }
     }
@@ -406,7 +438,7 @@ class MainActivity : Activity() {
         val all = listOf("") + savedSubs()
         all.forEach { s ->
             val on = s == Feed.sub
-            chips.addView(chip(if (s.isEmpty()) "🏠 " + tr("Подписки") else "r/$s", if (on) ACCENT else CHIP) { openSub(s) }.apply {
+            chips.addView(chip(if (s.isEmpty()) "🏠 " + tr("Подписки") else "r/$s", if (on) ACCENT else CHIP) { nav(); openSub(s) }.apply {
                 if (s.isNotEmpty()) setOnLongClickListener {
                     prefs.edit().putString("subs", savedSubs().filter { it != s }.joinToString("\n")).apply()
                     android.widget.Toast.makeText(this@MainActivity, tr("r/%s убран из списка", s), android.widget.Toast.LENGTH_SHORT).show(); idleChips(); true
@@ -467,7 +499,7 @@ class MainActivity : Activity() {
         if (!Feed.busy) swipe.isRefreshing = false
         if (search.text.isBlank()) idleChips()
         adapter.notifyDataSetChanged()
-        grid.post { if (grid.scrollState == RecyclerView.SCROLL_STATE_IDLE) live() }
+        grid.post { live() }
     }
 
     private inner class GridAdapter : RecyclerView.Adapter<GridAdapter.H>() {
@@ -520,6 +552,8 @@ class MainActivity : Activity() {
         val TABS = listOf("♥ Для вас" to "foryou", "🔥 Популярное" to null, "Мои лайки" to "liked", "Reddit" to "reddit")
         /** Пункты меню языка: «auto», затем коды. */
         val LANG_IDS = listOf("auto") + I18n.LANGS.keys
+        /** Как часто при прокрутке пересчитывать, какие превью играют, мс. */
+        const val LIVE_SCROLL_MS = 350L
         val BG = 0xFF0E1015.toInt(); val ACCENT = 0xFF7C3AED.toInt(); val CHIP = 0xFF262B34.toInt()
         /** Метки источника: RedGIFs — малиновый, Reddit — фирменный оранжевый. */
         val RG_COLOR = 0xE0D6246E.toInt(); val RD_COLOR = 0xE0FF4500.toInt()

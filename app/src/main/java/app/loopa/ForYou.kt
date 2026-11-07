@@ -10,7 +10,8 @@ import kotlin.math.ln
  * Лента «Для вас»: RedGIFs + Reddit по профилю [Interests].
  *
  * Кандидаты:
- *  - RedGIFs: рекомендации самого RedGIFs (если вошли) и подборка по любимому тегу (случайный из верхних, по весу);
+ *  - RedGIFs: рекомендации самого RedGIFs (если вошли), сочетание тегов из лайков и досмотров, любимый тег, а по очереди —
+ *    прошлый поиск или любимый автор (все параллельно, см. [rg]);
  *  - Reddit: «горячее» смеси из ~6 сабреддитов — сабреддиты из профиля, найденные по верхним тегам и словам
  *    (поиск сабреддитов Reddit, 18+ вперёд, кэш на сутки), подписки; плюс один случайный для разведки. Свои рекомендации
  *    Reddit 18+ не показывает, поэтому подбираем сами. Лента смеси кончилась — набираем новую смесь.
@@ -48,13 +49,13 @@ object ForYou {
     /** Почему Reddit не подмешался (для строки статуса); null — всё в порядке. */
     @Volatile var redditNote: String? = null; private set
 
-    @Synchronized fun reset() { pendingRd = null; redditNote = null; turn = 0; rr = 0; subCursor.clear(); searchAfter.clear(); rgPage = 0; tagPage.clear(); subs = emptyList(); after = null; redditDry = 0; shown.clear() }
+    @Synchronized fun reset() { dead.clear(); extra = 0; pendingRd = null; redditNote = null; turn = 0; rr = 0; subCursor.clear(); searchAfter.clear(); rgPage = 0; tagPage.clear(); subs = emptyList(); after = null; redditDry = 0; shown.clear() }
 
     /** Следующая порция (в фоне). Пусто — источники кончились. Ошибка — только если не ответил ни один. */
     /** Порция Reddit, не успевшая к прошлой выдаче, — войдёт в следующую. */
     @Volatile private var pendingRd: java.util.concurrent.Future<List<Gif>>? = null
 
-    fun page(): List<Gif> {
+    private fun page1(): List<Gif> {
         val rgF = pool.submit<List<Gif>> { rg() }
         // Reddit (страница сайта) бывает медленным — RedGIFs его не ждёт: не успел за WAIT_RD после RedGIFs — в следующую порцию
         val rdF = pendingRd ?: if (reddit && redditDry < 3) pool.submit<List<Gif>> { redditBatch() } else null
@@ -69,18 +70,58 @@ object ForYou {
         return synchronized(this) { mix(rank(a.getOrDefault(emptyList())), rank(b?.getOrNull().orEmpty()), if (b == null) 0.0 else share) }
     }
 
+    /** Порция; пустая (всё уже видели, источники исчерпаны) — ещё пара попыток с другими источниками, прежде чем сказать «кончилось». */
+    fun page(): List<Gif> {
+        repeat(3) { val l = page1(); if (l.isNotEmpty()) return l }
+        return emptyList()
+    }
+
     private fun unwrap(e: Throwable) = (e as? ExecutionException)?.cause ?: e
 
+    /**
+     * RedGIFs за порцию — несколько источников сразу (параллельно), чтобы лента была и точной, и разнообразной:
+     *  - рекомендации самого RedGIFs (если вошли);
+     *  - сочетание тегов «a,b» из лайков и досмотров ([Interests.pickPair]) — самое точное;
+     *  - любимый тег;
+     *  - по очереди: прошлый поиск (запрос целиком, только ролики со всеми его словами) или любимый автор.
+     * Источник, что вернул пусто, на эту ленту исчерпан — дальше берём другие.
+     */
     private fun rg(): List<Gif> {
-        val out = ArrayList<Gif>()
-        if (Api.loggedIn) out += Api.page("", "trending", synchronized(this) { ++rgPage }, mode = "foryou").gifs
-        val tag = Interests.pickTag()
-        if (tag != null) {
-            val p = synchronized(this) { (tagPage[tag] ?: 0) + 1 }.also { synchronized(this) { tagPage[tag] = it } }
-            out += runCatching { Api.page(tag, "trending", p, byTag = true).gifs }.getOrElse { if (out.isEmpty()) throw it else emptyList() }
-        } else if (!Api.loggedIn) out += Api.page("", "trending", synchronized(this) { ++rgPage }).gifs
-        return out
+        val jobs = ArrayList<java.util.concurrent.Future<List<Gif>>>()
+        fun src(f: () -> List<Gif>) { jobs += rgPool.submit<List<Gif>> { f() } }
+        if (Api.loggedIn) src { Api.page("", "trending", synchronized(this) { ++rgPage }, mode = "foryou").gifs }
+        Interests.pickPair(dead)?.let { pr -> src { byTag(pr) } }
+        Interests.pickTag(dead)?.let { t -> src { byTag(t) } }
+        if (synchronized(this) { extra++ } % 2 == 0) Interests.pickQuery(dead)?.let { q -> src { byQuery(q) } }
+        else Interests.pickUser(dead)?.let { u -> src { byUser(u) } }
+        if (jobs.isEmpty()) return Api.page("", "trending", synchronized(this) { ++rgPage }).gifs
+        val res = jobs.map { runCatching { it.get() } }
+        if (res.all { it.isFailure }) throw unwrap(res.first().exceptionOrNull()!!)
+        return res.flatMap { it.getOrDefault(emptyList()) }
     }
+    private val rgPool = Executors.newFixedThreadPool(4)
+    /** Источники (тег, сочетание, запрос, автор), что кончились или пусты, — на эту ленту. */
+    private val dead: MutableSet<String> = java.util.Collections.synchronizedSet(HashSet<String>())
+    private var extra = 0
+
+    private fun next(key: String) = synchronized(this) { ((tagPage[key] ?: 0) + 1).also { tagPage[key] = it } }
+
+    private fun byTag(t: String) = Api.page(t, "trending", next(t), byTag = true).gifs.also {
+        if (it.isEmpty()) dead += t
+        android.util.Log.i("Loopa", "Для вас: ${if (',' in t) "сочетание" else "тег"} «$t» — ${it.size}")
+    }
+
+    /** Прошлый поиск: текстовый поиск RedGIFs нечёткий — берём только ролики со всеми словами запроса. */
+    private fun byQuery(q: String): List<Gif> {
+        val ws = Api.words(q).map { it.trimEnd('s') }.filter { it.length >= 2 }
+        val all = Api.page(q, "trending", next("q:$q"), byTag = false).gifs
+        if (all.isEmpty()) dead += q
+        return all.filter { g -> val t = (g.tags.joinToString(" ") + " " + g.description).lowercase().replace(" ", ""); ws.all { it in t } }
+            .also { android.util.Log.i("Loopa", "Для вас: поиск «$q» — ${it.size} из ${all.size}") }
+    }
+
+    private fun byUser(u: String) = runCatching { Api.page("", "latest", next("u:$u"), author = u).gifs }.getOrDefault(emptyList())
+        .also { if (it.isEmpty()) dead += u; android.util.Log.i("Loopa", "Для вас: автор $u — ${it.size}") }
 
     /** Каждый второй раз — поиск по всему Reddit по любимому тегу/слову (новые сабреддиты сами попадают в профиль). */
     private fun redditBatch(): List<Gif> {

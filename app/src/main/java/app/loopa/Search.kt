@@ -41,6 +41,15 @@ object Search {
     /** Полные фразы, если запрос — сокращение (atp → ass to pussy). */
     @Volatile private var alias: List<String> = emptyList()
 
+    /** Состояние поиска для «Назад» ([Feed.back]): чтобы следующие порции той страницы шли с того же места. */
+    class Snap(val text: String, val alias: List<String>, val synonyms: List<String>, val tags: List<String>, val srcPage: Map<String, Int>,
+               val turn: Int, val rdNext: String?, val rdSubs: List<String>?, val exact: Int, val full: Int)
+    @Synchronized fun save() = Snap(text, alias, synonyms, tags, HashMap(srcPage), turn, rdNext, rdSubs, exact, full)
+    @Synchronized fun load(s: Snap) {
+        text = s.text; alias = s.alias; synonyms = s.synonyms; tags = s.tags; srcPage.clear(); srcPage += s.srcPage; turn = s.turn
+        rdPending = null; rdNext = s.rdNext; rdSubs = s.rdSubs; exact = s.exact; full = s.full; synReady = true
+    }
+
     @Synchronized fun reset(q: String) { text = q; alias = Thesaurus.expandAbbr(q); synonyms = emptyList(); tags = emptyList(); srcPage.clear(); turn = 0; rdPending = null; rdNext = null; rdSubs = null; exact = 0 }
 
     /** Окончания, с которыми слово ещё «то же самое». */

@@ -14,7 +14,9 @@ import kotlin.math.pow
  * описаний, сабреддиты, авторы. Учится на действиях:
  *  - лайк +5 (снят — −5), скачивание +4, досмотр (≥80 %) +1,5 и пересмотр по кругу ещё +1,5, мельком +0,3;
  *  - пропуск (< 2,5 с у ролика длиннее 6 с) −0,4;
- *  - поиск, открытый тег или сабреддит +3.
+ *  - поиск, открытый тег или сабреддит +3; сам запрос целиком тоже запоминается (ось «q») — «Для вас» ищет по нему.
+ * Сочетания тегов (ось «pair», «a,b» по алфавиту, без слишком общих тегов) учатся на тех же сигналах с весом 0,5 — так
+ * видно, что нравится не «Riding» и не «Little People» по отдельности, а именно вместе.
  * Слова весят 0,5 от тега (в названиях много шума). Веса затухают на 3 % в сутки — вкусы меняются, старое уходит само.
  * Просмотренные (≥ 2 с) запоминаются, «Для вас» их не повторяет.
  */
@@ -23,7 +25,9 @@ object Interests {
     private const val MAX_TERMS = 400
     private const val MAX_SEEN = 5000
     private const val DAY = 86_400_000L
-    private val AXES = listOf("tag", "kw", "sub", "user")
+    private val AXES = listOf("tag", "kw", "sub", "user", "pair", "q")
+    /** Сколько тегов ролика берём в сочетания (пары растут квадратично). */
+    private const val PAIR_TAGS = 8
 
     private lateinit var file: File
     private var data = JSONObject()
@@ -61,12 +65,20 @@ object Interests {
         "kw" to words(g.description),
         "sub" to listOfNotNull(g.sub.lowercase().takeIf { it.isNotEmpty() }),
         "user" to listOfNotNull(g.user.lowercase().takeIf { it.isNotEmpty() && it != "[deleted]" }),
+        "pair" to pairs(g.tags),
     )
+
+    /** Сочетания тегов ролика: пары из конкретных (не общих) тегов, «a,b» по алфавиту. */
+    fun pairs(tags: List<String>): List<String> {
+        val t = tags.filter { !it.startsWith("r/") && !Api.isGeneric(it) }.map { it.lowercase().trim() }.filter { it.isNotEmpty() && ',' !in it }
+            .distinct().take(PAIR_TAGS).sorted()
+        return t.indices.flatMap { i -> (i + 1 until t.size).map { j -> t[i] + "," + t[j] } }
+    }
 
     // ---- сигналы ----
 
     private fun bump(g: Gif, w: Double) = synchronized(this) {
-        features(g).forEach { (axis, terms) -> terms.forEach { add(axis, it, w * if (axis == "kw") 0.5 else 1.0) } }
+        features(g).forEach { (axis, terms) -> terms.forEach { add(axis, it, w * when (axis) { "kw", "pair" -> 0.5; else -> 1.0 }) } }
         save()
     }
 
@@ -92,7 +104,11 @@ object Interests {
     }
 
     /** Поиск: слова запроса — как теги и как слова. */
-    fun search(q: String) = synchronized(this) { words(q).forEach { add("tag", it, 3.0); add("kw", it, 1.5) }; save() }
+    fun search(q: String) = synchronized(this) {
+        words(q).forEach { add("tag", it, 3.0); add("kw", it, 1.5) }
+        q.trim().lowercase().takeIf { it.length >= 3 }?.let { add("q", it, 3.0) }
+        save()
+    }
     fun openTag(t: String) = synchronized(this) { add("tag", t.lowercase(), 3.0); save() }
     fun openSub(s: String) = synchronized(this) { s.split("+").filter { it.isNotBlank() && !it.startsWith("u/") }.forEach { add("sub", it.lowercase(), 3.0) }; save() }
 
@@ -109,7 +125,7 @@ object Interests {
         var s = 0.0
         features(g).forEach { (axis, terms) ->
             val o = data.getJSONObject(axis)
-            val k = when (axis) { "kw" -> 0.6; "sub" -> 1.2; "user" -> 0.8; else -> 1.0 }
+            val k = when (axis) { "kw" -> 0.6; "sub" -> 1.2; "user" -> 0.8; "pair" -> 0.7; else -> 1.0 }
             terms.forEach { s += k * o.optDouble(it, 0.0) }
         }
         s
@@ -123,8 +139,27 @@ object Interests {
 
     val empty get() = AXES.all { top(it, 1).isEmpty() }
 
-    /** Тег для подборки RedGIFs: случайный из верхних с вероятностью по весу (не только самый любимый). */
-    fun pickTag(): String? = weighted(top("tag", 8))
+    /** Тег для подборки RedGIFs: случайный из верхних с вероятностью по весу (не только самый любимый); skip — исчерпанные. */
+    fun pickTag(skip: Set<String> = emptySet()): String? = weighted(top("tag", 12).filter { it.first !in skip }.take(8))
+
+    /**
+     * Сочетание тегов «a,b» для подборки: из выученных сочетаний, а пока их мало — пары из верхних конкретных тегов
+     * (вес — среднее геометрическое весов тегов, чуть ниже выученных).
+     */
+    fun pickPair(skip: Set<String> = emptySet()): String? {
+        val learned = top("pair", 15).filter { it.first !in skip }
+        val tags = top("tag", 10).filter { !Api.isGeneric(it.first) && ',' !in it.first }.take(6)
+        val made = tags.indices.flatMap { i -> (i + 1 until tags.size).map { j ->
+            listOf(tags[i].first, tags[j].first).sorted().joinToString(",") to 0.7 * kotlin.math.sqrt(tags[i].second * tags[j].second)
+        } }.filter { it.first !in skip }
+        return weighted((learned + made).groupBy { it.first }.map { (k, v) -> k to v.maxOf { it.second } }.sortedByDescending { it.second }.take(10))
+    }
+
+    /** Прошлый поиск (запрос целиком) — по весу; skip — исчерпанные. */
+    fun pickQuery(skip: Set<String> = emptySet()): String? = weighted(top("q", 10).filter { it.first !in skip })
+
+    /** Любимый автор (у кого нет роликов на RedGIFs — например, пользователь Reddit, — того ForYou пропустит). */
+    fun pickUser(skip: Set<String> = emptySet()): String? = weighted(top("user", 10).filter { it.first !in skip && it.second >= 3.0 })
 
     private fun weighted(l: List<Pair<String, Double>>): String? {
         if (l.isEmpty()) return null
@@ -177,9 +212,9 @@ object Interests {
     fun summary(): String = buildString {
         fun line(title: String, axis: String, pre: String) {
             val t = top(axis, 12)
-            if (t.isNotEmpty()) append(title).append(": ").append(t.joinToString(", ") { pre + it.first }).append("\n\n")
+            if (t.isNotEmpty()) append(title).append(": ").append(t.joinToString(", ") { pre + it.first.replace(",", " + $pre") }).append("\n\n")
         }
-        line(tr("Теги"), "tag", "#"); line(tr("Слова"), "kw", ""); line(tr("Сабреддиты"), "sub", "r/"); line(tr("Авторы"), "user", "")
+        line(tr("Теги"), "tag", "#"); line(tr("Сочетания"), "pair", "#"); line(tr("Запросы"), "q", ""); line(tr("Слова"), "kw", ""); line(tr("Сабреддиты"), "sub", "r/"); line(tr("Авторы"), "user", "")
         if (isEmpty()) append(tr("Пока пусто: лайкайте, досматривайте и ищите — «Для вас» подстроится."))
     }.trim()
 

@@ -137,6 +137,8 @@ object I18nTables {
         "вход истёк — обновляю…" to "sign-in expired — renewing…",
         "нужен вход в Reddit — нажмите" to "Reddit sign-in needed — tap",
         "вход в Reddit истёк — обновляю…" to "Reddit sign-in expired — renewing…",
+        "Сочетания" to "Tag combos",
+        "Запросы" to "Searches",
     ) }
     private val ES by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Ya descargado: Descargas/Loopa/%s",
@@ -272,6 +274,8 @@ object I18nTables {
         "вход истёк — обновляю…" to "la sesión caducó — renovando…",
         "нужен вход в Reddit — нажмите" to "inicia sesión en Reddit — pulsa",
         "вход в Reddit истёк — обновляю…" to "la sesión de Reddit caducó — renovando…",
+        "Сочетания" to "Combinaciones",
+        "Запросы" to "Búsquedas",
     ) }
     private val PT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Já baixado: Downloads/Loopa/%s",
@@ -407,6 +411,8 @@ object I18nTables {
         "вход истёк — обновляю…" to "login expirado — renovando…",
         "нужен вход в Reddit — нажмите" to "é preciso entrar no Reddit — toque",
         "вход в Reddit истёк — обновляю…" to "login do Reddit expirado — renovando…",
+        "Сочетания" to "Combinações",
+        "Запросы" to "Pesquisas",
     ) }
     private val DE by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Bereits geladen: Downloads/Loopa/%s",
@@ -542,6 +548,8 @@ object I18nTables {
         "вход истёк — обновляю…" to "Anmeldung abgelaufen — wird erneuert…",
         "нужен вход в Reddit — нажмите" to "Reddit-Anmeldung nötig — tippen",
         "вход в Reddit истёк — обновляю…" to "Reddit-Anmeldung abgelaufen — wird erneuert…",
+        "Сочетания" to "Kombinationen",
+        "Запросы" to "Suchen",
     ) }
     private val FR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -677,6 +685,8 @@ object I18nTables {
         "вход истёк — обновляю…" to "connexion expirée — renouvellement…",
         "нужен вход в Reddit — нажмите" to "connexion à Reddit requise — touchez",
         "вход в Reddit истёк — обновляю…" to "connexion Reddit expirée — renouvellement…",
+        "Сочетания" to "Combinaisons",
+        "Запросы" to "Recherches",
     ) }
     private val IT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Già scaricato: Download/Loopa/%s",
@@ -812,6 +822,8 @@ object I18nTables {
         "вход истёк — обновляю…" to "accesso scaduto — rinnovo…",
         "нужен вход в Reddit — нажмите" to "serve l'accesso a Reddit — tocca",
         "вход в Reddit истёк — обновляю…" to "accesso a Reddit scaduto — rinnovo…",
+        "Сочетания" to "Combinazioni",
+        "Запросы" to "Ricerche",
     ) }
     private val TR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -947,6 +959,8 @@ object I18nTables {
         "вход истёк — обновляю…" to "oturum sona erdi — yenileniyor…",
         "нужен вход в Reddit — нажмите" to "Reddit girişi gerekli — dokun",
         "вход в Reddit истёк — обновляю…" to "Reddit oturumu sona erdi — yenileniyor…",
+        "Сочетания" to "Etiket kombinasyonları",
+        "Запросы" to "Aramalar",
     ) }
     private val PL by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Już pobrano: Pobrane/Loopa/%s",
@@ -1082,6 +1096,8 @@ object I18nTables {
         "вход истёк — обновляю…" to "sesja wygasła — odnawiam…",
         "нужен вход в Reddit — нажмите" to "wymagane logowanie do Reddita — dotknij",
         "вход в Reddit истёк — обновляю…" to "sesja Reddita wygasła — odnawiam…",
+        "Сочетания" to "Połączenia",
+        "Запросы" to "Wyszukiwania",
     ) }
     private val UK by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Уже завантажено: Завантаження/Loopa/%s",
@@ -1217,6 +1233,8 @@ object I18nTables {
         "вход истёк — обновляю…" to "вхід минув — оновлюю…",
         "нужен вход в Reddit — нажмите" to "потрібен вхід у Reddit — натисніть",
         "вход в Reddit истёк — обновляю…" to "вхід у Reddit минув — оновлюю…",
+        "Сочетания" to "Поєднання",
+        "Запросы" to "Запити",
     ) }
 
     fun of(code: String): Map<String, String> = when (code) {
