@@ -130,7 +130,9 @@ object Feed {
         val s = sort
         return when {
             author != null && s.id == "date" -> if (desc) "latest" else "oldest"
-            author != null -> if (s.api == "score") "latest" else s.api
+            // у автора «популярное сейчас», «неделя» и «месяц» почти всегда пусты (сервер отдаёт 0, если за неделю/месяц
+            // у него ничего не было) — тогда его лучшее за всё время
+            author != null -> when (s.api) { "score" -> "latest"; "trending", "top7", "top28" -> "top"; else -> s.api }
             s.id == "date" -> "latest"
             s.local != null && text.isNotBlank() -> "score"
             else -> s.api
