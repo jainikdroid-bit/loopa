@@ -19,8 +19,12 @@ data class Gif(
     val sub: String = "", val hls: Boolean = false, val dash: String = "",
     /** Когда опубликован (unix, с); 0 — неизвестно. */
     val created: Long = 0,
+    /** Сайт вне RedGIFs/Reddit: «erome», «eporner» (пусто — RedGIFs или Reddit по [sub]). */
+    val site: String = "",
 ) {
     val reddit get() = sub.isNotEmpty()
+    /** Ролик сторонних сайтов (Erome, Eporner): лайк только у себя, автор и теги — поиском по тому же сайту. */
+    val ext get() = site.isNotEmpty()
 }
 
 /** Страница выдачи: ролики, сколько всего страниц и актуальные теги (лента присылает их сама). */

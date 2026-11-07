@@ -17,7 +17,8 @@ import kotlin.math.ln
  *    Reddit 18+ не показывает, поэтому подбираем сами. Лента смеси кончилась — набираем новую смесь.
  * Ранжирование внутри каждого источника: сглаженный вес по профилю + немного популярности + шум (чтобы не застревать
  * в одном и том же). Просмотренные раньше и повторы (тот же ролик RedGIFs из поста Reddit) выкидываем.
- * Смешивание: доля Reddit [share] равномерно по ленте.
+ * Erome и Eporner ([ext]): личные ленты (если вошли) и поиск по интересам.
+ * Смешивание: у каждого источника свой запас и доля ([weight]), порция — по долям равномерно ([weighted]).
  */
 object ForYou {
     private val pool = Executors.newFixedThreadPool(3)
@@ -36,42 +37,59 @@ object ForYou {
     /** Адреса уже показанных в этой ленте — один ролик и с RedGIFs, и из Reddit не должен прийти дважды. */
     private val shown = HashSet<String>()
 
-    val SHARES = listOf(0.25 to "Мало (1 из 4)", 0.34 to "Треть", 0.5 to "Поровну", 0.67 to "Много (2 из 3)")
 
     fun init(ctx: Context) { if (prefs == null) prefs = ctx.applicationContext.getSharedPreferences("loopa", Context.MODE_PRIVATE) }
     var mixReddit: Boolean
         get() = prefs?.getBoolean("fy_reddit", true) ?: true
         set(v) { prefs?.edit()?.putBoolean("fy_reddit", v)?.apply() }
-    var share: Double
-        get() = prefs?.getFloat("fy_share", 0.5f)?.toDouble() ?: 0.5
-        set(v) { prefs?.edit()?.putFloat("fy_share", v.toFloat())?.apply() }
     val reddit get() = mixReddit && Reddit.hadUser
+    /** Источники «Для вас» и общего поиска (галочки в меню 👤; вход при этом не снимается). */
+    var useRg: Boolean
+        get() = prefs?.getBoolean("fy_rg", true) ?: true
+        set(v) { prefs?.edit()?.putBoolean("fy_rg", v)?.apply() }
+    var useErome: Boolean
+        get() = prefs?.getBoolean("fy_erome", true) ?: true
+        set(v) { prefs?.edit()?.putBoolean("fy_erome", v)?.apply() }
+    var useEporner: Boolean
+        get() = prefs?.getBoolean("fy_eporner", true) ?: true
+        set(v) { prefs?.edit()?.putBoolean("fy_eporner", v)?.apply() }
+    /** Подписи источников для строки статуса. */
+    val sources get() = listOfNotNull("RedGIFs".takeIf { useRg }, "Reddit".takeIf { reddit }, "Erome".takeIf { useErome }, "Eporner".takeIf { useEporner })
     /** Почему Reddit не подмешался (для строки статуса); null — всё в порядке. */
     @Volatile var redditNote: String? = null; private set
 
-    @Synchronized fun reset() { rgBuf.clear(); rdBuf.clear(); dead.clear(); extra = 0; pendingRd = null; redditNote = null; turn = 0; rr = 0; subCursor.clear(); searchAfter.clear(); rgPage = 0; tagPage.clear(); subs = emptyList(); after = null; redditDry = 0; shown.clear() }
+    @Synchronized fun reset() { rgBuf.clear(); rdBuf.clear(); erBuf.clear(); epBuf.clear(); dead.clear(); extra = 0; pendingRd = null; redditNote = null; turn = 0; rr = 0; subCursor.clear(); searchAfter.clear(); rgPage = 0; tagPage.clear(); subs = emptyList(); after = null; redditDry = 0; shown.clear(); extTurn.clear() }
 
     /** Следующая порция (в фоне). Пусто — источники кончились. Ошибка — только если не ответил ни один. */
     /** Порция Reddit, не успевшая к прошлой выдаче, — войдёт в следующую. */
     @Volatile private var pendingRd: java.util.concurrent.Future<List<Gif>>? = null
 
-    /**
-     * Запас кандидатов: RedGIFs за раз приносит до ~160 роликов (несколько источников по 40), Reddit — ~10–20 и медленнее.
-     * Если выдавать всё сразу, доля Reddit тонет, поэтому RedGIFs выдаём столько, сколько положено по доле [share] к
-     * пришедшему Reddit, остальное ждёт в запасе следующих порций (новый RedGIFs не грузим, пока запас большой).
-     */
+    /** Запасы кандидатов по источникам: RedGIFs приносит ~160 за раз, Reddit ~10–20 — выдаём по долям, остальное ждёт. */
     private val rgBuf = ArrayList<Gif>()
     private val rdBuf = ArrayList<Gif>()
-    private const val RG_STOCK = 40
-    /** RedGIFs в порции, даже если Reddit не успел, — лента не должна вставать. */
-    private const val RG_MIN = 6
+    private val erBuf = ArrayList<Gif>()
+    private val epBuf = ArrayList<Gif>()
+    /** Запас источника, больше которого не догружаем (новое ждёт, пока выдадим старое). */
+    private const val STOCK = 40
+    /** Роликов в порции. */
+    private const val PORTION = 30
+
+    /** Доли источников (меню сортировки «Для вас»): вес 1 — мало, 2 — средне, 3 — много; относительные. */
+    val WEIGHTS = listOf(1 to "Мало", 2 to "Средне", 3 to "Много")
+    fun weight(src: String): Int = prefs?.getInt("w_$src", 2) ?: 2
+    fun setWeight(src: String, w: Int) { prefs?.edit()?.putInt("w_$src", w)?.apply() }
 
     private fun page1(): List<Gif> {
         val rdOn = reddit && redditDry < 3
-        val rgF = if (synchronized(this) { rgBuf.size } < RG_STOCK || !rdOn) pool.submit<List<Gif>> { rg() } else null
+        fun low(b: ArrayList<Gif>) = synchronized(this) { b.size } < STOCK
+        val rgF = if (useRg && low(rgBuf)) pool.submit<List<Gif>> { rg() } else null
+        val erF = if (useErome && low(erBuf)) pool.submit<List<Gif>> { ext(Ext.EROME) } else null
+        val epF = if (useEporner && low(epBuf)) pool.submit<List<Gif>> { ext(Ext.EPORNER) } else null
         // Reddit (страница сайта) бывает медленным — не успел за WAIT_RD — войдёт в следующую порцию
-        val rdF = pendingRd ?: if (rdOn) pool.submit<List<Gif>> { redditBatch() } else null
+        val rdF = pendingRd ?: if (rdOn && low(rdBuf)) pool.submit<List<Gif>> { redditBatch() } else null
         val a = rgF?.let { runCatching { it.get() } }
+        val e1 = erF?.let { runCatching { it.get() } }
+        val e2 = epF?.let { runCatching { it.get() } }
         val b = rdF?.let { f ->
             try { runCatching { f.get(WAIT_RD, java.util.concurrent.TimeUnit.MILLISECONDS) }.also { pendingRd = null } }
             catch (e: Exception) { null }
@@ -81,16 +99,31 @@ object ForYou {
         return synchronized(this) {
             a?.getOrNull()?.let { rgBuf += rank(it) }
             b?.getOrNull()?.let { rdBuf += rank(it) }
-            if (rgBuf.isEmpty() && rdBuf.isEmpty() && a?.isFailure == true && (b == null || b.isFailure)) throw unwrap(a.exceptionOrNull()!!)
-            // Reddit выключен или кончился — весь запас RedGIFs; иначе RedGIFs по доле к пришедшему Reddit
-            val stillRd = reddit && redditDry < 3
-            val nRg = if (!stillRd || share <= 0.0) rgBuf.size
-                else maxOf(RG_MIN, kotlin.math.ceil(rdBuf.size * (1 - share) / share).toInt()).coerceAtMost(rgBuf.size)
-            val g = rgBuf.take(nRg); val d = ArrayList(rdBuf)
-            repeat(nRg) { rgBuf.removeAt(0) }; rdBuf.clear()
-            android.util.Log.i("Loopa", "Для вас: порция RG ${g.size} + RD ${d.size}, в запасе RG ${rgBuf.size}")
-            mix(g, d, if (d.isEmpty()) 0.0 else d.size.toDouble() / (g.size + d.size))
+            e1?.getOrNull()?.let { erBuf += rank(it) }
+            e2?.getOrNull()?.let { epBuf += rank(it) }
+            val tried = listOfNotNull(a, b, e1, e2)
+            if (rgBuf.isEmpty() && rdBuf.isEmpty() && erBuf.isEmpty() && epBuf.isEmpty() && tried.isNotEmpty() && tried.all { it.isFailure })
+                throw unwrap(tried.first().exceptionOrNull()!!)
+            val out = weighted(listOf(rgBuf to weight("rg"), rdBuf to weight("rd"), erBuf to weight("er"), epBuf to weight("ep")))
+            android.util.Log.i("Loopa", "Для вас: порция ${out.size}, в запасе RG ${rgBuf.size} RD ${rdBuf.size} ER ${erBuf.size} EP ${epBuf.size}")
+            out
         }
+    }
+
+    /**
+     * Порция по долям: на каждое место — источник, у которого выдано меньше всего относительно его веса (равномерно по
+     * ленте). Источник пуст (не успел, кончился) — его место занимают остальные. Выданное убирается из запасов.
+     */
+    private fun weighted(src: List<Pair<ArrayList<Gif>, Int>>): List<Gif> {
+        val taken = IntArray(src.size)
+        val out = ArrayList<Gif>(PORTION)
+        while (out.size < PORTION) {
+            var best = -1; var bestR = Double.MAX_VALUE
+            src.forEachIndexed { i, (buf, w) -> if (buf.isNotEmpty() && w > 0) { val r = (taken[i] + 1.0) / w; if (r < bestR) { bestR = r; best = i } } }
+            if (best < 0) break
+            out += src[best].first.removeAt(0); taken[best]++
+        }
+        return out
     }
 
     /** Порция; пустая (всё уже видели, источники исчерпаны) — ещё пара попыток с другими источниками, прежде чем сказать «кончилось». */
@@ -113,8 +146,11 @@ object ForYou {
         val jobs = ArrayList<java.util.concurrent.Future<List<Gif>>>()
         fun src(f: () -> List<Gif>) { jobs += rgPool.submit<List<Gif>> { f() } }
         if (Api.loggedIn) src { Api.page("", "trending", synchronized(this) { ++rgPage }, mode = "foryou").gifs }
-        Interests.pickPair(dead)?.let { pr -> src { byTag(pr) } }
-        Interests.pickTag(dead)?.let { t -> src { byTag(t) } }
+        // шире выборка: два разных сочетания и два разных тега за порцию (по весу, не только самые верхние)
+        val pr1 = Interests.pickPair(dead); pr1?.let { pr -> src { byTag(pr) } }
+        Interests.pickPair(dead + listOfNotNull(pr1))?.let { pr -> src { byTag(pr) } }
+        val t1 = Interests.pickTag(dead); t1?.let { t -> src { byTag(t) } }
+        Interests.pickTag(dead + listOfNotNull(t1))?.let { t -> src { byTag(t) } }
         if (synchronized(this) { extra++ } % 2 == 0) Interests.pickQuery(dead)?.let { q -> src { byQuery(q) } }
         else Interests.pickUser(dead)?.let { u -> src { byUser(u) } }
         if (jobs.isEmpty()) return Api.page("", "trending", synchronized(this) { ++rgPage }).gifs
@@ -122,7 +158,29 @@ object ForYou {
         if (res.all { it.isFailure }) throw unwrap(res.first().exceptionOrNull()!!)
         return res.flatMap { it.getOrDefault(emptyList()) }
     }
-    private val rgPool = Executors.newFixedThreadPool(4)
+    private val rgPool = Executors.newFixedThreadPool(6)
+
+    /** Сторонний сайт: по очереди личная лента (если вошли) и поиск по интересу; пусто — источник на эту ленту исчерпан. */
+    private fun ext(s: Ext.Site): List<Gif> {
+        val feeds = if (Ext.loggedIn(s)) Ext.feeds(s).filter { "${s.id}:$it" !in dead } else emptyList()
+        val n = synchronized(this) { extTurn.merge(s.id, 1, Int::plus)!! }
+        val feed = feeds.takeIf { it.isNotEmpty() && n % 2 == 1 }?.random()
+        if (feed != null && s === Ext.EROME) {
+            val k = "${s.id}:$feed"
+            val g = runCatching { Erome.feed(feed, next(k)).gifs }.getOrDefault(emptyList())
+            if (g.isEmpty()) dead += k
+            android.util.Log.i("Loopa", "Для вас: ${s.title} лента $feed — ${g.size}")
+            if (g.isNotEmpty()) return g
+        }
+        val term = (if (n % 3 == 0) Interests.pickQuery(dead) else null) ?: Interests.pickTag(dead) ?: Interests.top("kw", 5).randomOrNull()?.first ?: ""
+        val k = "${s.id}:q:$term"
+        if (k in dead) return emptyList()
+        val g = if (s === Ext.EROME) Erome.page(term, false, next(k)).gifs else Eporner.page(term, false, next(k)).gifs
+        if (g.isEmpty()) dead += k
+        android.util.Log.i("Loopa", "Для вас: ${s.title} «$term» — ${g.size}")
+        return g
+    }
+    private val extTurn = HashMap<String, Int>()
     /** Источники (тег, сочетание, запрос, автор), что кончились или пусты, — на эту ленту. */
     private val dead: MutableSet<String> = java.util.Collections.synchronizedSet(HashSet<String>())
     private var extra = 0
@@ -224,15 +282,4 @@ object ForYou {
         .filter { !Interests.isSeen(it.id) && shown.add(it.hd) }
         .map { it to (Interests.damp(Interests.score(it)) + 0.08 * ln(1.0 + it.likes.coerceAtLeast(0)) + Math.random() * 0.5) }
         .sortedByDescending { it.second }.map { it.first }
-
-    /** Чередование: на каждой позиции берём Reddit, если его пока меньше доли [share]; остатки — в конец. */
-    private fun mix(a: List<Gif>, b: List<Gif>, share: Double): List<Gif> {
-        val out = ArrayList<Gif>(a.size + b.size)
-        var i = 0; var j = 0
-        while (i < a.size || j < b.size) {
-            val wantB = j < b.size && (i >= a.size || j < (out.size + 1) * share)
-            if (wantB) out += b[j++] else out += a[i++]
-        }
-        return out
-    }
 }

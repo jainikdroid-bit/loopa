@@ -19,6 +19,14 @@ import kotlin.math.pow
  * видно, что нравится не «Riding» и не «Little People» по отдельности, а именно вместе.
  * Слова весят 0,5 от тега (в названиях много шума). Веса затухают на 3 % в сутки — вкусы меняются, старое уходит само.
  * Просмотренные (≥ 2 с) запоминаются, «Для вас» их не повторяет.
+ *
+ * Точность весов (07.11):
+ *  - повторение усиливает: «cnt» — сколько положительных сигналов подкрепили термин; действующий вес
+ *    умножается на 1 + 0,35·ln(1 + cnt) — то, что нравится раз за разом, весит больше разового;
+ *  - редкость: «df» — в скольких просмотренных роликах был тег/слово; тег, что есть почти в каждом («amateur»),
+ *    весит меньше, редкий и конкретный — больше (как IDF, 0,3…2,5);
+ *  - склейка написаний: «Big Tits», «big  tits», «big-tits» — один термин ([key]);
+ *  - лишнее уходит: термины слабее [PRUNE] после затухания удаляются, повторные пропуски копят минус.
  */
 object Interests {
     private const val DECAY_PER_DAY = 0.97
@@ -26,6 +34,11 @@ object Interests {
     private const val MAX_SEEN = 5000
     private const val DAY = 86_400_000L
     private val AXES = listOf("tag", "kw", "sub", "user", "pair", "q")
+    /** Счётчики: подкрепления термина (по осям) и встречаемость тегов/слов в просмотренном. */
+    private val COUNTS = listOf("cnt", "df")
+    private const val PRUNE = 0.15
+    /** Один термин из разных написаний: регистр, пробелы, дефисы, подчёркивания. */
+    fun key(t: String) = t.lowercase().replace(Regex("[\\s_-]+"), " ").trim()
     /** Сколько тегов ролика берём в сочетания (пары растут квадратично). */
     private const val PAIR_TAGS = 8
 
@@ -39,6 +52,8 @@ object Interests {
         file = File(ctx.filesDir, "interests.json")
         data = runCatching { JSONObject(file.readText()) }.getOrDefault(JSONObject())
         AXES.forEach { if (!data.has(it)) data.put(it, JSONObject()) }
+        COUNTS.forEach { c -> if (!data.has(c)) data.put(c, JSONObject()) }
+        merge()
         if (!data.has("map")) data.put("map", JSONObject())
         data.optJSONArray("seen")?.let { a -> for (i in 0 until a.length()) seen += a.getString(i) }
         if (!data.has("at")) data.put("at", System.currentTimeMillis())
@@ -61,7 +76,7 @@ object Interests {
         .map { it.trim('\'') }.filter { it.length in 3..20 && it !in STOP }.toSet()
 
     private fun features(g: Gif): Map<String, Collection<String>> = mapOf(
-        "tag" to g.tags.filter { !it.startsWith("r/") }.map { it.lowercase() },
+        "tag" to g.tags.filter { !it.startsWith("r/") }.map(::key).distinct(),
         "kw" to words(g.description),
         "sub" to listOfNotNull(g.sub.lowercase().takeIf { it.isNotEmpty() }),
         "user" to listOfNotNull(g.user.lowercase().takeIf { it.isNotEmpty() && it != "[deleted]" }),
@@ -70,7 +85,7 @@ object Interests {
 
     /** Сочетания тегов ролика: пары из конкретных (не общих) тегов, «a,b» по алфавиту. */
     fun pairs(tags: List<String>): List<String> {
-        val t = tags.filter { !it.startsWith("r/") && !Api.isGeneric(it) }.map { it.lowercase().trim() }.filter { it.isNotEmpty() && ',' !in it }
+        val t = tags.filter { !it.startsWith("r/") && !Api.isGeneric(it) }.map(::key).filter { it.isNotEmpty() && ',' !in it }
             .distinct().take(PAIR_TAGS).sorted()
         return t.indices.flatMap { i -> (i + 1 until t.size).map { j -> t[i] + "," + t[j] } }
     }
@@ -86,6 +101,30 @@ object Interests {
         if (term.isBlank()) return
         val o = data.getJSONObject(axis)
         o.put(term, o.optDouble(term, 0.0) + w)
+        // подкрепление: положительный сигнал (лайк, досмотр, поиск) — счётчик повторов термина
+        if (w > 0.5) count("cnt", "$axis|$term", 1.0)
+    }
+
+    @Synchronized private fun count(c: String, k: String, d: Double) { val o = data.getJSONObject(c); o.put(k, o.optDouble(k, 0.0) + d) }
+
+    /** Действующий вес: сырой × повторы × редкость (для тегов и слов). */
+    @Synchronized private fun eff(axis: String, term: String, raw: Double): Double {
+        if (raw == 0.0) return 0.0
+        val rep = 1 + 0.35 * ln(1 + data.getJSONObject("cnt").optDouble("$axis|$term", 0.0))
+        val idf = if (axis == "tag" || axis == "kw") {
+            val df = data.getJSONObject("df").optDouble("$axis|$term", 0.0)
+            (1 + ln((seen.size + 10.0) / (df + 10.0))).coerceIn(0.3, 2.5)
+        } else 1.0
+        return if (raw > 0) raw * rep * idf else raw * rep   // минус редкостью не ослабляем: пропуски — это пропуски
+    }
+
+    /** Старые ключи (до склейки написаний) — слить в один термин. */
+    @Synchronized private fun merge() {
+        listOf("tag", "pair").forEach { axis ->
+            val o = data.getJSONObject(axis); val m = JSONObject()
+            o.keys().forEach { k -> val n = if (axis == "pair") k.split(",").joinToString(",") { key(it) } else key(k); m.put(n, m.optDouble(n, 0.0) + o.getDouble(k)) }
+            data.put(axis, m)
+        }
     }
 
     fun like(g: Gif, on: Boolean) = bump(g, if (on) 5.0 else -5.0)
@@ -93,7 +132,11 @@ object Interests {
 
     /** Сколько смотрели: fraction — доля длительности (больше 1 — пошёл по кругу), sec — секунды на экране. */
     fun watched(g: Gif, fraction: Double, sec: Double) {
-        if (sec >= 2) synchronized(this) { seen += g.id; trimSeen() }
+        if (sec >= 2) synchronized(this) {
+            // встречаемость тегов и слов среди просмотренного — для веса по редкости (один раз на ролик)
+            if (seen.add(g.id)) features(g).forEach { (axis, terms) -> if (axis == "tag" || axis == "kw") terms.forEach { count("df", "$axis|$it", 1.0) } }
+            trimSeen()
+        }
         when {
             sec < 2.5 && g.duration > 6 -> bump(g, -0.4)
             fraction >= 1.8 -> bump(g, 3.0)
@@ -105,15 +148,15 @@ object Interests {
 
     /** Поиск: слова запроса — как теги и как слова. */
     fun search(q: String) = synchronized(this) {
-        words(q).forEach { add("tag", it, 3.0); add("kw", it, 1.5) }
+        words(q).forEach { add("tag", key(it), 3.0); add("kw", it, 1.5) }
         q.trim().lowercase().takeIf { it.length >= 3 }?.let { add("q", it, 3.0) }
         save()
     }
-    fun openTag(t: String) = synchronized(this) { add("tag", t.lowercase(), 3.0); save() }
+    fun openTag(t: String) = synchronized(this) { add("tag", key(t), 3.0); save() }
     fun openSub(s: String) = synchronized(this) { s.split("+").filter { it.isNotBlank() && !it.startsWith("u/") }.forEach { add("sub", it.lowercase(), 3.0) }; save() }
 
     fun reset() = synchronized(this) {
-        AXES.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); seen.clear(); save()
+        AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); seen.clear(); save()
     }
 
     // ---- использование ----
@@ -126,7 +169,7 @@ object Interests {
         features(g).forEach { (axis, terms) ->
             val o = data.getJSONObject(axis)
             val k = when (axis) { "kw" -> 0.6; "sub" -> 1.2; "user" -> 0.8; "pair" -> 0.7; else -> 1.0 }
-            terms.forEach { s += k * o.optDouble(it, 0.0) }
+            terms.forEach { s += k * eff(axis, it, o.optDouble(it, 0.0)) }
         }
         s
     }
@@ -134,32 +177,32 @@ object Interests {
     /** Верх оси по весу. */
     fun top(axis: String, n: Int): List<Pair<String, Double>> = synchronized(this) {
         val o = data.getJSONObject(axis)
-        o.keys().asSequence().map { it to o.getDouble(it) }.filter { it.second > 0.3 }.sortedByDescending { it.second }.take(n).toList()
+        o.keys().asSequence().map { it to eff(axis, it, o.getDouble(it)) }.filter { it.second > 0.3 }.sortedByDescending { it.second }.take(n).toList()
     }
 
     val empty get() = AXES.all { top(it, 1).isEmpty() }
 
     /** Тег для подборки RedGIFs: случайный из верхних с вероятностью по весу (не только самый любимый); skip — исчерпанные. */
-    fun pickTag(skip: Set<String> = emptySet()): String? = weighted(top("tag", 12).filter { it.first !in skip }.take(8))
+    fun pickTag(skip: Set<String> = emptySet()): String? = weighted(top("tag", 30).filter { it.first !in skip }.take(20))
 
     /**
      * Сочетание тегов «a,b» для подборки: из выученных сочетаний, а пока их мало — пары из верхних конкретных тегов
      * (вес — среднее геометрическое весов тегов, чуть ниже выученных).
      */
     fun pickPair(skip: Set<String> = emptySet()): String? {
-        val learned = top("pair", 15).filter { it.first !in skip }
-        val tags = top("tag", 10).filter { !Api.isGeneric(it.first) && ',' !in it.first }.take(6)
+        val learned = top("pair", 25).filter { it.first !in skip }
+        val tags = top("tag", 16).filter { !Api.isGeneric(it.first) && ',' !in it.first }.take(8)
         val made = tags.indices.flatMap { i -> (i + 1 until tags.size).map { j ->
             listOf(tags[i].first, tags[j].first).sorted().joinToString(",") to 0.7 * kotlin.math.sqrt(tags[i].second * tags[j].second)
         } }.filter { it.first !in skip }
-        return weighted((learned + made).groupBy { it.first }.map { (k, v) -> k to v.maxOf { it.second } }.sortedByDescending { it.second }.take(10))
+        return weighted((learned + made).groupBy { it.first }.map { (k, v) -> k to v.maxOf { it.second } }.sortedByDescending { it.second }.take(18))
     }
 
     /** Прошлый поиск (запрос целиком) — по весу; skip — исчерпанные. */
-    fun pickQuery(skip: Set<String> = emptySet()): String? = weighted(top("q", 10).filter { it.first !in skip })
+    fun pickQuery(skip: Set<String> = emptySet()): String? = weighted(top("q", 15).filter { it.first !in skip })
 
     /** Любимый автор (у кого нет роликов на RedGIFs — например, пользователь Reddit, — того ForYou пропустит). */
-    fun pickUser(skip: Set<String> = emptySet()): String? = weighted(top("user", 10).filter { it.first !in skip && it.second >= 3.0 })
+    fun pickUser(skip: Set<String> = emptySet()): String? = weighted(top("user", 15).filter { it.first !in skip && it.second >= 3.0 })
 
     private fun weighted(l: List<Pair<String, Double>>): String? {
         if (l.isEmpty()) return null
@@ -190,10 +233,14 @@ object Interests {
         val f = DECAY_PER_DAY.pow(days)
         AXES.forEach { axis ->
             val o = data.getJSONObject(axis)
-            val kept = o.keys().asSequence().map { it to o.getDouble(it) * f }.filter { kotlin.math.abs(it.second) >= 0.05 }
+            val kept = o.keys().asSequence().map { it to o.getDouble(it) * f }.filter { kotlin.math.abs(it.second) >= PRUNE }
                 .sortedByDescending { kotlin.math.abs(it.second) }.take(MAX_TERMS).toList()
             data.put(axis, JSONObject().apply { kept.forEach { (k, v) -> put(k, v) } })
         }
+        // подкрепления затухают так же; встречаемость — нет (статистика просмотренного), но с потолком
+        data.getJSONObject("cnt").let { o -> data.put("cnt", JSONObject().apply { o.keys().forEach { k -> val v = o.getDouble(k) * f; if (v >= 0.3) put(k, v) } }) }
+        data.getJSONObject("df").let { o -> if (o.length() > 4000) data.put("df", JSONObject().apply {
+            o.keys().asSequence().map { it to o.getDouble(it) }.sortedByDescending { it.second }.take(3000).forEach { (k, v) -> put(k, v) } }) }
         data.put("at", now)
     }
 

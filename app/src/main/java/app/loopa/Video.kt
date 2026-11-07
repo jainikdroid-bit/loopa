@@ -5,6 +5,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
@@ -28,7 +29,10 @@ object Video {
         meter = DefaultBandwidthMeter.Builder(app).build()
         val http = DefaultHttpDataSource.Factory().setUserAgent(Api.UA).setConnectTimeoutMs(Net.CONNECT_MS).setReadTimeoutMs(Net.READ_MS)
             .setAllowCrossProtocolRedirects(true).setTransferListener(meter)
-        source = CacheDataSource.Factory().setCache(cache).setUpstreamDataSourceFactory(http).setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        // Erome отдаёт видео только с Referer своего сайта (без него 403)
+        val ref = ResolvingDataSource.Factory(http) { spec ->
+            if (Erome.ours(spec.uri.toString())) spec.withAdditionalHeaders(mapOf("Referer" to Erome.REFERER)) else spec }
+        source = CacheDataSource.Factory().setCache(cache).setUpstreamDataSourceFactory(ref).setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
 
     /** «Авто»: HD, если сеть тянет ~2 битрейта HD (RedGIFs HD ≈ 4–5 Мбит/с), иначе SD (в 5–6 раз легче). */

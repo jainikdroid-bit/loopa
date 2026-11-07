@@ -34,6 +34,7 @@ object Downloads {
             .setTitle(name)
             .setDescription("Loopa")
             .addRequestHeader("User-Agent", Api.UA)
+            .apply { if (Erome.ours(g.hd)) addRequestHeader("Referer", Erome.REFERER) }
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Loopa/$name")
         runCatching { (ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(rq) }

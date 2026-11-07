@@ -48,6 +48,9 @@ class PlayerActivity : Activity() {
     /** Ролики под управлением PreloadManager: номер в выдаче → MediaItem (окно вокруг текущего). */
     private val managed = HashMap<Int, MediaItem>()
     private lateinit var pager: ViewPager2
+    private lateinit var screen: FrameLayout
+    /** Панель «Похожие» поверх плеера (null — закрыта). */
+    private var similar: View? = null
     private val rv get() = pager.getChildAt(0) as RecyclerView
     private var current = -1
     private var holder: PageHolder? = null
@@ -142,7 +145,8 @@ class PlayerActivity : Activity() {
             for (i in 0 until rv.childCount) (rv.getChildViewHolder(rv.getChildAt(i)) as? PageHolder)?.pad()
             ins
         }
-        setContentView(pager)
+        screen = FrameLayout(this).apply { addView(pager, FrameLayout.LayoutParams(-1, -1)) }
+        setContentView(screen)
         pager.setCurrentItem(intent.getIntExtra("pos", 0), false)
         Feed.listeners += onFeed
         Net.online += onOnline
@@ -255,6 +259,7 @@ class PlayerActivity : Activity() {
         val qBtn = side("")
         val dl = side("⬇")
         val like = side("♡")
+        val more = side("▦")
         val pausedMark = TextView(this@PlayerActivity).apply { text = "❚❚"; textSize = 48f; setTextColor(0xCCFFFFFF.toInt()); visibility = View.GONE }
 
         init {
@@ -267,7 +272,7 @@ class PlayerActivity : Activity() {
                 if (player.isPlaying) { player.pause(); pausedMark.visibility = View.VISIBLE } else { player.play(); pausedMark.visibility = View.GONE }
             }
             val col = LinearLayout(this@PlayerActivity).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
-                addView(like); addView(dl); addView(sound); addView(qBtn) }
+                addView(like); addView(more); addView(dl); addView(sound); addView(qBtn) }
             root.addView(col, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = dp(8) })
             this.col = col
             val bottom = LinearLayout(this@PlayerActivity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(8), dp(12), dp(16))
@@ -301,11 +306,12 @@ class PlayerActivity : Activity() {
             poster.visibility = View.VISIBLE; pausedMark.visibility = View.GONE
             Thumbs.load(poster, g.thumb)
             fit(g.w, g.h)
-            src.text = if (g.reddit) "RD" else "RG"
-            src.background = GradientDrawable().apply { setColor(if (g.reddit) MainActivity.RD_COLOR else MainActivity.RG_COLOR); cornerRadius = dp(10).toFloat() }
+            src.text = MainActivity.mark(g)
+            src.background = GradientDrawable().apply { setColor(MainActivity.markColor(g)); cornerRadius = dp(10).toFloat() }
             // пост Reddit: автор — его посты на Reddit, вместо просмотров — рейтинг и комментарии, ниже — заголовок
             user.text = if (g.reddit) "u/${g.user}" else "@${g.user}"
-            user.setOnClickListener { if (g.user.isNotBlank()) { if (g.reddit) back("sub", "u/${g.user}") else back("author", g.user) } }
+            user.visibility = if (g.user.isBlank()) View.GONE else View.VISIBLE
+            user.setOnClickListener { if (g.user.isNotBlank()) { when { g.reddit -> back("sub", "u/${g.user}"); g.ext -> back(g.site, g.user); else -> back("author", g.user) } } }
             info.maxLines = 3
             info.text = if (g.reddit) "${MainActivity.time(g.duration)} · ↑ ${MainActivity.count(g.likes)} · 💬 ${MainActivity.count(g.views)}" +
                 (if (!g.hasAudio) " · " + tr("без звука") else "") + (if (g.description.isNotBlank()) "\n" + g.description else "")
@@ -315,17 +321,18 @@ class PlayerActivity : Activity() {
                 tags.addView(TextView(this@PlayerActivity).apply {
                     text = if (t.startsWith("r/")) t else "#$t"; setTextColor(Color.WHITE); textSize = 13f; setPadding(dp(10), dp(5), dp(10), dp(5))
                     background = GradientDrawable().apply { setColor(0x66FFFFFF); cornerRadius = dp(20).toFloat() }
-                    setOnClickListener { if (t.startsWith("r/")) back("sub", t.substring(2)) else back("tag", t) }
+                    setOnClickListener { when { t.startsWith("r/") -> back("sub", t.substring(2)); g.ext -> back(g.site, t); else -> back("tag", t) } }
                 }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
             }
             dl.setOnClickListener { Downloads.get(this@PlayerActivity, g); Interests.download(g) }
+            more.setOnClickListener { showSimilar(g) }
             // качество у потока HLS выбирает сам плеер
             qBtn.visibility = if (g.hls) View.GONE else View.VISIBLE
             fun showLike() { like.text = if (liked(g.id)) "♥" else "♡"; like.setTextColor(if (liked(g.id)) 0xFFFF4D5E.toInt() else Color.WHITE) }
             showLike()
             like.setOnClickListener {
                 // Reddit: лайк — только у себя, для «Для вас» (голос на Reddit не ставим)
-                if (g.reddit) { val on = !liked(g.id); setLiked(g.id, on); showLike(); Interests.like(g, on); return@setOnClickListener }
+                if (g.reddit || g.ext) { val on = !liked(g.id); setLiked(g.id, on); showLike(); Interests.like(g, on); return@setOnClickListener }
                 if (!Api.loggedIn) { back("login", "1"); return@setOnClickListener }
                 val on = !liked(g.id); setLiked(g.id, on); showLike(); Interests.like(g, on)
                 val src = when {
@@ -357,6 +364,77 @@ class PlayerActivity : Activity() {
         background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0x66000000) }
         layoutParams = LinearLayout.LayoutParams(dp(54), dp(54)).apply { bottomMargin = dp(12) }
     }
+
+    /**
+     * «Похожие» ([Similar]): снизу панель на 2/3 экрана с сеткой роликов, прокручивается. Тап — ролик встаёт сразу за
+     * текущим и открывается (назад — свайп вниз). Закрыть — ✕, тап выше панели или «Назад».
+     */
+    private fun showSimilar(g: Gif) {
+        closeSimilar()
+        val h = resources.displayMetrics.heightPixels
+        val list = ArrayList<Gif>()
+        val status = TextView(this).apply { text = tr("Подбираю похожие…"); setTextColor(0xFFB0B5BD.toInt()); textSize = 13f; setPadding(dp(14), 0, dp(14), dp(6)) }
+        val grid = RecyclerView(this).apply {
+            layoutManager = androidx.recyclerview.widget.GridLayoutManager(this@PlayerActivity, 3)
+            setPadding(dp(4), 0, dp(4), dp(8) + navBottom); clipToPadding = false
+            adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+                override fun getItemCount() = list.size
+                override fun onCreateViewHolder(p: ViewGroup, t: Int): RecyclerView.ViewHolder {
+                    val cell = FrameLayout(p.context).apply { layoutParams = RecyclerView.LayoutParams(-1, (p.width / 3 * 16 / 9).coerceAtLeast(dp(150))); setPadding(dp(2), dp(2), dp(2), dp(2)) }
+                    cell.addView(ImageView(p.context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(0xFF22252B.toInt()) }, FrameLayout.LayoutParams(-1, -1))
+                    cell.addView(TextView(p.context).apply { setTextColor(Color.WHITE); textSize = 10f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(dp(5), dp(1), dp(5), dp(1)) },
+                        FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { setMargins(dp(5), dp(5), 0, 0) })
+                    cell.addView(TextView(p.context).apply { setTextColor(Color.WHITE); textSize = 11f; setShadowLayer(4f, 0f, 0f, Color.BLACK) },
+                        FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, dp(6), dp(4)) })
+                    return object : RecyclerView.ViewHolder(cell) {}
+                }
+                override fun onBindViewHolder(vh: RecyclerView.ViewHolder, pos: Int) {
+                    val c = list[pos]; val cell = vh.itemView as FrameLayout
+                    Thumbs.load(cell.getChildAt(0) as ImageView, c.thumb)
+                    (cell.getChildAt(1) as TextView).apply { text = MainActivity.mark(c); background = GradientDrawable().apply { setColor(MainActivity.markColor(c)); cornerRadius = dp(8).toFloat() } }
+                    (cell.getChildAt(2) as TextView).text = if (c.duration > 0) MainActivity.time(c.duration) else ""
+                    cell.setOnClickListener { openSimilar(c) }
+                }
+            }
+        }
+        val sheet = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; isClickable = true
+            background = GradientDrawable().apply { setColor(0xF2111318.toInt()); cornerRadii = floatArrayOf(dp(18).toFloat(), dp(18).toFloat(), dp(18).toFloat(), dp(18).toFloat(), 0f, 0f, 0f, 0f) }
+            addView(LinearLayout(this@PlayerActivity).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(10), dp(6), dp(4))
+                addView(TextView(this@PlayerActivity).apply { text = tr("Похожие"); setTextColor(Color.WHITE); textSize = 17f; typeface = android.graphics.Typeface.DEFAULT_BOLD }, LinearLayout.LayoutParams(0, -2, 1f))
+                addView(TextView(this@PlayerActivity).apply { text = "✕"; setTextColor(Color.WHITE); textSize = 20f; setPadding(dp(12), dp(4), dp(12), dp(4)); setOnClickListener { closeSimilar() } })
+            })
+            addView(status); addView(grid, LinearLayout.LayoutParams(-1, 0, 1f))
+        }
+        val overlay = FrameLayout(this).apply {
+            setOnClickListener { closeSimilar() }
+            addView(sheet, FrameLayout.LayoutParams(-1, h * 2 / 3, Gravity.BOTTOM))
+        }
+        screen.addView(overlay, FrameLayout.LayoutParams(-1, -1)); similar = overlay
+        kotlin.concurrent.thread {
+            val r = runCatching { Similar.find(g) }
+            ui.post {
+                if (similar !== overlay) return@post
+                list.clear(); list += r.getOrDefault(emptyList()); grid.adapter?.notifyDataSetChanged()
+                status.text = when { r.isFailure -> tr(NO_NET); list.isEmpty() -> tr("Похожих не нашлось"); else -> tr("Похожих: %s — по тегам, названию и автору", list.size) }
+            }
+        }
+    }
+
+    private fun closeSimilar() { similar?.let { screen.removeView(it) }; similar = null }
+
+    /** Похожий ролик — сразу за текущим и открыть его (предзагрузку пересобрать: номера сдвинулись). */
+    private fun openSimilar(c: Gif) {
+        closeSimilar()
+        managed.values.forEach { preload.remove(it) }; managed.clear()
+        val at = Feed.insertAfter(current, c)
+        pager.adapter?.notifyDataSetChanged(); sync()
+        pager.setCurrentItem(at, true)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() { if (similar != null) closeSimilar() else @Suppress("DEPRECATION") super.onBackPressed() }
 
     private inner class PageAdapter : RecyclerView.Adapter<PageHolder>() {
         override fun getItemCount() = Feed.items.size

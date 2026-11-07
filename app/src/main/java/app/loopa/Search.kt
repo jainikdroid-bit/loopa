@@ -69,6 +69,8 @@ object Search {
      * по ходу, не дожидаясь медленных. p = 1 — широкий сбор; дальше — следующие страницы. order — порядок RedGIFs.
      * Возвращает, сколько роликов пришло всего.
      */
+    private const val EXT_SCORE = 7.0
+
     fun run(p: Int, order: String, reddit: Boolean, part: (List<Pair<Gif, Double>>) -> Unit): Int {
         val q = text
         val cs = java.util.concurrent.ExecutorCompletionService<List<Gif>>(pool)
@@ -89,6 +91,9 @@ object Search {
             src?.let { (s, byTag) -> val k = synchronized(this) { ((srcPage[s] ?: 1) + 1).also { srcPage[s] = it } }; rg(s, byTag, k) }
         }
         if (reddit) { cs.submit { redditPart(q, p) }; n++ }
+        // Erome и Eporner (галочки «Источники» в меню 👤): их поиск по тому же запросу, страница p
+        if (ForYou.useErome) { cs.submit { runCatching { Erome.page(q, false, p).gifs }.getOrDefault(emptyList()) }; n++ }
+        if (ForYou.useEporner) { cs.submit { runCatching { Eporner.page(q, false, p).gifs }.getOrDefault(emptyList()) }; n++ }
         var total = 0
         var synDone = p != 1
         if (p == 1) full = 0
@@ -105,7 +110,9 @@ object Search {
             }
             if (got.isEmpty()) continue
             total += got.size
-            val scored = got.map { it to score(it) }
+            // Erome/Eporner: ролики из поиска самого сайта по этому запросу — по теме; оценка не ниже синонима (7),
+            // иначе за сотнями роликов RedGIFs их не видно
+            val scored = got.map { it to if (it.ext) maxOf(score(it), EXT_SCORE) else score(it) }
             // теги, частые у роликов прямо по теме (оценка ≥ 8), — тоже искать (у «midget» — «Little People»)
             if (p == 1 && !relDone) {
                 scored.filter { it.second >= 8 }.forEach { (g, _) -> g.tags.forEach { t -> relCnt[t] = (relCnt[t] ?: 0) + 1 } }
