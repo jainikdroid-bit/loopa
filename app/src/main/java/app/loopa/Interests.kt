@@ -110,10 +110,14 @@ object Interests {
     /** Действующий вес: сырой × повторы × редкость (для тегов и слов). */
     @Synchronized private fun eff(axis: String, term: String, raw: Double): Double {
         if (raw == 0.0) return 0.0
-        val rep = 1 + 0.35 * ln(1 + data.getJSONObject("cnt").optDouble("$axis|$term", 0.0))
+        val cnt = data.getJSONObject("cnt").optDouble("$axis|$term", 0.0)
+        val rep = 1 + 0.35 * ln(1 + cnt)
+        // редкость поднимает только то, что повторялось (≥ 3 раз): 08.11 тег, встреченный один раз («gearshift»),
+        // с редкостью ×2.5 вышел в главные интересы — RedGIFs по нему находит 0–1 ролик, «Для вас» пустела
         val idf = if (axis == "tag" || axis == "kw") {
             val df = data.getJSONObject("df").optDouble("$axis|$term", 0.0)
-            (1 + ln((seen.size + 10.0) / (df + 10.0))).coerceIn(0.3, 2.5)
+            val r = (1 + ln((seen.size + 10.0) / (df + 10.0))).coerceIn(0.5, 1.8)
+            if (cnt >= 3) r else r.coerceAtMost(1.0)
         } else 1.0
         return if (raw > 0) raw * rep * idf else raw * rep   // минус редкостью не ослабляем: пропуски — это пропуски
     }

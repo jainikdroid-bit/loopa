@@ -156,9 +156,15 @@ object ForYou {
         if (jobs.isEmpty()) return Api.page("", "trending", synchronized(this) { ++rgPage }).gifs
         val res = jobs.map { runCatching { it.get() } }
         if (res.all { it.isFailure }) throw unwrap(res.first().exceptionOrNull()!!)
-        return res.flatMap { it.getOrDefault(emptyList()) }
+        val got = res.flatMap { it.getOrDefault(emptyList()) }
+        // узкие интересы дали мало (редкие теги, сочетания) — добрать популярным, чтобы лента не пустела
+        if (got.size >= MIN_RG) return got
+        android.util.Log.i("Loopa", "Для вас: RedGIFs по интересам мало (${got.size}) — добираю популярным")
+        return got + runCatching { Api.page("", "trending", synchronized(this) { ++rgPage }).gifs }.getOrDefault(emptyList())
     }
     private val rgPool = Executors.newFixedThreadPool(6)
+    /** Меньше стольких роликов RedGIFs за порцию — добор популярным. */
+    private const val MIN_RG = 20
 
     /** Сторонний сайт: по очереди личная лента (если вошли) и поиск по интересу; пусто — источник на эту ленту исчерпан. */
     private fun ext(s: Ext.Site): List<Gif> {
