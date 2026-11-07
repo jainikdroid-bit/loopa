@@ -116,11 +116,15 @@ class PlayerActivity : Activity() {
                     if (st == Player.STATE_READY) { fails = 0; holder?.spin?.text = tr("загрузка…") }
                 }
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
-                    // сеть: показать и повторить самим; прочее (битый файл) — следующий ролик
-                    if (e.errorCode in 2000..2999) {
+                    // сеть: показать и повторить самим; прочее (файл удалён, вместо видео картинка или заглушка) — так и сказать,
+                    // но не листать самим: иначе на этот ролик не вернуться — каждый раз уносит к следующему
+                    if (e.errorCode in 2000..2999 && e.errorCode != androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) {
                         holder?.spin?.apply { text = tr("нет связи — повторю…"); visibility = View.VISIBLE }
                         ui.removeCallbacks(replay); ui.postDelayed(replay, minOf(30_000L, 2000L shl minOf(fails, 4))); fails++
-                    } else if (current + 1 < Feed.items.size) pager.setCurrentItem(current + 1, true)
+                    } else {
+                        android.util.Log.w("Loopa", "ролик не открывается: ${Feed.items.getOrNull(current)?.hd}", e)
+                        holder?.spin?.apply { text = tr("Этот ролик не открывается (удалён или это не видео) — листайте дальше"); visibility = View.VISIBLE }
+                    }
                 }
             })
         }
@@ -184,7 +188,7 @@ class PlayerActivity : Activity() {
         val h = rv.findViewHolderForAdapterPosition(pos) as? PageHolder ?: run { pager.post { settle(pos) }; return }
         report(); shownAt = System.currentTimeMillis()
         holder?.poster?.visibility = View.VISIBLE
-        current = pos; holder = h
+        current = pos; holder = h; h.spin.text = tr("загрузка…"); fails = 0
         control.cur = pos; preload.setCurrentPlayingIndex(pos)
         sync()
         player.setVideoTextureView(h.video)

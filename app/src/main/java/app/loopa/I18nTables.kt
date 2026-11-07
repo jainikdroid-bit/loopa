@@ -139,6 +139,7 @@ object I18nTables {
         "вход в Reddit истёк — обновляю…" to "Reddit sign-in expired — renewing…",
         "Сочетания" to "Tag combos",
         "Запросы" to "Searches",
+        "Этот ролик не открывается (удалён или это не видео) — листайте дальше" to "This clip won't play (deleted or not a video) — swipe on",
     ) }
     private val ES by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Ya descargado: Descargas/Loopa/%s",
@@ -276,6 +277,7 @@ object I18nTables {
         "вход в Reddit истёк — обновляю…" to "la sesión de Reddit caducó — renovando…",
         "Сочетания" to "Combinaciones",
         "Запросы" to "Búsquedas",
+        "Этот ролик не открывается (удалён или это не видео) — листайте дальше" to "Este clip no se reproduce (eliminado o no es un vídeo): desliza",
     ) }
     private val PT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Já baixado: Downloads/Loopa/%s",
@@ -413,6 +415,7 @@ object I18nTables {
         "вход в Reddit истёк — обновляю…" to "login do Reddit expirado — renovando…",
         "Сочетания" to "Combinações",
         "Запросы" to "Pesquisas",
+        "Этот ролик не открывается (удалён или это не видео) — листайте дальше" to "Este clipe não abre (removido ou não é vídeo) — deslize",
     ) }
     private val DE by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Bereits geladen: Downloads/Loopa/%s",
@@ -550,6 +553,7 @@ object I18nTables {
         "вход в Reddit истёк — обновляю…" to "Reddit-Anmeldung abgelaufen — wird erneuert…",
         "Сочетания" to "Kombinationen",
         "Запросы" to "Suchen",
+        "Этот ролик не открывается (удалён или это не видео) — листайте дальше" to "Dieser Clip lässt sich nicht abspielen (gelöscht oder kein Video) – weiterwischen",
     ) }
     private val FR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -687,6 +691,7 @@ object I18nTables {
         "вход в Reddit истёк — обновляю…" to "connexion Reddit expirée — renouvellement…",
         "Сочетания" to "Combinaisons",
         "Запросы" to "Recherches",
+        "Этот ролик не открывается (удалён или это не видео) — листайте дальше" to "Ce clip ne se lit pas (supprimé ou pas une vidéo) — faites défiler",
     ) }
     private val IT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Già scaricato: Download/Loopa/%s",
@@ -824,6 +829,7 @@ object I18nTables {
         "вход в Reddit истёк — обновляю…" to "accesso a Reddit scaduto — rinnovo…",
         "Сочетания" to "Combinazioni",
         "Запросы" to "Ricerche",
+        "Этот ролик не открывается (удалён или это не видео) — листайте дальше" to "Questo clip non si apre (rimosso o non è un video): scorri",
     ) }
     private val TR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -961,6 +967,7 @@ object I18nTables {
         "вход в Reddit истёк — обновляю…" to "Reddit oturumu sona erdi — yenileniyor…",
         "Сочетания" to "Etiket kombinasyonları",
         "Запросы" to "Aramalar",
+        "Этот ролик не открывается (удалён или это не видео) — листайте дальше" to "Bu klip açılmıyor (silinmiş ya da video değil) — kaydırın",
     ) }
     private val PL by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Już pobrano: Pobrane/Loopa/%s",
@@ -1098,6 +1105,7 @@ object I18nTables {
         "вход в Reddit истёк — обновляю…" to "sesja Reddita wygasła — odnawiam…",
         "Сочетания" to "Połączenia",
         "Запросы" to "Wyszukiwania",
+        "Этот ролик не открывается (удалён или это не видео) — листайте дальше" to "Ten klip się nie otwiera (usunięty lub to nie wideo) — przewiń dalej",
     ) }
     private val UK by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Уже завантажено: Завантаження/Loopa/%s",
@@ -1235,6 +1243,7 @@ object I18nTables {
         "вход в Reddit истёк — обновляю…" to "вхід у Reddit минув — оновлюю…",
         "Сочетания" to "Поєднання",
         "Запросы" to "Запити",
+        "Этот ролик не открывается (удалён или это не видео) — листайте дальше" to "Цей ролик не відкривається (видалений або це не відео) — гортайте далі",
     ) }
 
     fun of(code: String): Map<String, String> = when (code) {

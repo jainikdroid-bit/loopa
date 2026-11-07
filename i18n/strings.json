@@ -28,7 +28,7 @@
 "Любая длительность", "До 15 с", "15–60 с", "Дольше минуты", "Мало (1 из 4)",
 "Треть", "Поровну", "Много (2 из 3)", "Гей", "Sissy, фембой, транс",
 "♥ Для вас", "🔥 Популярное", "Мои лайки", "нет связи", "вход истёк — обновляю…",
-"нужен вход в Reddit — нажмите", "вход в Reddit истёк — обновляю…", "Сочетания", "Запросы"
+"нужен вход в Reddit — нажмите", "вход в Reddit истёк — обновляю…", "Сочетания", "Запросы", "Этот ролик не открывается (удалён или это не видео) — листайте дальше"
 ],
 "en": [
 "Already downloaded: Downloads/Loopa/%s", "Downloading to Downloads/Loopa", "Can't download: %s", "Downloading to Downloads/Loopa (video and sound)…", "Saved: Downloads/Loopa/%s",
@@ -58,7 +58,7 @@
 "Any duration", "Under 15 s", "15–60 s", "Over a minute", "Few (1 in 4)",
 "A third", "Half", "Many (2 in 3)", "Gay", "Sissy, femboy, trans",
 "♥ For you", "🔥 Trending", "My likes", "no connection", "sign-in expired — renewing…",
-"Reddit sign-in needed — tap", "Reddit sign-in expired — renewing…", "Tag combos", "Searches"
+"Reddit sign-in needed — tap", "Reddit sign-in expired — renewing…", "Tag combos", "Searches", "This clip won't play (deleted or not a video) — swipe on"
 ],
 "es": [
 "Ya descargado: Descargas/Loopa/%s", "Descargando en Descargas/Loopa", "No se pudo descargar: %s", "Descargando en Descargas/Loopa (vídeo y sonido)…", "Guardado: Descargas/Loopa/%s",
@@ -88,7 +88,7 @@
 "Cualquier duración", "Menos de 15 s", "15–60 s", "Más de un minuto", "Poco (1 de 4)",
 "Un tercio", "Mitad", "Mucho (2 de 3)", "Gay", "Sissy, femboy, trans",
 "♥ Para ti", "🔥 Popular", "Mis me gusta", "sin conexión", "la sesión caducó — renovando…",
-"inicia sesión en Reddit — pulsa", "la sesión de Reddit caducó — renovando…", "Combinaciones", "Búsquedas"
+"inicia sesión en Reddit — pulsa", "la sesión de Reddit caducó — renovando…", "Combinaciones", "Búsquedas", "Este clip no se reproduce (eliminado o no es un vídeo): desliza"
 ],
 "pt": [
 "Já baixado: Downloads/Loopa/%s", "Baixando para Downloads/Loopa", "Não foi possível baixar: %s", "Baixando para Downloads/Loopa (vídeo e som)…", "Salvo: Downloads/Loopa/%s",
@@ -118,7 +118,7 @@
 "Qualquer duração", "Até 15 s", "15–60 s", "Mais de um minuto", "Pouco (1 em 4)",
 "Um terço", "Metade", "Muito (2 em 3)", "Gay", "Sissy, femboy, trans",
 "♥ Para você", "🔥 Em alta", "Minhas curtidas", "sem conexão", "login expirado — renovando…",
-"é preciso entrar no Reddit — toque", "login do Reddit expirado — renovando…", "Combinações", "Pesquisas"
+"é preciso entrar no Reddit — toque", "login do Reddit expirado — renovando…", "Combinações", "Pesquisas", "Este clipe não abre (removido ou não é vídeo) — deslize"
 ],
 "de": [
 "Bereits geladen: Downloads/Loopa/%s", "Wird nach Downloads/Loopa geladen", "Download fehlgeschlagen: %s", "Wird nach Downloads/Loopa geladen (Video und Ton)…", "Gespeichert: Downloads/Loopa/%s",
@@ -148,7 +148,7 @@
 "Beliebige Dauer", "Unter 15 s", "15–60 s", "Über eine Minute", "Wenig (1 von 4)",
 "Ein Drittel", "Hälfte", "Viel (2 von 3)", "Gay", "Sissy, Femboy, Trans",
 "♥ Für dich", "🔥 Beliebt", "Meine Likes", "keine Verbindung", "Anmeldung abgelaufen — wird erneuert…",
-"Reddit-Anmeldung nötig — tippen", "Reddit-Anmeldung abgelaufen — wird erneuert…", "Kombinationen", "Suchen"
+"Reddit-Anmeldung nötig — tippen", "Reddit-Anmeldung abgelaufen — wird erneuert…", "Kombinationen", "Suchen", "Dieser Clip lässt sich nicht abspielen (gelöscht oder kein Video) – weiterwischen"
 ],
 "fr": [
 "Déjà téléchargé : Téléchargements/Loopa/%s", "Téléchargement vers Téléchargements/Loopa", "Échec du téléchargement : %s", "Téléchargement vers Téléchargements/Loopa (vidéo et son)…", "Enregistré : Téléchargements/Loopa/%s",
@@ -178,7 +178,7 @@
 "Toute durée", "Moins de 15 s", "15–60 s", "Plus d'une minute", "Peu (1 sur 4)",
 "Un tiers", "Moitié", "Beaucoup (2 sur 3)", "Gay", "Sissy, femboy, trans",
 "♥ Pour vous", "🔥 Populaire", "Mes j'aime", "pas de connexion", "connexion expirée — renouvellement…",
-"connexion à Reddit requise — touchez", "connexion Reddit expirée — renouvellement…", "Combinaisons", "Recherches"
+"connexion à Reddit requise — touchez", "connexion Reddit expirée — renouvellement…", "Combinaisons", "Recherches", "Ce clip ne se lit pas (supprimé ou pas une vidéo) — faites défiler"
 ],
 "it": [
 "Già scaricato: Download/Loopa/%s", "Download in Download/Loopa", "Download non riuscito: %s", "Download in Download/Loopa (video e audio)…", "Salvato: Download/Loopa/%s",
@@ -208,7 +208,7 @@
 "Qualsiasi durata", "Meno di 15 s", "15–60 s", "Oltre un minuto", "Poco (1 su 4)",
 "Un terzo", "Metà", "Molto (2 su 3)", "Gay", "Sissy, femboy, trans",
 "♥ Per te", "🔥 Popolari", "I miei mi piace", "nessuna connessione", "accesso scaduto — rinnovo…",
-"serve l'accesso a Reddit — tocca", "accesso a Reddit scaduto — rinnovo…", "Combinazioni", "Ricerche"
+"serve l'accesso a Reddit — tocca", "accesso a Reddit scaduto — rinnovo…", "Combinazioni", "Ricerche", "Questo clip non si apre (rimosso o non è un video): scorri"
 ],
 "tr": [
 "Zaten indirildi: İndirilenler/Loopa/%s", "İndirilenler/Loopa klasörüne indiriliyor", "İndirilemedi: %s", "İndirilenler/Loopa klasörüne indiriliyor (video ve ses)…", "Kaydedildi: İndirilenler/Loopa/%s",
@@ -238,7 +238,7 @@
 "Herhangi bir süre", "15 sn'den kısa", "15–60 sn", "Bir dakikadan uzun", "Az (4'te 1)",
 "Üçte bir", "Yarı yarıya", "Çok (3'te 2)", "Gay", "Sissy, femboy, trans",
 "♥ Senin için", "🔥 Popüler", "Beğenilerim", "bağlantı yok", "oturum sona erdi — yenileniyor…",
-"Reddit girişi gerekli — dokun", "Reddit oturumu sona erdi — yenileniyor…", "Etiket kombinasyonları", "Aramalar"
+"Reddit girişi gerekli — dokun", "Reddit oturumu sona erdi — yenileniyor…", "Etiket kombinasyonları", "Aramalar", "Bu klip açılmıyor (silinmiş ya da video değil) — kaydırın"
 ],
 "pl": [
 "Już pobrano: Pobrane/Loopa/%s", "Pobieram do Pobrane/Loopa", "Nie udało się pobrać: %s", "Pobieram do Pobrane/Loopa (wideo i dźwięk)…", "Zapisano: Pobrane/Loopa/%s",
@@ -268,7 +268,7 @@
 "Dowolna długość", "Do 15 s", "15–60 s", "Ponad minutę", "Mało (1 na 4)",
 "Jedna trzecia", "Po równo", "Dużo (2 na 3)", "Gej", "Sissy, femboy, trans",
 "♥ Dla ciebie", "🔥 Popularne", "Moje polubienia", "brak połączenia", "sesja wygasła — odnawiam…",
-"wymagane logowanie do Reddita — dotknij", "sesja Reddita wygasła — odnawiam…", "Połączenia", "Wyszukiwania"
+"wymagane logowanie do Reddita — dotknij", "sesja Reddita wygasła — odnawiam…", "Połączenia", "Wyszukiwania", "Ten klip się nie otwiera (usunięty lub to nie wideo) — przewiń dalej"
 ],
 "uk": [
 "Уже завантажено: Завантаження/Loopa/%s", "Завантажую в Завантаження/Loopa", "Не завантажити: %s", "Завантажую в Завантаження/Loopa (відео і звук)…", "Збережено: Завантаження/Loopa/%s",
@@ -298,6 +298,6 @@
 "Будь-яка тривалість", "До 15 с", "15–60 с", "Довше хвилини", "Мало (1 з 4)",
 "Третина", "Порівну", "Багато (2 з 3)", "Гей", "Sissy, фембой, транс",
 "♥ Для вас", "🔥 Популярне", "Мої лайки", "немає зв'язку", "вхід минув — оновлюю…",
-"потрібен вхід у Reddit — натисніть", "вхід у Reddit минув — оновлюю…", "Поєднання", "Запити"
+"потрібен вхід у Reddit — натисніть", "вхід у Reddit минув — оновлюю…", "Поєднання", "Запити", "Цей ролик не відкривається (видалений або це не відео) — гортайте далі"
 ]
 }
