@@ -49,25 +49,48 @@ object ForYou {
     /** Почему Reddit не подмешался (для строки статуса); null — всё в порядке. */
     @Volatile var redditNote: String? = null; private set
 
-    @Synchronized fun reset() { dead.clear(); extra = 0; pendingRd = null; redditNote = null; turn = 0; rr = 0; subCursor.clear(); searchAfter.clear(); rgPage = 0; tagPage.clear(); subs = emptyList(); after = null; redditDry = 0; shown.clear() }
+    @Synchronized fun reset() { rgBuf.clear(); rdBuf.clear(); dead.clear(); extra = 0; pendingRd = null; redditNote = null; turn = 0; rr = 0; subCursor.clear(); searchAfter.clear(); rgPage = 0; tagPage.clear(); subs = emptyList(); after = null; redditDry = 0; shown.clear() }
 
     /** Следующая порция (в фоне). Пусто — источники кончились. Ошибка — только если не ответил ни один. */
     /** Порция Reddit, не успевшая к прошлой выдаче, — войдёт в следующую. */
     @Volatile private var pendingRd: java.util.concurrent.Future<List<Gif>>? = null
 
+    /**
+     * Запас кандидатов: RedGIFs за раз приносит до ~160 роликов (несколько источников по 40), Reddit — ~10–20 и медленнее.
+     * Если выдавать всё сразу, доля Reddit тонет, поэтому RedGIFs выдаём столько, сколько положено по доле [share] к
+     * пришедшему Reddit, остальное ждёт в запасе следующих порций (новый RedGIFs не грузим, пока запас большой).
+     */
+    private val rgBuf = ArrayList<Gif>()
+    private val rdBuf = ArrayList<Gif>()
+    private const val RG_STOCK = 40
+    /** RedGIFs в порции, даже если Reddit не успел, — лента не должна вставать. */
+    private const val RG_MIN = 6
+
     private fun page1(): List<Gif> {
-        val rgF = pool.submit<List<Gif>> { rg() }
-        // Reddit (страница сайта) бывает медленным — RedGIFs его не ждёт: не успел за WAIT_RD после RedGIFs — в следующую порцию
-        val rdF = pendingRd ?: if (reddit && redditDry < 3) pool.submit<List<Gif>> { redditBatch() } else null
-        val a = runCatching { rgF.get() }
+        val rdOn = reddit && redditDry < 3
+        val rgF = if (synchronized(this) { rgBuf.size } < RG_STOCK || !rdOn) pool.submit<List<Gif>> { rg() } else null
+        // Reddit (страница сайта) бывает медленным — не успел за WAIT_RD — войдёт в следующую порцию
+        val rdF = pendingRd ?: if (rdOn) pool.submit<List<Gif>> { redditBatch() } else null
+        val a = rgF?.let { runCatching { it.get() } }
         val b = rdF?.let { f ->
             try { runCatching { f.get(WAIT_RD, java.util.concurrent.TimeUnit.MILLISECONDS) }.also { pendingRd = null } }
             catch (e: Exception) { null }
         }?.let { r -> if (r.exceptionOrNull() is java.util.concurrent.TimeoutException) { pendingRd = rdF; null } else r }
         b?.exceptionOrNull()?.let { e -> val c = unwrap(e); redditNote = "Reddit: " + (c.message ?: c.javaClass.simpleName); android.util.Log.w("Loopa", "Для вас: Reddit не ответил", c) }
             ?: run { if (b != null) redditNote = if (b.getOrNull().isNullOrEmpty()) redditNote ?: tr("Reddit: пусто") else null }
-        if (a.isFailure && (b == null || b.isFailure)) throw unwrap(a.exceptionOrNull()!!)
-        return synchronized(this) { mix(rank(a.getOrDefault(emptyList())), rank(b?.getOrNull().orEmpty()), if (b == null) 0.0 else share) }
+        return synchronized(this) {
+            a?.getOrNull()?.let { rgBuf += rank(it) }
+            b?.getOrNull()?.let { rdBuf += rank(it) }
+            if (rgBuf.isEmpty() && rdBuf.isEmpty() && a?.isFailure == true && (b == null || b.isFailure)) throw unwrap(a.exceptionOrNull()!!)
+            // Reddit выключен или кончился — весь запас RedGIFs; иначе RedGIFs по доле к пришедшему Reddit
+            val stillRd = reddit && redditDry < 3
+            val nRg = if (!stillRd || share <= 0.0) rgBuf.size
+                else maxOf(RG_MIN, kotlin.math.ceil(rdBuf.size * (1 - share) / share).toInt()).coerceAtMost(rgBuf.size)
+            val g = rgBuf.take(nRg); val d = ArrayList(rdBuf)
+            repeat(nRg) { rgBuf.removeAt(0) }; rdBuf.clear()
+            android.util.Log.i("Loopa", "Для вас: порция RG ${g.size} + RD ${d.size}, в запасе RG ${rgBuf.size}")
+            mix(g, d, if (d.isEmpty()) 0.0 else d.size.toDouble() / (g.size + d.size))
+        }
     }
 
     /** Порция; пустая (всё уже видели, источники исчерпаны) — ещё пара попыток с другими источниками, прежде чем сказать «кончилось». */
@@ -163,11 +186,11 @@ object ForYou {
     /** Сабреддиты, где видео почти нет, — на эту сессию. */
     private val lowYield = HashSet<String>()
 
-    /** До 10 видео за заход: несколько сабреддитов подряд (каждый — своя страница). */
+    /** До 16 видео за заход: несколько сабреддитов подряд (каждый — своя страница). */
     private fun mixBatchMany(): List<Gif> {
         val out = ArrayList<Gif>()
         var tries = 0
-        while (out.size < 10 && tries++ < 3) {
+        while (out.size < 16 && tries++ < 4) {
             val g = runCatching { mixBatch() }.getOrElse { if (out.isEmpty()) throw it else emptyList() }
             out += g
             if (subs.isEmpty()) break
