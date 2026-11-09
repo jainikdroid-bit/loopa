@@ -15,8 +15,8 @@ android {
         applicationId = "app.loopa"
         minSdk = 26
         targetSdk = 35
-        versionCode = 31
-        versionName = "1.9.2"
+        versionCode = 32
+        versionName = "1.10"
     }
     signingConfigs {
         if (signing != null) create("release") {
@@ -46,8 +46,11 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.8.0")
     implementation("androidx.media3:media3-exoplayer-hls:1.8.0")   // видео v.redd.it
     implementation("androidx.media3:media3-database:1.8.0")
+    implementation("androidx.media3:media3-datasource-okhttp:1.8.0")   // один OkHttp: пул соединений, HTTP/2, кэш DNS
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.webkit:webkit:1.12.1")   // окно входа без заголовка X-Requested-With
     implementation("androidx.viewpager2:viewpager2:1.1.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    testImplementation("junit:junit:4.13.2")
 }

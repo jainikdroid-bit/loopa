@@ -170,6 +170,11 @@ object I18nTables {
         "Пропустить" to "Skip",
         "Выберите хотя бы один источник" to "Choose at least one source",
         "Совет: войдите через Google — так проще. «Назад» — пропустить этот вход." to "Tip: sign in with Google — it's easiest. “Back” skips this sign-in.",
+        "Кэш видео: %s" to "Video cache: %s",
+        "Занято: %s" to "Used: %s",
+        "Авто — по свободному месту" to "Auto — based on free space",
+        "%s МБ" to "%s MB",
+        "%s ГБ" to "%s GB",
     ) }
     private val ES by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Ya descargado: Descargas/Loopa/%s",
@@ -338,6 +343,11 @@ object I18nTables {
         "Пропустить" to "Omitir",
         "Выберите хотя бы один источник" to "Elige al menos una fuente",
         "Совет: войдите через Google — так проще. «Назад» — пропустить этот вход." to "Consejo: entra con Google, es lo más fácil. «Atrás» salta este inicio.",
+        "Кэш видео: %s" to "Caché de vídeo: %s",
+        "Занято: %s" to "En uso: %s",
+        "Авто — по свободному месту" to "Auto — según el espacio libre",
+        "%s МБ" to "%s MB",
+        "%s ГБ" to "%s GB",
     ) }
     private val PT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Já baixado: Downloads/Loopa/%s",
@@ -506,6 +516,11 @@ object I18nTables {
         "Пропустить" to "Pular",
         "Выберите хотя бы один источник" to "Escolha pelo menos uma fonte",
         "Совет: войдите через Google — так проще. «Назад» — пропустить этот вход." to "Dica: entre com o Google — é mais fácil. «Voltar» pula este login.",
+        "Кэш видео: %s" to "Cache de vídeo: %s",
+        "Занято: %s" to "Em uso: %s",
+        "Авто — по свободному месту" to "Auto — pelo espaço livre",
+        "%s МБ" to "%s MB",
+        "%s ГБ" to "%s GB",
     ) }
     private val DE by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Bereits geladen: Downloads/Loopa/%s",
@@ -674,6 +689,11 @@ object I18nTables {
         "Пропустить" to "Überspringen",
         "Выберите хотя бы один источник" to "Wähle mindestens eine Quelle",
         "Совет: войдите через Google — так проще. «Назад» — пропустить этот вход." to "Tipp: mit Google anmelden — am einfachsten. „Zurück“ überspringt diese Anmeldung.",
+        "Кэш видео: %s" to "Video-Cache: %s",
+        "Занято: %s" to "Belegt: %s",
+        "Авто — по свободному месту" to "Auto — nach freiem Speicher",
+        "%s МБ" to "%s MB",
+        "%s ГБ" to "%s GB",
     ) }
     private val FR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -842,6 +862,11 @@ object I18nTables {
         "Пропустить" to "Passer",
         "Выберите хотя бы один источник" to "Choisissez au moins une source",
         "Совет: войдите через Google — так проще. «Назад» — пропустить этот вход." to "Astuce : connectez-vous avec Google, c'est plus simple. « Retour » passe cette connexion.",
+        "Кэш видео: %s" to "Cache vidéo : %s",
+        "Занято: %s" to "Utilisé : %s",
+        "Авто — по свободному месту" to "Auto — selon l’espace libre",
+        "%s МБ" to "%s Mo",
+        "%s ГБ" to "%s Go",
     ) }
     private val IT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Già scaricato: Download/Loopa/%s",
@@ -1010,6 +1035,11 @@ object I18nTables {
         "Пропустить" to "Salta",
         "Выберите хотя бы один источник" to "Scegli almeno una fonte",
         "Совет: войдите через Google — так проще. «Назад» — пропустить этот вход." to "Consiglio: accedi con Google, è più semplice. «Indietro» salta questo accesso.",
+        "Кэш видео: %s" to "Cache video: %s",
+        "Занято: %s" to "Occupato: %s",
+        "Авто — по свободному месту" to "Auto — in base allo spazio libero",
+        "%s МБ" to "%s MB",
+        "%s ГБ" to "%s GB",
     ) }
     private val TR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -1178,6 +1208,11 @@ object I18nTables {
         "Пропустить" to "Atla",
         "Выберите хотя бы один источник" to "En az bir kaynak seç",
         "Совет: войдите через Google — так проще. «Назад» — пропустить этот вход." to "İpucu: Google ile giriş yap — en kolayı. «Geri» bu girişi atlar.",
+        "Кэш видео: %s" to "Video önbelleği: %s",
+        "Занято: %s" to "Kullanılan: %s",
+        "Авто — по свободному месту" to "Otomatik — boş alana göre",
+        "%s МБ" to "%s MB",
+        "%s ГБ" to "%s GB",
     ) }
     private val PL by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Już pobrano: Pobrane/Loopa/%s",
@@ -1346,6 +1381,11 @@ object I18nTables {
         "Пропустить" to "Pomiń",
         "Выберите хотя бы один источник" to "Wybierz co najmniej jedno źródło",
         "Совет: войдите через Google — так проще. «Назад» — пропустить этот вход." to "Wskazówka: zaloguj się przez Google — najprościej. „Wstecz” pomija to logowanie.",
+        "Кэш видео: %s" to "Pamięć podręczna wideo: %s",
+        "Занято: %s" to "Zajęte: %s",
+        "Авто — по свободному месту" to "Auto — według wolnego miejsca",
+        "%s МБ" to "%s MB",
+        "%s ГБ" to "%s GB",
     ) }
     private val UK by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Уже завантажено: Завантаження/Loopa/%s",
@@ -1514,6 +1554,11 @@ object I18nTables {
         "Пропустить" to "Пропустити",
         "Выберите хотя бы один источник" to "Виберіть хоча б одне джерело",
         "Совет: войдите через Google — так проще. «Назад» — пропустить этот вход." to "Порада: увійдіть через Google — так простіше. «Назад» — пропустити цей вхід.",
+        "Кэш видео: %s" to "Кеш відео: %s",
+        "Занято: %s" to "Зайнято: %s",
+        "Авто — по свободному месту" to "Авто — за вільним місцем",
+        "%s МБ" to "%s МБ",
+        "%s ГБ" to "%s ГБ",
     ) }
 
     fun of(code: String): Map<String, String> = when (code) {

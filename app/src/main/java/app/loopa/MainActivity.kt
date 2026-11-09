@@ -105,14 +105,29 @@ class MainActivity : Activity() {
             setPadding(dp(4), 0, dp(4), 0); clipToPadding = false
             addOnScrollListener(object : RecyclerView.OnScrollListener() {
                 // живые превью играют и на ходу: при прокрутке набор играющих обновляется не чаще раза в [LIVE_SCROLL_MS]
-                override fun onScrollStateChanged(rv: RecyclerView, st: Int) { if (st == RecyclerView.SCROLL_STATE_IDLE) live() }
+                override fun onScrollStateChanged(rv: RecyclerView, st: Int) {
+                    if (st == RecyclerView.SCROLL_STATE_IDLE) { live(); ahead(0f, 0); blanksReport() }
+                }
                 override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
                     val now = android.os.SystemClock.uptimeMillis()
                     if (now - liveAt > LIVE_SCROLL_MS) { liveAt = now; live() }
-                    val lm = rv.layoutManager as GridLayoutManager
-                    if (lm.findLastVisibleItemPosition() > Feed.items.size - 12) Feed.more()
+                    // прогноз по скорости (без броска — палец ведёт ленту), не чаще раза в [AHEAD_MS]
+                    scrolled += dy
+                    if (now - aheadAt > AHEAD_MS) { val v = scrolled * 1000f / (now - aheadAt); aheadAt = now; scrolled = 0; if (flingTo == 0) ahead(v, 0) }
+                    countBlanks()
                 }
             })
+            // бросок: куда долетит (тот же OverScroller, что у RecyclerView) — оттуда и грузить заранее
+            onFlingListener = object : RecyclerView.OnFlingListener() {
+                override fun onFling(vx: Int, vy: Int): Boolean {
+                    val sc = android.widget.OverScroller(context)
+                    sc.fling(0, 0, 0, vy, 0, 0, Int.MIN_VALUE, Int.MAX_VALUE)
+                    flingTo = sc.finalY
+                    ahead(vy.toFloat(), flingTo)
+                    return false
+                }
+            }
+            addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ -> if (v.width > 0) Thumbs.width = v.width / cols() }
         }
         // потянуть вниз — обновить выдачу
         swipe = SwipeRefreshLayout(this).apply {
@@ -260,9 +275,9 @@ class MainActivity : Activity() {
     // превью — только пока главный экран на виду: иначе (лента догрузилась, пока открыт плеер) они запускались в фоне
     // и отбирали видеодекодеры у плеера — картинка вставала, а звук шёл дальше
     private var shown = false
-    override fun onPause() { super.onPause(); shown = false; preview.stopAll() }
+    override fun onPause() { super.onPause(); shown = false; preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch() }
     override fun onResume() {
-        super.onResume(); shown = true
+        super.onResume(); shown = true; Prefetch.resume()
         if (!::grid.isInitialized) return
         // из плеера: ролик, на котором закрыли, — на экране (листали дальше — сетка за ним)
         Feed.lastSeen.takeIf { it in Feed.items.indices }?.let { p ->
@@ -274,6 +289,44 @@ class MainActivity : Activity() {
     }
 
     private val preview by lazy { GridPreview(this) }
+    private var aheadAt = 0L
+    private var scrolled = 0
+    /** Куда долетит текущий бросок, px от места броска (0 — броска нет). */
+    private var flingTo = 0
+
+    /**
+     * Прогноз ([Forecaster]): картинки всего, что окажется на экране (и экран запаса), — сразу в память; начало видео
+     * у ячеек, где остановится бросок, — в дисковый кэш; близко к концу — следующая страница ленты заранее.
+     */
+    private fun ahead(velocity: Float, fling: Int) {
+        if (!::grid.isInitialized || Feed.items.isEmpty()) return
+        val lm = grid.layoutManager as GridLayoutManager
+        val first = lm.findFirstVisibleItemPosition(); val last = lm.findLastVisibleItemPosition()
+        val row = grid.getChildAt(0)?.height ?: return
+        val net = Video.net()
+        val f = Forecaster.forecast(first, last, lm.spanCount, row, grid.height, velocity, fling, Feed.items.size,
+            if (preview.enabled) Forecaster.videoBudget(net, lm.spanCount) else 0)
+        if (fling == 0 && velocity == 0f) flingTo = 0
+        // экономия трафика / нет сети — картинки только на экран вперёд
+        val thumbs = f.thumbs.take(Forecaster.thumbBudget(net, lm.spanCount * (grid.height / row + 1)))
+        Thumbs.prefetch(thumbs.mapNotNull { Feed.items.getOrNull(it)?.thumb })
+        Prefetch.video(f.video.mapNotNull { Feed.items.getOrNull(it)?.sd }, Forecaster.videoBytes(net))
+        if (f.more && Feed.error == null) Feed.more()
+    }
+
+    /** Замер: сколько видимых ячеек было без картинки за прокрутку (наибольшее) и сейчас — в журнал. */
+    private var blanksMax = 0
+    private fun countBlanks(): Int {
+        val lm = grid.layoutManager as GridLayoutManager
+        val a = lm.findFirstVisibleItemPosition(); val b = lm.findLastVisibleItemPosition()
+        if (a < 0) return 0
+        val n = (a..b).count { p -> Feed.items.getOrNull(p)?.let { !Thumbs.has(it.thumb) } ?: false }
+        blanksMax = maxOf(blanksMax, n); return n
+    }
+    private fun blanksReport() {
+        android.util.Log.i("Loopa", "сетка: без картинки сейчас ${countBlanks()}, за прокрутку до $blanksMax")
+        blanksMax = 0
+    }
     private var waits = 0
     private val liveLater = Runnable { live() }
     private var liveAt = 0L
@@ -326,6 +379,14 @@ class MainActivity : Activity() {
         if (Feed.reddit && Feed.sub.isNotEmpty()) { prefs.edit().putString("last_sub", "").apply(); Feed.reddit("") }
         else if (Feed.author != null || Feed.text.isNotEmpty() || Feed.reddit) home()
         else @Suppress("DEPRECATION") super.onBackPressed()
+    }
+
+    /** Размер для меню: «512 МБ», «1 ГБ», «1,5 ГБ». */
+    private fun size(b: Long): String {
+        val mb = b / PreloadPolicy.MB
+        if (mb < 1024) return tr("%s МБ", mb)
+        val gb = mb / 1024.0
+        return tr("%s ГБ", if (gb % 1.0 == 0.0) gb.toInt().toString() else String.format(java.util.Locale.getDefault(), "%.1f", gb))
     }
 
     private fun cols() = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 4 else 2
@@ -400,6 +461,13 @@ class MainActivity : Activity() {
         m.menu.add(4, 0, 101, tr("Только со звуком")).apply { isCheckable = true; isChecked = Feed.audioOnly }
         m.menu.add(11, 0, 102, tr("Искать и на Reddit")).apply { isCheckable = true; isChecked = Feed.searchReddit; isEnabled = Reddit.hadUser }
         m.menu.add(8, 0, 103, tr("Живые превью в сетке")).apply { isCheckable = true; isChecked = preview.enabled }
+        // кэш видео: авто по свободному месту или вручную; сейчас занято / предел
+        val vc = m.menu.addSubMenu(30, 0, 105, tr("Кэш видео: %s", size(Video.cacheLimit)))
+        vc.add(31, 99, 0, tr("Занято: %s", size(Video.cacheUsed))).isEnabled = false
+        PreloadPolicy.CACHE_CHOICES.forEachIndexed { i, mb ->
+            vc.add(31, i, i + 1, if (mb == 0) tr("Авто — по свободному месту") else size(mb * PreloadPolicy.MB)).isChecked = Video.cacheChoice == mb
+        }
+        vc.setGroupCheckable(31, true, true)
         val hide = m.menu.addSubMenu(9, 0, 104, tr("Скрывать…") + if (Hide.active) " " + tr("(вкл.)") else "")
         Hide.PRESETS.forEachIndexed { i, (id, t, _) -> hide.add(10, i, i, tr(t)).apply { isCheckable = true; isChecked = Hide.on(id) } }
         hide.add(10, 99, 99, tr("Свои слова…") + Hide.custom.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty())
@@ -415,6 +483,7 @@ class MainActivity : Activity() {
                     if (it.itemId == 99) { hideWords(); return@setOnMenuItemClickListener true }
                     val id = Hide.PRESETS[it.itemId].first; Hide.set(id, !Hide.on(id)); reload()
                 }
+                31 -> { if (it.itemId != 99) Video.cacheChoice = PreloadPolicy.CACHE_CHOICES[it.itemId]; return@setOnMenuItemClickListener true }
                 8 -> { preview.enabled = !preview.enabled; prefs.edit().putBoolean("live", preview.enabled).apply(); if (preview.enabled) live() else preview.stopAll(); return@setOnMenuItemClickListener true }
                 11 -> { Feed.searchReddit = !Feed.searchReddit; prefs.edit().putBoolean("search_reddit", Feed.searchReddit).apply(); reload() }
                 in 20..23 -> { ForYou.setWeight(FY_SRC[it.groupId - 20].first, it.itemId); reload() }
@@ -528,6 +597,9 @@ class MainActivity : Activity() {
         if (!Feed.busy) swipe.isRefreshing = false
         if (search.text.isBlank()) idleChips()
         adapter.notifyDataSetChanged()
+        // соединения к серверам картинок и видео — заранее; прогноз — с нового содержимого
+        Net.warm(Feed.items.take(12).flatMap { listOf(it.thumb, it.sd) })
+        grid.post { ahead(0f, 0) }
         grid.post { live() }
     }
 
@@ -587,6 +659,8 @@ class MainActivity : Activity() {
         val LANG_IDS = listOf("auto") + I18n.LANGS.keys
         /** Как часто при прокрутке пересчитывать, какие превью играют, мс. */
         const val LIVE_SCROLL_MS = 350L
+        /** Как часто пересчитывать прогноз на ходу, мс. */
+        const val AHEAD_MS = 250L
         val BG = 0xFF0E1015.toInt(); val ACCENT = 0xFF7C3AED.toInt(); val CHIP = 0xFF262B34.toInt()
         /** Метки источника: RedGIFs — малиновый, Reddit — фирменный оранжевый. */
         val RG_COLOR = 0xE0D6246E.toInt(); val RD_COLOR = 0xE0FF4500.toInt()

@@ -34,6 +34,7 @@ object Net {
         inited = true
         val app = ctx.applicationContext
         runCatching { HttpResponseCache.install(app.cacheDir.resolve("http"), 64L shl 20) }
+        initImg(app)
         val cm = app.getSystemService(ConnectivityManager::class.java)
         runCatching {
             cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
@@ -67,4 +68,91 @@ object Net {
     fun fail(c: HttpURLConnection): HttpError = HttpError(c.responseCode).apply {
         retryAfterMs = (c.getHeaderField("Retry-After")?.toLongOrNull() ?: 0) * 1000
     }
+
+    // ---- один клиент OkHttp для видео и картинок: канал с большим пингом (VPN, спутник, ~800 мс) ----
+    // Каждое новое соединение — TCP + TLS ≈ 2–3 RTT ≈ 2 с, поэтому соединения живут и переиспользуются (пул, HTTP/2 —
+    // много запросов по одному соединению), DNS запоминается, переадресации запоминаются, к серверам видео и картинок
+    // соединение открывается заранее ([warm]).
+
+    /** Тайм-ауты видео и картинок: на пинге 800 мс короткие только рвут почти скачанное и начинают заново. */
+    const val MEDIA_CONNECT_MS = 15_000L
+    const val MEDIA_READ_MS = 20_000L
+
+    /** DNS с памятью на 10 минут: повторный поиск адреса — ещё один круг по долгому каналу. */
+    private object CachedDns : okhttp3.Dns {
+        private const val TTL = 10 * 60_000L
+        private val memo = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, List<java.net.InetAddress>>>()
+        override fun lookup(hostname: String): List<java.net.InetAddress> {
+            memo[hostname]?.takeIf { System.currentTimeMillis() - it.first < TTL }?.let { return it.second }
+            return okhttp3.Dns.SYSTEM.lookup(hostname).also { memo[hostname] = System.currentTimeMillis() to it }
+        }
+    }
+
+    /**
+     * Переадресации запоминаются на 30 минут: ссылка Eporner /dload/… ведёт на CDN, и без памяти каждый запрос куска
+     * видео шёл бы через лишний круг. Запомненный адрес ответил ошибкой (ссылка CDN истекла) — забыть и пойти по исходному.
+     */
+    private object Redirects : okhttp3.Interceptor {
+        private const val TTL = 30 * 60_000L
+        private val memo = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, okhttp3.HttpUrl>>()
+        override fun intercept(chain: okhttp3.Interceptor.Chain): okhttp3.Response {
+            val req = chain.request(); val key = req.url.toString()
+            memo[key]?.takeIf { System.currentTimeMillis() - it.first < TTL }?.let { (_, to) ->
+                val r = chain.proceed(req.newBuilder().url(to).build())
+                if (r.isSuccessful) return r
+                r.close(); memo.remove(key)
+            }
+            val r = chain.proceed(req)
+            if (r.priorResponse != null && r.isSuccessful && r.request.url.toString() != key) memo[key] = System.currentTimeMillis() to r.request.url
+            return r
+        }
+    }
+
+    /** Общий клиент: видео (через media3 OkHttpDataSource), запросы прогрева. */
+    val http: okhttp3.OkHttpClient by lazy {
+        okhttp3.OkHttpClient.Builder()
+            .connectionPool(okhttp3.ConnectionPool(16, 5, java.util.concurrent.TimeUnit.MINUTES))
+            .dispatcher(okhttp3.Dispatcher().apply { maxRequestsPerHost = 16 })
+            .dns(CachedDns)
+            .connectTimeout(MEDIA_CONNECT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .readTimeout(MEDIA_READ_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .retryOnConnectionFailure(true)
+            .addInterceptor(Redirects)
+            .build()
+    }
+
+    /** Картинки: тот же пул соединений + дисковый кэш (превью не меняются — храним, даже если сервер не разрешил). */
+    lateinit var img: okhttp3.OkHttpClient; private set
+    private const val IMG_CACHE = 128L shl 20
+
+    private fun initImg(app: Context) {
+        img = http.newBuilder()
+            .cache(okhttp3.Cache(app.cacheDir.resolve("img"), IMG_CACHE))
+            .addNetworkInterceptor { ch ->
+                ch.proceed(ch.request()).newBuilder().header("Cache-Control", "public, max-age=2592000").removeHeader("Pragma").build()
+            }
+            .build()
+    }
+
+    /** Когда к хосту последний раз открывали соединение заранее. */
+    private val warmed = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    /**
+     * Открыть соединения к серверам этих адресов заранее (HEAD, ответ не нужен): первый ролик и первая картинка не
+     * ждут TCP + TLS. Не чаще раза в 4 минуты на хост — пул держит соединение 5 минут.
+     */
+    fun warm(urls: Collection<String>) {
+        val now = System.currentTimeMillis()
+        urls.mapNotNull { it.toHttpUrlOrNull() }.distinctBy { it.host }.forEach { u ->
+            if (now - (warmed[u.host] ?: 0L) < 4 * 60_000L) return@forEach
+            warmed[u.host] = now
+            val rq = okhttp3.Request.Builder().url(u).head().header("User-Agent", Api.UA)
+                .apply { if (Erome.ours(u.toString())) header("Referer", Erome.REFERER) }.build()
+            http.newCall(rq).enqueue(object : okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, e: IOException) { warmed.remove(u.host) }
+                override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) { response.close() }
+            })
+        }
+    }
+    private fun String.toHttpUrlOrNull() = runCatching { okhttp3.HttpUrl.Companion.run { this@toHttpUrlOrNull.toHttpUrl() } }.getOrNull()
 }

@@ -30,13 +30,12 @@ import androidx.media3.exoplayer.source.preload.DefaultPreloadManager
 import androidx.media3.exoplayer.source.preload.TargetPreloadStatusControl
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
  * Плеер как в TikTok — по схеме официального демо Google «shortform» (androidx/media, demos/shortform):
- * вертикальный ViewPager2, DefaultPreloadManager заранее грузит по секунде в соседние ролики (свайп — видео сразу),
- * общий дисковый кэш, старт после 0,5 с буфера. Один ExoPlayer переезжает на видимую страницу.
+ * вертикальный ViewPager2, DefaultPreloadManager заранее грузит начало следующих по ходу листания ([Control], [gate]),
+ * общий дисковый кэш ([Video]), старт после 0,5 с буфера. Один ExoPlayer переезжает на видимую страницу.
  * Касание — пауза; справа — лайк, скачать, звук, качество; снизу — автор, теги, перемотка.
  */
 @OptIn(UnstableApi::class)
@@ -74,9 +73,10 @@ class PlayerActivity : Activity() {
     private val onFeed: () -> Unit = { merge() }
     /** Первый кадр текущего ролика уже на экране (превью над ним прятать и после перепривязки страницы). */
     private var rendered = false
-    /** Соседей грузить, когда текущий наберёт запас ([PRELOAD_AFTER_MS]): до этого весь канал — ему. */
-    private var preloadDue = false
     private var settledAt = 0L
+    private var startAt = 0L
+    /** Сколько были на экране последние страницы, мс — понять, что листают быстро ([PreloadPolicy.flinging]). */
+    private val dwells = ArrayDeque<Long>()
     private val factory by lazy { androidx.media3.exoplayer.source.DefaultMediaSourceFactory(Video.source).setLoadErrorHandlingPolicy(Video.errors) }
 
     /** Новое из ленты — в конец своего списка (порядок уже показанного не трогаем). */
@@ -91,23 +91,52 @@ class PlayerActivity : Activity() {
     private fun feedIndex() = list.getOrNull(current)?.let { g -> Feed.items.indexOfFirst { it.id == g.id } } ?: -1
 
     /**
-     * Как в демо: соседние ±2 — загрузить первую секунду, до ±4 — подготовить источник (заголовок файла), дальше — ничего.
-     * Медленная сеть ([Video.slow]): только следующий ролик и полсекунды — канал нужен текущему.
+     * Умная предзагрузка ([PreloadPolicy]): по ходу листания 1–3 следующих, только начало (0,5–3 с), глубина — по сети
+     * ([Video.net]: быстрая, лимитная, медленная, экономия трафика) и скорости листания. Пока «ворота» закрыты ([open]),
+     * соседи не грузятся вовсе: null отменяет начатое (загруженное остаётся в дисковом кэше — потом дочитается оттуда).
+     * Вызывается на потоке плеера — поля volatile.
      */
     inner class Control : TargetPreloadStatusControl<Int, DefaultPreloadManager.PreloadStatus> {
-        var cur = C.INDEX_UNSET
+        @Volatile var cur = C.INDEX_UNSET
+        @Volatile var dir = 1
+        @Volatile var open = false
+        @Volatile var net = NetKind.FAST
+        @Volatile var flinging = false
         override fun getTargetPreloadStatus(rank: Int): DefaultPreloadManager.PreloadStatus? {
-            val d = abs(rank - cur)
-            if (Video.slow) return when {
-                rank == cur + 1 -> DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(500L)
-                d <= 2 -> DefaultPreloadManager.PreloadStatus.SOURCE_PREPARED
-                else -> null
+            // текущий занят плеером — его не трогаем
+            if (rank == cur) return DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(1000L)
+            if (!open) return null
+            return when (val p = PreloadPolicy.plan(rank - cur, dir, net, flinging)) {
+                Plan.None -> null
+                Plan.Prepare -> DefaultPreloadManager.PreloadStatus.SOURCE_PREPARED
+                is Plan.Range -> DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(p.ms)
             }
-            return when {
-                d <= 2 -> DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(1000L)
-                d <= 4 -> DefaultPreloadManager.PreloadStatus.SOURCE_PREPARED
-                else -> null
-            }
+        }
+    }
+
+    /**
+     * Ворота предзагрузки — соседи никогда не отнимают канал у ролика на экране. PreloadManager сам плеер не ждёт
+     * (shouldContinuePreloading у LoadControl действует только на плейлист плеера), поэтому: текущий грузится дольше
+     * [BUFFERING_PAUSE_MS] (не предзагружен или подвис) — ворота закрываются, начатое у соседей отменяется (скачанное
+     * остаётся в дисковом кэше); открываются, когда у текущего [PRELOAD_AFTER_MS] буфера (или он догружен целиком,
+     * или сломан). Свайп на уже предзагруженный ролик ворота не закрывает — соседи грузятся дальше без перезапуска.
+     */
+    private fun gate(open: Boolean, why: String) {
+        if (control.open == open) return
+        control.open = open
+        if (open) control.net = Video.net()
+        android.util.Log.i("Loopa", if (open) "предзагрузка: вкл ($why; сеть ${control.net}, глубина ${PreloadPolicy.depth(control.net, control.flinging)}, " +
+            "направление ${if (control.dir > 0) "вперёд" else "назад"})" else "предзагрузка: пауза ($why)")
+        preload.invalidate()
+    }
+
+    private fun gateTick() {
+        val st = player.playbackState
+        when {
+            player.playerError != null -> gate(true, "текущий не открылся")
+            // свайп на предзагруженный ролик — буферизация на доли секунды, соседей не трогаем; дольше — канал текущему
+            st == Player.STATE_BUFFERING && bufferingSince > 0 && System.currentTimeMillis() - bufferingSince > BUFFERING_PAUSE_MS -> gate(false, "текущий грузится")
+            st == Player.STATE_READY && (player.totalBufferedDuration >= PRELOAD_AFTER_MS || !player.isLoading) -> gate(true, "у текущего запас")
         }
     }
 
@@ -127,8 +156,9 @@ class PlayerActivity : Activity() {
         Net.init(this)
         list += Feed.items; Feed.items.forEach { ids += it.id }
         if (list.isEmpty()) { finish(); return }
-        // буфер как в демо shortform: старт после 0,5 с, держим 5–20 с вперёд; после подвисания — 2,5 с запаса
-        val load = DefaultLoadControl.Builder().setBufferDurationsMs(5_000, 20_000, 500, 2_500)
+        // канал с большим пингом (~800 мс): старт после 1 с буфера (полсекунды проедаются за один круг до сервера),
+        // держим 8–30 с вперёд, после подвисания — 2,5 с запаса
+        val load = DefaultLoadControl.Builder().setBufferDurationsMs(8_000, 30_000, 1_000, 2_500)
             .setPrioritizeTimeOverSizeThresholds(true).build()
         // обрывы на плохой сети: до 10 попыток догрузить кусок; 4xx — сразу ошибка ([Video.errors])
         val pb = DefaultPreloadManager.Builder(applicationContext, control).setLoadControl(load).setBandwidthMeter(Video.meter)
@@ -141,6 +171,8 @@ class PlayerActivity : Activity() {
                     if (!rendered) android.util.Log.i("Loopa", "первый кадр: ${System.currentTimeMillis() - settledAt} мс")
                     rendered = true; holder?.poster?.visibility = View.GONE
                 }
+                // замер: от выбора страницы до начала воспроизведения (в журнал)
+                override fun onIsPlayingChanged(p: Boolean) { if (p && startAt > 0) { android.util.Log.i("Loopa", "старт: ${System.currentTimeMillis() - startAt} мс"); startAt = 0 } }
                 override fun onVideoSizeChanged(s: VideoSize) { holder?.fit(s.width, s.height) }
                 override fun onPlaybackStateChanged(st: Int) {
                     holder?.spin?.visibility = if (st == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
@@ -196,29 +228,13 @@ class PlayerActivity : Activity() {
         MediaItem.Builder().setUri(u).setMediaId(u).apply { if (g.hls) setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) }.build()
     }
 
-    /** Держать в PreloadManager окно вокруг текущего: −2…+6 (вперёд листают чаще). */
+    /** Держать в PreloadManager окно вокруг текущего: −4…+6 (что из него грузить — решает [Control]). */
     private fun sync() {
         if (current < 0) return
-        val want = (maxOf(0, current - 2)..minOf(list.size - 1, current + 6)).toSet()
+        val want = (maxOf(0, current - 4)..minOf(list.size - 1, current + 6)).toSet()
         managed.keys.filter { it !in want }.forEach { preload.remove(managed.remove(it)!!) }
         want.filter { it !in managed }.forEach { i -> item(list[i]).also { managed[i] = it; preload.add(it, i) } }
-        if (!preloadDue) preload.invalidate()
-    }
-
-    /**
-     * Соседей — после того, как текущий набрал запас. PreloadManager грузит соседние ролики параллельно с текущим и не
-     * ждёт его (shouldContinuePreloading у LoadControl действует только на плейлист самого плеера): на открытии плеера и
-     * после каждого свайпа до 4 соседей по ~1 МБ (заголовок файла + секунда HD) делили канал с роликом на экране, и тот
-     * стоял с «загрузкой» — на медленной сети секундами. Теперь окно предзагрузки включается, когда у текущего есть
-     * [PRELOAD_AFTER_MS] буфера (или он догружен целиком), он сломан, или прошло [PRELOAD_LATEST_MS].
-     */
-    private fun maybePreload() {
-        if (!preloadDue) return
-        val st = player.playbackState
-        val ready = st == Player.STATE_READY && (player.totalBufferedDuration >= PRELOAD_AFTER_MS || !player.isLoading)
-        if (ready || player.playerError != null || System.currentTimeMillis() - settledAt > PRELOAD_LATEST_MS) {
-            preloadDue = false; preload.invalidate()
-        }
+        if (control.open) preload.invalidate()
     }
 
     /** Сколько текущий ролик был на экране — сигнал для «Для вас» ([Interests.watched]). */
@@ -238,9 +254,14 @@ class PlayerActivity : Activity() {
         val h = rv.findViewHolderForAdapterPosition(pos) as? PageHolder ?: run { pager.post { settle(pos) }; return }
         report(); shownAt = System.currentTimeMillis()
         holder?.poster?.visibility = View.VISIBLE
-        current = pos; holder = h; h.spin.text = tr("загрузка…"); fails = 0; rendered = false
+        holder = h; h.spin.text = tr("загрузка…"); fails = 0; rendered = false
+        val now = System.currentTimeMillis()
+        if (settledAt > 0) { dwells.addLast(now - settledAt); while (dwells.size > 4) dwells.removeFirst() }
+        control.dir = if (current >= 0 && pos < current) -1 else 1
+        control.flinging = PreloadPolicy.flinging(dwells.toList())
+        current = pos
         control.cur = pos; preload.setCurrentPlayingIndex(pos)
-        preloadDue = true; settledAt = System.currentTimeMillis()
+        settledAt = now; startAt = now
         sync()
         // сначала новый источник, потом поверхность: иначе прежний ролик успевал отрисовать кадр на новой странице —
         // превью пряталось, и до первого кадра нового стоял застывший кадр чужого видео
@@ -249,7 +270,9 @@ class PlayerActivity : Activity() {
         player.setMediaSource(source(m))
         player.setVideoTextureView(h.video)
         player.prepare(); player.play()
-        if (pos > list.size - 6) Feed.more()
+        // следующая страница — заранее: запрос по долгому каналу идёт секунды
+        if (pos > list.size - 10 && Feed.error == null) Feed.more()
+        Net.warm(list.subList(pos, minOf(list.size, pos + 3)).map { url(it) })
     }
 
     /** Источник из PreloadManager (с уже загруженным началом); нет там — обычный, без предзагрузки. */
@@ -259,8 +282,8 @@ class PlayerActivity : Activity() {
     private fun requality() {
         val at = player.currentPosition
         managed.values.forEach { preload.remove(it) }; managed.clear()
-        preloadDue = true; settledAt = System.currentTimeMillis()
-        sync()
+        settledAt = System.currentTimeMillis()
+        sync(); gate(false, "смена качества")
         player.setMediaSource(source(managed.getValue(current)), at)
         player.prepare(); player.play()
     }
@@ -271,7 +294,7 @@ class PlayerActivity : Activity() {
         if (quality == "auto" && bufferingSince > 0 && System.currentTimeMillis() - bufferingSince > 4000 && !Video.sdOnly) {
             list.getOrNull(current)?.takeIf { it.sd != it.hd && player.currentMediaItem?.mediaId == it.hd }?.let { Video.stalled(); bufferingSince = 0; requality() }
         }
-        maybePreload()
+        gateTick()
         holder?.let { h ->
             val d = player.duration
             if (d > 0 && !h.dragging) { h.seek.max = d.toInt(); h.seek.progress = player.currentPosition.toInt() }
@@ -513,9 +536,9 @@ class PlayerActivity : Activity() {
 
     companion object {
         /** Сколько буфера у текущего ролика, прежде чем грузить соседей. */
-        const val PRELOAD_AFTER_MS = 3_000L
-        /** Не дольше этого ждать запаса у текущего: сломанный или очень медленный ролик не должен оставлять соседей без предзагрузки. */
-        const val PRELOAD_LATEST_MS = 8_000L
+        const val PRELOAD_AFTER_MS = 2_500L
+        /** Буферизация дольше этого — пауза предзагрузки соседей. */
+        const val BUFFERING_PAUSE_MS = 400L
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).roundToInt()

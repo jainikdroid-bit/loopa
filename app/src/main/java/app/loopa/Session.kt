@@ -51,6 +51,9 @@ object RgSite : Site("RedGIFs", "https://www.redgifs.com/login", "https://www.re
  * Только для окна входа — ленты и API ходят с честным [Api.UA].
  */
 object Disguise {
+    // REQUESTED_WITH_HEADER_ALLOW_LIST в androidx.webkit помечен @RestrictTo (экспериментальный), но это публичный
+    // флаг, и вызов защищён isFeatureSupported — lint здесь ошибается
+    @SuppressLint("RestrictedApi")
     fun apply(w: WebView) {
         w.settings.userAgentString = android.webkit.WebSettings.getDefaultUserAgent(w.context)
             .replace("; wv", "").replace(Regex(" Version/\\d+(\\.\\d+)*"), "")
