@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Loopa — RedGIFs and Reddit video app for Android · клиент RedGIFs и Reddit без рекламы</title>
-<meta name="description" content="Loopa is a free open-source Android app for RedGIFs and Reddit videos: ad-free vertical feed, instant playback, tag search, downloads with sound, works on slow networks. Бесплатный открытый клиент RedGIFs и Reddit для Android: без рекламы, поиск, скачивание. 18+, unofficial.">
+<meta name="description" content="Loopa is a free open-source Android app for RedGIFs, Reddit, Erome and Eporner videos: ad-free vertical feed, smart preloading and disk cache, own “For you”, search, downloads with sound, tuned for slow high-latency networks. Бесплатный открытый клиент RedGIFs, Reddit, Erome и Eporner для Android. 18+, unofficial.">
 <meta name="google-site-verification" content="ZkbL1thjnhfFA4i_G-4QYlL3HUuCjJPBUYFbKsiqsDQ" />
 <meta name="rating" content="adult">
 <meta name="robots" content="index, follow, max-snippet:-1">
@@ -15,7 +15,7 @@
 <meta property="og:url" content="https://jainikdroid-bit.github.io/loopa/">
 <meta property="og:site_name" content="Loopa">
 <meta property="og:title" content="Loopa — RedGIFs and Reddit video app for Android">
-<meta property="og:description" content="Free, open-source, ad-free Android client for RedGIFs and Reddit videos: vertical feed, instant start, tag search, downloads with sound. 18+.">
+<meta property="og:description" content="Free, open-source, ad-free Android client for RedGIFs, Reddit, Erome and Eporner videos: vertical feed, smart preloading, own “For you”, search, downloads with sound. 18+.">
 <meta name="twitter:card" content="summary">
 <script type="application/ld+json">
 {
@@ -23,7 +23,7 @@
   "@type": "SoftwareApplication",
   "name": "Loopa",
   "alternateName": ["Loopa for RedGIFs", "Loopa RedGIFs client"],
-  "description": "Unofficial open-source Android client for RedGIFs and Reddit videos. Ad-free vertical feed, instant playback with preloading, tag and text search with relevance sorting, live grid previews, Reddit subreddits and subscriptions, downloads (Reddit videos with sound), optional sign-in with a 'For you' feed, works on slow and unstable networks. Adults only (18+).",
+  "description": "Unofficial open-source Android client for RedGIFs, Reddit, Erome and Eporner videos. Ad-free vertical feed, fast playback with scroll-forecast preloading and a disk video cache, similar videos in the player, tag and text search with relevance sorting, live grid previews, Reddit subreddits and subscriptions, downloads (Reddit videos with sound), optional sign-in with a 'For you' feed, works on slow and unstable networks. Adults only (18+).",
   "applicationCategory": "MultimediaApplication",
   "applicationSubCategory": "Video player",
   "operatingSystem": "Android 8.0+",
@@ -40,7 +40,11 @@
     "Ad-free RedGIFs feed (boosted posts removed)",
     "Reddit videos from subscriptions and any subreddit",
     "Full-screen vertical swiping like short-video apps",
-    "Instant start: neighbouring videos are preloaded",
+    "Erome and Eporner tabs with search and optional sign-in",
+    "Smart preloading from the scroll forecast: thumbnails, then video starts, next page early",
+    "Disk video cache 512 MB–1 GB (configurable); rewatching without network",
+    "Similar videos in the player; own \"For you\" algorithm with per-source shares",
+    "Tuned for high-latency links (~800 ms ping): connection reuse, HTTP/2, SD-first Auto quality",
     "Tag search with suggestions, synonyms and abbreviations; relevance, top, newest, duration, likes and views sorting",
     "Live animated previews in the grid",
     "Download videos; Reddit videos are saved with sound",
@@ -174,8 +178,8 @@
       <span class="badge">🔞 <span data-ru>Только для взрослых · 18+</span><span data-en>Adults only · 18+</span></span>
       <h1 data-ru>Короткие ролики. <span>Без лишнего.</span></h1>
       <h1 data-en>Short videos. <span>Nothing extra.</span></h1>
-      <p class="lead" data-ru>Loopa — лёгкий открытый Android-просмотрщик для RedGIFs и Reddit. Лента без рекламы, вертикальная прокрутка на весь экран и видео, которое стартует сразу.</p>
-      <p class="lead" data-en>Loopa is a lightweight open-source Android viewer for RedGIFs and Reddit. An ad-free feed, full-screen vertical swiping and videos that start instantly.</p>
+      <p class="lead" data-ru>Loopa — лёгкий открытый Android-просмотрщик для RedGIFs, Reddit, Erome и Eporner. Лента без рекламы, вертикальная прокрутка на весь экран, умная предзагрузка и «Для вас» по вашим интересам.</p>
+      <p class="lead" data-en>Loopa is a lightweight open-source Android viewer for RedGIFs, Reddit, Erome and Eporner. An ad-free feed, full-screen vertical swiping, smart preloading and a “For you” that learns your taste.</p>
       <div class="cta">
         <a class="btn primary" href="https://github.com/jainikdroid-bit/loopa/releases/latest">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 20h16"/></svg>
@@ -186,8 +190,8 @@
           <span data-ru>Исходный код</span><span data-en>Source code</span>
         </a>
       </div>
-      <div class="meta" data-ru>Android 8.0+ · ~3,5 МБ · MIT · без трекеров</div>
-      <div class="meta" data-en>Android 8.0+ · ~3.5 MB · MIT · no trackers</div>
+      <div class="meta" data-ru>Android 8.0+ · ~4 МБ · MIT · без трекеров</div>
+      <div class="meta" data-en>Android 8.0+ · ~4 MB · MIT · no trackers</div>
     </div>
     <img class="shot" src="img/screens.svg" alt="Loopa: сетка, плеер, поиск">
   </div>
@@ -202,8 +206,11 @@
           <h3 data-ru>Без рекламы</h3><h3 data-en>No ads</h3>
           <p data-ru>Рекламные и продвигаемые ролики убираются из ленты.</p><p data-en>Boosted and promoted videos are filtered out of the feed.</p></div>
         <div class="card"><div class="ico">⚡</div>
-          <h3 data-ru>Мгновенный старт</h3><h3 data-en>Instant start</h3>
-          <p data-ru>Соседние ролики грузятся заранее — видео начинается через полсекунды.</p><p data-en>Neighbouring videos are preloaded, so playback starts in half a second.</p></div>
+          <h3 data-ru>Умная предзагрузка</h3><h3 data-en>Smart preloading</h3>
+          <p data-ru>Как в Instagram: по броску видно, где лента остановится, — картинки и начало видео там грузятся заранее, следующая страница — до конца ленты. Ролику на экране канал не мешают.</p><p data-en>Like Instagram: from the fling it knows where the feed will stop and loads thumbnails and video starts there ahead of time, plus the next page before you reach the end. Never at the expense of the video on screen.</p></div>
+        <div class="card"><div class="ico">💾</div>
+          <h3 data-ru>Кэш на диске</h3><h3 data-en>Disk cache</h3>
+          <p data-ru>Видео — 512 МБ…1 ГБ по свободному месту (или своё значение в меню), картинки — 128 МБ. Пересмотр — без сети.</p><p data-en>Videos — 512 MB to 1 GB depending on free space (or your choice in the menu), thumbnails — 128 MB. Rewatching needs no network.</p></div>
         <div class="card"><div class="ico">📱</div>
           <h3 data-ru>Вертикальная лента</h3><h3 data-en>Vertical feed</h3>
           <p data-ru>Листайте на весь экран, как в коротких видео: перемотка, пауза, звук.</p><p data-en>Full-screen swiping like short-video apps, with seek, pause and sound.</p></div>
@@ -215,13 +222,19 @@
           <p data-ru>Теги с подсказками; релевантность, новые, лучшее, длинные или короткие, лайки, просмотры, рейтинг; фильтр по длительности и звуку.</p><p data-en>Tag suggestions; relevance, newest, top, longest or shortest, likes, views, rating; duration and sound filters.</p></div>
         <div class="card"><div class="ico">📶</div>
           <h3 data-ru>Плохая сеть — не помеха</h3><h3 data-en>Built for bad networks</h3>
-          <p data-ru>Обрывы повторяются сами, видео продолжает, как только вернулась связь; на медленном канале — SD без подвисаний.</p><p data-en>Drops are retried automatically and video resumes when the link is back; slow links get stall-free SD.</p></div>
+          <p data-ru>Рассчитано на VPN и спутник (пинг ~800 мс, ~5 Мбит/с): соединения переиспользуются и открываются заранее, «Авто» стартует с SD, обрывы повторяются сами.</p><p data-en>Built for VPN and satellite links (~800 ms ping, ~5 Mbit/s): connections are reused and opened ahead, Auto starts in SD, drops are retried automatically.</p></div>
         <div class="card"><div class="ico">♥</div>
           <h3 data-ru>Ваш аккаунт</h3><h3 data-en>Your account</h3>
           <p data-ru>По желанию: «Для вас», лайки и «Мои лайки». Вход запоминается и продлевается сам.</p><p data-en>Optional: “For you”, likes and “My likes”. Sign-in persists and renews itself.</p></div>
         <div class="card"><div class="ico">👽</div>
           <h3 data-ru>Reddit в том же клиенте</h3><h3 data-en>Reddit in the same client</h3>
           <p data-ru>Подписки и любые сабреддиты, сортировки Reddit, видео со звуком — в той же ленте и плеере.</p><p data-en>Your subscriptions and any subreddits, Reddit sorting, videos with sound — same feed and player.</p></div>
+        <div class="card"><div class="ico">🌐</div>
+          <h3 data-ru>Erome и Eporner</h3><h3 data-en>Erome and Eporner</h3>
+          <p data-ru>Свои вкладки с поиском, вход по желанию; ролики подмешиваются в «Для вас» — долю каждого источника выбираете сами.</p><p data-en>Their own tabs with search, optional sign-in; videos are mixed into “For you” with a share you choose per source.</p></div>
+        <div class="card"><div class="ico">▦</div>
+          <h3 data-ru>«Похожие» и «Для вас»</h3><h3 data-en>“Similar” and “For you”</h3>
+          <p data-ru>Кнопка в плеере — ролики, похожие по тегам, названию и автору. «Для вас» учится на лайках, досмотрах и поисках; профиль хранится только на телефоне.</p><p data-en>A player button shows videos similar by tags, title and creator. “For you” learns from likes, full watches and searches; the profile stays on your phone.</p></div>
         <div class="card"><div class="ico">⬇️</div>
           <h3 data-ru>Скачивание</h3><h3 data-en>Downloads</h3>
           <p data-ru>Долгое нажатие или кнопка в плеере — ролик в «Загрузки/Loopa»; видео Reddit — сразу со звуком.</p><p data-en>Long-press or the player button saves to Downloads/Loopa; Reddit videos come with sound.</p></div>
@@ -251,12 +264,12 @@
       <div class="privacy">
         <ul class="clean" data-ru>
           <li><b>Никаких трекеров</b>, аналитики и рекламных SDK.</li>
-          <li><b>Только сами сервисы</b>: API и видео-серверы RedGIFs и Reddit; окна входа — сами сайты redgifs.com и reddit.com.</li>
+          <li><b>Только сами сервисы</b>: RedGIFs, Reddit, Erome, Eporner (и открытый API тегов Pornhub для «похожих тегов» — только текст запроса); окна входа — сами сайты.</li>
           <li><b>Пароль не видит</b>: вы вводите его на странице сайта, сохраняется лишь токен сессии.</li>
         </ul>
         <ul class="clean" data-en>
           <li><b>No trackers</b>, analytics or ad SDKs.</li>
-          <li><b>Only the services themselves</b>: RedGIFs and Reddit APIs and video servers; sign-in windows are redgifs.com and reddit.com.</li>
+          <li><b>Only the services themselves</b>: RedGIFs, Reddit, Erome, Eporner (plus the open Pornhub tag API for “related tags” — query text only); sign-in windows are the sites themselves.</li>
           <li><b>Never sees your password</b>: you type it on the site; only the session token is kept.</li>
         </ul>
         <ul class="clean" data-ru>
@@ -277,8 +290,8 @@
     <div class="wrap">
       <h2>FAQ</h2>
       <details><summary data-ru>Это официальное приложение RedGIFs?</summary><summary data-en>Is this an official RedGIFs app?</summary>
-        <p data-ru>Нет. Loopa — независимый открытый проект, не связанный с RedGIFs и не одобренный ими. RedGIFs — товарный знак его владельцев.</p>
-        <p data-en>No. Loopa is an independent open-source project, not affiliated with or endorsed by RedGIFs. RedGIFs is a trademark of its owners.</p></details>
+        <p data-ru>Нет. Loopa — независимый открытый проект, не связанный с RedGIFs, Reddit, Erome и Eporner и не одобренный ими. Их названия — товарные знаки владельцев.</p>
+        <p data-en>No. Loopa is an independent open-source project, not affiliated with or endorsed by RedGIFs, Reddit, Erome or Eporner. Their names are trademarks of their owners.</p></details>
       <details><summary data-ru>Есть ли приложение RedGIFs для Android?</summary><summary data-en>Is there an app for RedGIFs on Android?</summary>
         <p data-ru>Loopa — бесплатное открытое неофициальное Android-приложение для RedGIFs (и видео Reddit). Ставится из APK со страницы релизов на GitHub, нужен Android 8.0 или новее.</p>
         <p data-en>Loopa is a free, open-source, unofficial Android app for RedGIFs (and Reddit videos). It is installed from the APK on the GitHub releases page; Android 8.0 or newer.</p></details>
@@ -305,8 +318,8 @@
 
   <section>
     <div class="wrap">
-      <div class="warn" data-ru><b>18+.</b> Приложение показывает материалы сервиса RedGIFs, среди которых есть откровенные. Устанавливайте его, только если вам есть 18 лет и такие материалы законны там, где вы находитесь.</div>
-      <div class="warn" data-en><b>18+.</b> The app shows content from RedGIFs, some of which is sexually explicit. Install it only if you are 18 or older and such content is legal where you live.</div>
+      <div class="warn" data-ru><b>18+.</b> Приложение показывает материалы RedGIFs, Reddit, Erome и Eporner, среди которых есть откровенные. Устанавливайте его, только если вам есть 18 лет и такие материалы законны там, где вы находитесь.</div>
+      <div class="warn" data-en><b>18+.</b> The app shows content from RedGIFs, Reddit, Erome and Eporner, some of which is sexually explicit. Install it only if you are 18 or older and such content is legal where you live.</div>
     </div>
   </section>
 </main>
@@ -314,7 +327,7 @@
 <footer>
   <div class="wrap row">
     <span>Loopa · MIT · <a href="https://github.com/jainikdroid-bit/loopa">GitHub</a> · <a href="guides/redgifs-app-android/">RedGIFs app for Android</a> · <a href="guides/download-reddit-videos-with-sound-android/">Download Reddit videos with sound</a></span>
-    <span data-ru>Неофициальный клиент. Не связан с RedGIFs и Reddit.</span><span data-en>Unofficial client. Not affiliated with RedGIFs or Reddit.</span>
+    <span data-ru>Неофициальный клиент. Не связан с RedGIFs, Reddit, Erome и Eporner.</span><span data-en>Unofficial client. Not affiliated with RedGIFs, Reddit, Erome or Eporner.</span>
   </div>
 </footer>
 
