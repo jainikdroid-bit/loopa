@@ -48,6 +48,8 @@ class MainActivity : Activity() {
     private lateinit var tabs: LinearLayout
     private lateinit var userBtn: TextView
     private val adapter = GridAdapter()
+    /** Что сейчас показано в сетке (id по порядку) — чтобы не перерисовывать без нужды. */
+    private var shownIds: List<String> = emptyList()
     private var suggestGen = 0
     private val onFeed: () -> Unit = { refresh() }
 
@@ -55,7 +57,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         // первый запуск — приветствие (до того, как что-то запишется в настройки: по их пустоте узнаём новую установку)
         val welcome = savedInstanceState == null && WelcomeActivity.needed(prefs)
-        I18n.init(this); Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); ForYou.init(this); Video.init(this); Hide.init(this)
+        I18n.init(this); Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); ForYou.init(this); Video.init(this); Hide.init(this)
         @Suppress("DEPRECATION") if (welcome) startActivityForResult(Intent(this, WelcomeActivity::class.java), 4)
         preview.enabled = prefs.getBoolean("live", true)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
@@ -285,6 +287,8 @@ class MainActivity : Activity() {
             if (p < lm.findFirstCompletelyVisibleItemPosition() || p > lm.findLastCompletelyVisibleItemPosition()) lm.scrollToPositionWithOffset(p, 0)
         }
         Feed.lastSeen = -1
+        // лайки могли поменяться в плеере — обновить метки ♥ (только их)
+        if (adapter.itemCount > 0) adapter.notifyItemRangeChanged(0, adapter.itemCount, "like")
         grid.postDelayed({ live() }, 300)
     }
 
@@ -324,7 +328,8 @@ class MainActivity : Activity() {
         blanksMax = maxOf(blanksMax, n); return n
     }
     private fun blanksReport() {
-        android.util.Log.i("Loopa", "сетка: без картинки сейчас ${countBlanks()}, за прокрутку до $blanksMax")
+        android.util.Log.i("Loopa", "сетка: без картинки сейчас ${countBlanks()}, за прокрутку до $blanksMax; ${Thumbs.stats()}; " +
+            "кэш видео ${Video.cacheUsed shr 20} из ${Video.cacheLimit shr 20} МБ")
         blanksMax = 0
     }
     private var waits = 0
@@ -463,7 +468,7 @@ class MainActivity : Activity() {
         m.menu.add(8, 0, 103, tr("Живые превью в сетке")).apply { isCheckable = true; isChecked = preview.enabled }
         // кэш видео: авто по свободному месту или вручную; сейчас занято / предел
         val vc = m.menu.addSubMenu(30, 0, 105, tr("Кэш видео: %s", size(Video.cacheLimit)))
-        vc.add(31, 99, 0, tr("Занято: %s", size(Video.cacheUsed))).isEnabled = false
+        vc.add(31, 99, 0, tr("Занято: %s", size(Video.cacheUsed + Net.imgCacheUsed))).isEnabled = false
         PreloadPolicy.CACHE_CHOICES.forEachIndexed { i, mb ->
             vc.add(31, i, i + 1, if (mb == 0) tr("Авто — по свободному месту") else size(mb * PreloadPolicy.MB)).isChecked = Video.cacheChoice == mb
         }
@@ -596,7 +601,14 @@ class MainActivity : Activity() {
         }
         if (!Feed.busy) swipe.isRefreshing = false
         if (search.text.isBlank()) idleChips()
-        adapter.notifyDataSetChanged()
+        // перерисовывать только то, что изменилось: не изменилось — ничего, дописали в конец — только новые
+        val ids = Feed.items.map { it.id }
+        when {
+            ids == shownIds -> {}
+            ids.size > shownIds.size && ids.subList(0, shownIds.size) == shownIds -> adapter.notifyItemRangeInserted(shownIds.size, ids.size - shownIds.size)
+            else -> adapter.notifyDataSetChanged()
+        }
+        shownIds = ids
         // соединения к серверам картинок и видео — заранее; прогноз — с нового содержимого
         Net.warm(Feed.items.take(12).flatMap { listOf(it.thumb, it.sd) })
         grid.post { ahead(0f, 0) }
@@ -604,7 +616,7 @@ class MainActivity : Activity() {
     }
 
     private inner class GridAdapter : RecyclerView.Adapter<GridAdapter.H>() {
-        inner class H(val box: FrameLayout, val img: ImageView, val dur: TextView, val src: TextView, val slot: GridPreview.Slot) : RecyclerView.ViewHolder(box)
+        inner class H(val box: FrameLayout, val img: ImageView, val dur: TextView, val src: TextView, val slot: GridPreview.Slot, val heart: TextView) : RecyclerView.ViewHolder(box)
         override fun onViewRecycled(h: H) { preview.stop(h.slot) }
         override fun getItemCount() = Feed.items.size
         override fun onCreateViewHolder(p: ViewGroup, t: Int): H {
@@ -615,6 +627,8 @@ class MainActivity : Activity() {
             // откуда ролик: RG — RedGIFs, RD — Reddit
             val tex = android.view.TextureView(p.context).apply { alpha = 0f }   // живое превью поверх картинки
             val src = TextView(p.context).apply { setTextColor(Color.WHITE); textSize = 10f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(dp(6), dp(1), dp(6), dp(1)) }
+            // ♥ — уже лайкнутый ролик
+            val heart = TextView(p.context).apply { text = "♥"; setTextColor(0xFFFF4D5E.toInt()); textSize = 14f; setPadding(dp(6), dp(1), dp(6), dp(2)); background = pill(0xAA000000.toInt()); visibility = View.GONE }
             val box = object : FrameLayout(p.context) {
                 // ячейка 3:4 — видно больше роликов, чем при 9:16
                 override fun onMeasure(w: Int, h: Int) { super.onMeasure(w, MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(w) * 4 / 3, MeasureSpec.EXACTLY)) }
@@ -623,20 +637,32 @@ class MainActivity : Activity() {
                 addView(tex, FrameLayout.LayoutParams(-1, -1))
                 addView(dur, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
                 addView(src, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
+                addView(heart, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
                 layoutParams = RecyclerView.LayoutParams(-1, -2).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }
                 clipToOutline = true; background = pill(0xFF1A1D23.toInt(), 10f)
             }
-            return H(box, img, dur, src, GridPreview.Slot(tex))
+            return H(box, img, dur, src, GridPreview.Slot(tex), heart)
+        }
+        // стабильные id: при обновлении ленты ячейки остаются за своими роликами — не мигают и не перезапускают превью
+        init { setHasStableIds(true) }
+        override fun getItemId(pos: Int) = Feed.items[pos].id.hashCode().toLong() shl 20 or (Feed.items[pos].hd.hashCode().toLong() and 0xFFFFF)
+        /** Только метка лайка (вернулись из плеера) — плитку не перерисовываем, превью не трогаем. */
+        override fun onBindViewHolder(h: H, pos: Int, payloads: MutableList<Any>) {
+            if (payloads.isEmpty()) return onBindViewHolder(h, pos)
+            Feed.items.getOrNull(pos)?.let { h.heart.visibility = if (Likes.has(it.id, Feed.mode == "liked")) View.VISIBLE else View.GONE }
         }
         override fun onBindViewHolder(h: H, pos: Int) {
             val g = Feed.items[pos]
-            preview.stop(h.slot); h.slot.pos = pos
+            h.heart.visibility = if (Likes.has(g.id, Feed.mode == "liked")) View.VISIBLE else View.GONE
+            // тот же ролик — живое превью продолжает играть; другой — остановить прежнее
+            if (h.slot.id != g.id) preview.stop(h.slot)
+            h.slot.id = g.id; h.slot.pos = pos
             Thumbs.load(h.img, g.thumb)
             h.dur.text = (if (g.hasAudio) "🔊 " else "") + time(g.duration)
             h.src.text = mark(g); h.src.background = pill(markColor(g))
             // касание — приоритет загрузки превью этой ячейки
             h.box.setOnTouchListener { _, e -> if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) { preview.touched = h.slot; grid.post { live() } }; false }
-            h.box.setOnClickListener { startActivity(Intent(this@MainActivity, PlayerActivity::class.java).putExtra("pos", h.bindingAdapterPosition)) }
+            h.box.setOnClickListener { preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch(); Net.dropBackground(); startActivity(Intent(this@MainActivity, PlayerActivity::class.java).putExtra("pos", h.bindingAdapterPosition)) }
             h.box.setOnLongClickListener { Downloads.get(this@MainActivity, g); Interests.download(g); true }
         }
     }

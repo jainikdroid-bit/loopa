@@ -6,7 +6,7 @@ enum class NetKind {
     FAST,
     /** Мобильная или иная лимитная сеть. */
     METERED,
-    /** Медленная (оценка < 3 Мбит/с или недавно подвисали — [Video.slow]). */
+    /** Медленная (оценка < 9 Мбит/с или недавно подвисали — [Video.slow]). */
     SLOW,
     /** Экономия трафика (Data Saver) включена для приложения на лимитной сети. */
     SAVER,
@@ -74,15 +74,18 @@ object PreloadPolicy {
 
     const val MB = 1L shl 20
     /** Варианты размера кэша видео в меню, МБ; 0 — авто. */
-    val CACHE_CHOICES = listOf(0, 512, 1024, 2048)
+    val CACHE_CHOICES = listOf(0, 512, 1024, 2048, 5120, 10240)
 
     /**
-     * Размер дискового кэша видео: [choiceMb] из меню или авто (0) — 5 % свободного места, но 512 МБ…1 ГБ. Всегда не
+     * Размер дискового кэша видео: [choiceMb] из меню или авто (0) — 10 % свободного места, но 512 МБ…5 ГБ. Всегда не
      * больше четверти свободного места (вместе с уже занятым кэшем — [usedBytes]) и не меньше 64 МБ.
      */
     fun cacheBytes(choiceMb: Int, freeBytes: Long, usedBytes: Long = 0): Long {
         val room = (freeBytes + usedBytes) / 4
-        val want = if (choiceMb > 0) choiceMb * MB else (freeBytes / 20).coerceIn(512 * MB, 1024 * MB)
+        val want = if (choiceMb > 0) choiceMb * MB else (freeBytes / 10).coerceIn(512 * MB, 5120 * MB)
         return minOf(want, room).coerceAtLeast(64 * MB)
     }
+
+    /** Дисковый кэш картинок-превью: восьмая часть кэша видео, 128 МБ…1 ГБ (превью ~40 КБ: 1 ГБ — это ~25 тысяч). */
+    fun imageCacheBytes(videoCacheBytes: Long): Long = (videoCacheBytes / 8).coerceIn(128 * MB, 1024 * MB)
 }

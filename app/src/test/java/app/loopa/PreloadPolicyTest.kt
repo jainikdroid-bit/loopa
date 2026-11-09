@@ -59,10 +59,21 @@ class PreloadPolicyTest {
         assertFalse(PreloadPolicy.flinging(listOf(400L, 500L, 4_000L)))
     }
 
-    @Test fun autoCacheIsFivePercentOfFreeWithinBounds() {
+    @Test fun autoCacheIsTenPercentOfFreeWithinBounds() {
         assertEquals(512 * MB, PreloadPolicy.cacheBytes(0, 4_000 * MB))
-        assertEquals(800 * MB, PreloadPolicy.cacheBytes(0, 16_000 * MB))
-        assertEquals(1024 * MB, PreloadPolicy.cacheBytes(0, 100_000 * MB))
+        assertEquals(1600 * MB, PreloadPolicy.cacheBytes(0, 16_000 * MB))
+        assertEquals(5120 * MB, PreloadPolicy.cacheBytes(0, 100_000 * MB))
+    }
+
+    @Test fun fiveAndTenGigabytesCanBeChosen() {
+        assertEquals(5120 * MB, PreloadPolicy.cacheBytes(5120, 100_000 * MB))
+        assertEquals(10240 * MB, PreloadPolicy.cacheBytes(10240, 100_000 * MB))
+    }
+
+    @Test fun imageCacheIsEighthOfVideoCacheWithinBounds() {
+        assertEquals(128 * MB, PreloadPolicy.imageCacheBytes(512 * MB))
+        assertEquals(640 * MB, PreloadPolicy.imageCacheBytes(5120 * MB))
+        assertEquals(1024 * MB, PreloadPolicy.imageCacheBytes(10240 * MB))
     }
 
     @Test fun cacheNeverTakesMoreThanQuarterOfSpace() {

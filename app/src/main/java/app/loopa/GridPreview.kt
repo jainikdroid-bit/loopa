@@ -27,7 +27,9 @@ class GridPreview(private val ctx: Context) {
     companion object { const val CUTS_MIN = 8.0 }
 
     /** Ячейка, в которой может играть превью. */
-    class Slot(val tex: TextureView) { var pos = -1; var player: ExoPlayer? = null }
+    class Slot(val tex: TextureView) { var pos = -1; var player: ExoPlayer? = null
+        /** Какой ролик сейчас привязан к ячейке (id) и какой в ней играет — не совпали, значит превью чужое. */
+        var id: String? = null; internal var playing: String? = null }
 
     private val idle = ArrayList<ExoPlayer>()
     private val active = HashMap<Slot, ExoPlayer>()
@@ -56,14 +58,14 @@ class GridPreview(private val ctx: Context) {
     }
     var enabled = true
 
-    /** Сколько играют сразу: все на экране (до 8), на медленной сети — 3. */
-    fun limit() = when { !enabled -> 0; Video.slow -> 3; else -> 8 }
+    /** Сколько играют сразу: все на экране (до 8), на медленной сети — 2 (каждое превью — свой поток видео). */
+    fun limit() = when { !enabled -> 0; Video.slow -> 2; else -> 8 }
 
     /** Ячейка, которой коснулись, — первая в очереди: превью запускается сразу. */
     @Volatile var touched: Slot? = null
 
     private fun player(): ExoPlayer = idle.removeLastOrNull() ?: ExoPlayer.Builder(ctx)
-        .setMediaSourceFactory(DefaultMediaSourceFactory(Video.source))
+        .setMediaSourceFactory(DefaultMediaSourceFactory(Video.bgSource))
         // превью: старт с четверти секунды, впрок немного — канал нужнее тому, что откроют
         .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(1_000, 4_000, 250, 500).build())
         .build().apply { volume = 0f; repeatMode = Player.REPEAT_MODE_ONE }
@@ -74,12 +76,14 @@ class GridPreview(private val ctx: Context) {
         val want = visible.sortedBy { if (it.first === t) 0 else 1 }.take(limit())
         val keep = want.map { it.first }.toSet()
         active.keys.filter { it !in keep }.forEach { stop(it) }
+        // ячейку перепривязали к другому ролику — его превью, а не прежнее
+        want.forEach { (s, g) -> if (s in active && s.playing != g.id) stop(s) }
         want.forEach { (s, g) -> if (s !in active) start(s, g) }
     }
 
     private fun start(s: Slot, g: Gif) {
         val p = player()
-        active[s] = p; s.player = p
+        active[s] = p; s.player = p; s.playing = g.id
         s.tex.alpha = 0f
         p.clearVideoSurface()
         p.setVideoTextureView(s.tex)
@@ -100,7 +104,7 @@ class GridPreview(private val ctx: Context) {
     /** Ячейку переиспользовали или она ушла с экрана — превью остановить, плеер в запас. */
     fun stop(s: Slot) {
         val p = active.remove(s) ?: return
-        s.player = null; s.tex.alpha = 0f
+        s.player = null; s.playing = null; s.tex.alpha = 0f
         listeners.remove(p)?.let { p.removeListener(it) }
         cuts.remove(p)
         p.stop(); p.clearMediaItems(); p.clearVideoTextureView(s.tex)

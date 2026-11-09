@@ -9,10 +9,8 @@ import androidx.media3.common.C
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.datasource.cache.Cache
-import androidx.media3.datasource.cache.CacheEvictor
-import androidx.media3.datasource.cache.CacheSpan
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
@@ -37,7 +35,7 @@ object Video {
     private const val INITIAL_BITRATE = 4_500_000L
 
     private lateinit var app: Context
-    private val evictor = Lru()
+    private val evictor = VideoCacheEvictor(512 * PreloadPolicy.MB)
     private val dir get() = app.cacheDir.resolve("video")
 
     /** Размер кэша из меню, МБ (0 — авто), см. [PreloadPolicy.CACHE_CHOICES]. */
@@ -68,12 +66,27 @@ object Video {
         meter = DefaultBandwidthMeter.Builder(app).setInitialBitrateEstimate(INITIAL_BITRATE).build()
         // один OkHttp на всё ([Net.http]): соединения к CDN переиспользуются (HTTP/2), DNS и переадресации помнятся;
         // запрос — открытый диапазон «с позиции до конца», видео идёт одним потоком, а не мелкими кусками
-        val http = OkHttpDataSource.Factory(Net.http).setUserAgent(Api.UA).setTransferListener(meter)
+        val http = OkHttpDataSource.Factory(Net.http).setUserAgent(Api.UA).setTransferListener(Counted(meter))
         // Erome отдаёт видео только с Referer своего сайта (без него 403)
         val ref = ResolvingDataSource.Factory(http) { spec ->
             if (Erome.ours(spec.uri.toString())) spec.withAdditionalHeaders(mapOf("Referer" to Erome.REFERER)) else spec }
-        source = CacheDataSource.Factory().setCache(cache).setUpstreamDataSourceFactory(ref).setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        source = cached(ref)
+        // фон (живые превью сетки, видео заранее) — тот же кэш, но свои соединения ([Net.bg]): открыли ролик — фон
+        // обрывается целиком и не стоит в очереди перед ним
+        val bgHttp = OkHttpDataSource.Factory(Net.bg).setUserAgent(Api.UA).setTransferListener(Counted(meter))
+        bgSource = cached(ResolvingDataSource.Factory(bgHttp) { spec ->
+            if (Erome.ours(spec.uri.toString())) spec.withAdditionalHeaders(mapOf("Referer" to Erome.REFERER)) else spec })
     }
+
+    /** Источник для фона: превью в сетке и предзагрузка ([Prefetch]). */
+    lateinit var bgSource: CacheDataSource.Factory; private set
+
+    private fun cached(upstream: DataSource.Factory) = CacheDataSource.Factory().setCache(cache)
+        .setUpstreamDataSourceFactory(upstream).setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        .setEventListener(object : CacheDataSource.EventListener {
+            override fun onCachedBytesRead(cacheSizeBytes: Long, cachedBytesRead: Long) { fromCache.addAndGet(cachedBytesRead) }
+            override fun onCacheIgnored(reason: Int) {}
+        })
 
     /**
      * Ошибки загрузки видео: обрывы и таймауты — повторять (до 10 попыток, пауза 1…5 с); ответ сервера 4xx (ролик удалён,
@@ -94,7 +107,7 @@ object Video {
     }
 
     /** «Авто»: HD, если сеть тянет ~2 битрейта HD (RedGIFs HD ≈ 4–5 Мбит/с), иначе SD (в 5–6 раз легче). */
-    fun auto(g: Gif) = if (!sdOnly && meter.bitrateEstimate >= 9_000_000) g.hd else g.sd
+    fun auto(g: Gif) = if (!sdOnly && meter.bitrateEstimate >= SLOW_BPS) g.hd else g.sd
 
     /** До какого времени «Авто» держит SD: ролик подвис на HD — сеть не тянет, 10 минут не пробуем HD снова. */
     private var sdUntil = 0L
@@ -118,28 +131,26 @@ object Video {
         }
     }
 
-    /**
-     * LRU как LeastRecentlyUsedCacheEvictor, но предел можно менять на ходу (меню «Кэш видео»): давно не читанное
-     * удаляется первым, пока занятое + новый файл не влезут в [max]. Вызывается под замком SimpleCache.
-     */
-    private class Lru : CacheEvictor {
-        @Volatile var max = 512 * PreloadPolicy.MB
-        private val spans = java.util.TreeSet<CacheSpan>(compareBy<CacheSpan> { it.lastTouchTimestamp }.thenBy { it })
-        private var size = 0L
-        override fun requiresCacheSpanTouches() = true
-        override fun onCacheInitialized() {}
-        override fun onStartFile(cache: Cache, key: String, position: Long, length: Long) {
-            if (length != C.LENGTH_UNSET.toLong()) evict(cache, length)
+    /** Счётчики для журнала: сколько байт видео прочитано с диска и скачано из сети (с запуска). */
+    val fromCache = java.util.concurrent.atomic.AtomicLong()
+    val fromNet = java.util.concurrent.atomic.AtomicLong()
+
+    /** Считает скачанное из сети и передаёт дальше в оценку скорости. */
+    private class Counted(private val to: androidx.media3.datasource.TransferListener) : androidx.media3.datasource.TransferListener {
+        override fun onTransferInitializing(s: androidx.media3.datasource.DataSource, d: androidx.media3.datasource.DataSpec, n: Boolean) = to.onTransferInitializing(s, d, n)
+        override fun onTransferStart(s: androidx.media3.datasource.DataSource, d: androidx.media3.datasource.DataSpec, n: Boolean) = to.onTransferStart(s, d, n)
+        override fun onBytesTransferred(s: androidx.media3.datasource.DataSource, d: androidx.media3.datasource.DataSpec, n: Boolean, b: Int) {
+            if (n) fromNet.addAndGet(b.toLong()); to.onBytesTransferred(s, d, n, b)
         }
-        override fun onSpanAdded(cache: Cache, span: CacheSpan) { spans += span; size += span.length; evict(cache, 0) }
-        override fun onSpanRemoved(cache: Cache, span: CacheSpan) { spans -= span; size -= span.length }
-        override fun onSpanTouched(cache: Cache, old: CacheSpan, new: CacheSpan) { onSpanRemoved(cache, old); onSpanAdded(cache, new) }
-        fun trim(cache: Cache) = evict(cache, 0)
-        private fun evict(cache: Cache, need: Long) {
-            while (size + need > max && spans.isNotEmpty()) cache.removeSpan(spans.first())
-        }
+        override fun onTransferEnd(s: androidx.media3.datasource.DataSource, d: androidx.media3.datasource.DataSpec, n: Boolean) = to.onTransferEnd(s, d, n)
     }
 
-    /** Медленная сеть (< 3 Мбит/с или недавно подвисали): предзагрузка соседей скромнее, чтобы не отнимать канал у текущего. */
-    val slow get() = sdOnly || meter.bitrateEstimate < 3_000_000
+    /**
+     * Медленная сеть (< [SLOW_BPS] или недавно подвисали): предзагрузка соседей скромнее, чтобы не отнимать канал у текущего.
+     * Порог 9 Мбит/с — тот же, что у HD в «Авто» ([auto]): на 5 Мбит/с восемь живых превью и предзагрузка видео разом
+     * забивали канал — картинки ждали по 10 с, открытый ролик висел на «загрузке»; а оценка скорости на таком канале
+     * скачет до 6–7 Мбит/с. Пока скорость не замерена, считаем сеть медленной ([INITIAL_BITRATE] ниже порога).
+     */
+    const val SLOW_BPS = 9_000_000L
+    val slow get() = sdOnly || meter.bitrateEstimate < SLOW_BPS
 }

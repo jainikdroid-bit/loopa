@@ -108,6 +108,25 @@ object Net {
         }
     }
 
+    /**
+     * Журнал медленных запросов: ответ пришёл позже [SLOW_MS] — в лог «что, сколько ждали, сколько ещё запросов шло
+     * одновременно». По нему видно, чем занят канал, когда ролик долго стартует.
+     */
+    private const val SLOW_MS = 2_000L
+    private val running = java.util.concurrent.atomic.AtomicInteger()
+    private class SlowLog : okhttp3.EventListener() {
+        private var t0 = 0L; private var parallel = 0; private var connect = 0L
+        override fun callStart(call: okhttp3.Call) { t0 = System.currentTimeMillis(); parallel = running.incrementAndGet() }
+        override fun connectStart(call: okhttp3.Call, inetSocketAddress: java.net.InetSocketAddress, proxy: java.net.Proxy) { connect = System.currentTimeMillis() }
+        override fun responseHeadersEnd(call: okhttp3.Call, response: okhttp3.Response) {
+            val dt = System.currentTimeMillis() - t0
+            if (dt > SLOW_MS) android.util.Log.i("Loopa", "медленный запрос: ${call.request().method} ${call.request().url.host}…${call.request().url.encodedPath.takeLast(32)}" +
+                " — ответ через $dt мс${if (connect > 0) " (новое соединение)" else ""}, одновременно запросов: $parallel")
+        }
+        override fun callEnd(call: okhttp3.Call) { running.decrementAndGet() }
+        override fun callFailed(call: okhttp3.Call, ioe: IOException) { running.decrementAndGet() }
+    }
+
     /** Общий клиент: видео (через media3 OkHttpDataSource), запросы прогрева. */
     val http: okhttp3.OkHttpClient by lazy {
         okhttp3.OkHttpClient.Builder()
@@ -118,16 +137,42 @@ object Net {
             .readTimeout(MEDIA_READ_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
             .retryOnConnectionFailure(true)
             .addInterceptor(Redirects)
+            .eventListenerFactory { SlowLog() }
             .build()
+    }
+
+    /**
+     * Фон — живые превью сетки и видео заранее: свои соединения. Отменённый запрос видео оставляет в соединении «хвост»
+     * уже отправленных сервером данных; в общем соединении (HTTP/2) он стоял перед ответом ролику, который открыли.
+     */
+    val bg: okhttp3.OkHttpClient by lazy {
+        http.newBuilder().connectionPool(okhttp3.ConnectionPool(2, 2, java.util.concurrent.TimeUnit.MINUTES)).dispatcher(okhttp3.Dispatcher()).build()
+    }
+
+    /** Открыли ролик — фон оборвать совсем: запросы отменить, соединения закрыть (хвосты пропадают вместе с ними). */
+    fun dropBackground() {
+        // не в главном потоке: закрытие соединения пишет в сеть (TLS close_notify)
+        Thread {
+            runCatching { bg.dispatcher.cancelAll(); bg.connectionPool.evictAll() }
+            // соединение освобождается чуть позже отмены — закрыть и его
+            runCatching { Thread.sleep(300); bg.connectionPool.evictAll() }
+        }.start()
     }
 
     /** Картинки: тот же пул соединений + дисковый кэш (превью не меняются — храним, даже если сервер не разрешил). */
     lateinit var img: okhttp3.OkHttpClient; private set
-    private const val IMG_CACHE = 128L shl 20
+
+    /** Предел кэша картинок — от выбранного размера кэша видео ([PreloadPolicy.imageCacheBytes]); меняется при следующем запуске. */
+    private fun imgCacheBytes(app: Context): Long {
+        val choice = app.getSharedPreferences("loopa", Context.MODE_PRIVATE).getInt("video_cache_mb", 0)
+        return PreloadPolicy.imageCacheBytes(PreloadPolicy.cacheBytes(choice, app.cacheDir.usableSpace))
+    }
+    /** Занято кэшем картинок, байт. */
+    val imgCacheUsed get() = runCatching { img.cache?.size() ?: 0L }.getOrDefault(0L)
 
     private fun initImg(app: Context) {
         img = http.newBuilder()
-            .cache(okhttp3.Cache(app.cacheDir.resolve("img"), IMG_CACHE))
+            .cache(okhttp3.Cache(app.cacheDir.resolve("img"), imgCacheBytes(app)))
             .addNetworkInterceptor { ch ->
                 ch.proceed(ch.request()).newBuilder().header("Cache-Control", "public, max-age=2592000").removeHeader("Pragma").build()
             }

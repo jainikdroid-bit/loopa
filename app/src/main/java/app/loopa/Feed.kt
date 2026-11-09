@@ -263,10 +263,12 @@ object Feed {
         val fresh = part.filter { (x, _) -> seen.add(x.id) && seen.add(x.hd) && twin(x)?.let { k -> same.add(k) } != false }
             .filter { (x, _) -> (duration == "any" || x.duration in range) && (!audioOnly || x.hasAudio) && !Hide.hidden(x) }
         if (fresh.isEmpty()) return
-        fresh.forEach { scoreOf[it.first.id] = it.second }
         val cmp = localCmp()
+        // по релевантности: из одинаково подходящих выше тот, что во вкусе и качественнее ([Ranker.searchBonus])
+        val ranked = if (cmp != null) fresh else fresh.map { (x, sc) -> x to sc + Ranker.searchBonus(Interests.score(x), x.tags.size, x.likes, x.views) }
+        ranked.forEach { scoreOf[it.first.id] = it.second }
         if (cmp != null) { items += fresh.map { it.first }; items.sortWith(cmp) }
-        else fresh.sortedByDescending { it.second }.forEach { (x, sc) ->
+        else ranked.sortedByDescending { it.second }.forEach { (x, sc) ->
             val at = items.indexOfFirst { (scoreOf[it.id] ?: 0.0) < sc }.let { if (it < 0) items.size else it }
             items.add(at, x)
         }

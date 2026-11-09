@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
-import kotlin.math.ln
 
 /**
  * Лента «Для вас»: RedGIFs + Reddit по профилю [Interests].
@@ -283,9 +282,14 @@ object ForYou {
         return pick
     }
 
-    /** Порядок внутри источника: вкус, популярность, шум; без просмотренного и повторов. */
-    private fun rank(l: List<Gif>): List<Gif> = l
-        .filter { !Interests.isSeen(it.id) && shown.add(it.hd) }
-        .map { it to (Interests.damp(Interests.score(it)) + 0.08 * ln(1.0 + it.likes.coerceAtLeast(0)) + Math.random() * 0.5) }
-        .sortedByDescending { it.second }.map { it.first }
+    /**
+     * Порядок внутри источника ([Ranker]): вкус с поправкой на число тегов, качество (лайки и их доля от просмотров),
+     * шум; без просмотренного, повторов и явно не во вкусе; один автор и одна тема — не подряд.
+     */
+    private fun rank(l: List<Gif>): List<Gif> {
+        val taste = HashMap<String, Double>()
+        val scored = l.filter { !Interests.isSeen(it.id) && shown.add(it.hd) }
+            .map { g -> val t = Interests.score(g); taste[g.id] = Interests.damp(t * Ranker.norm(g.tags.size)); g to Ranker.value(t, g.tags.size, g.likes, g.views, Math.random()) }
+        return Ranker.diversify(Ranker.dropDisliked(scored) { taste[it.id] ?: 0.0 })
+    }
 }

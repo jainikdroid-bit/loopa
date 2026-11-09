@@ -75,6 +75,9 @@ class PlayerActivity : Activity() {
     private var rendered = false
     private var settledAt = 0L
     private var startAt = 0L
+    /** Счётчики байт видео на момент выбора страницы — сколько ролик взял с диска и из сети до первого кадра. */
+    private var cache0 = 0L
+    private var net0 = 0L
     /** Сколько были на экране последние страницы, мс — понять, что листают быстро ([PreloadPolicy.flinging]). */
     private val dwells = ArrayDeque<Long>()
     private val factory by lazy { androidx.media3.exoplayer.source.DefaultMediaSourceFactory(Video.source).setLoadErrorHandlingPolicy(Video.errors) }
@@ -152,7 +155,7 @@ class PlayerActivity : Activity() {
         I18n.init(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.statusBarColor = Color.BLACK; window.navigationBarColor = Color.BLACK
-        Video.init(this); Interests.init(this)
+        Video.init(this); Interests.init(this); Likes.init(this)
         Net.init(this)
         list += Feed.items; Feed.items.forEach { ids += it.id }
         if (list.isEmpty()) { finish(); return }
@@ -168,7 +171,8 @@ class PlayerActivity : Activity() {
             volume = if (muted) 0f else 1f
             addListener(object : Player.Listener {
                 override fun onRenderedFirstFrame() {
-                    if (!rendered) android.util.Log.i("Loopa", "первый кадр: ${System.currentTimeMillis() - settledAt} мс")
+                    if (!rendered) android.util.Log.i("Loopa", "первый кадр: ${System.currentTimeMillis() - settledAt} мс; видео с диска " +
+                        "${(Video.fromCache.get() - cache0) shr 10} КБ, из сети ${(Video.fromNet.get() - net0) shr 10} КБ")
                     rendered = true; holder?.poster?.visibility = View.GONE
                 }
                 // замер: от выбора страницы до начала воспроизведения (в журнал)
@@ -261,7 +265,7 @@ class PlayerActivity : Activity() {
         control.flinging = PreloadPolicy.flinging(dwells.toList())
         current = pos
         control.cur = pos; preload.setCurrentPlayingIndex(pos)
-        settledAt = now; startAt = now
+        settledAt = now; startAt = now; cache0 = Video.fromCache.get(); net0 = Video.fromNet.get()
         sync()
         // сначала новый источник, потом поверхность: иначе прежний ролик успевал отрисовать кадр на новой странице —
         // превью пряталось, и до первого кадра нового стоял застывший кадр чужого видео
@@ -303,12 +307,8 @@ class PlayerActivity : Activity() {
     }
 
     /** Лайкнутые — помним у себя (в «Моих лайках» — все). */
-    private fun liked(id: String) = Feed.mode == "liked" && !prefs.getStringSet("unliked", emptySet())!!.contains(id) || prefs.getStringSet("liked", emptySet())!!.contains(id)
-    private fun setLiked(id: String, on: Boolean) {
-        val l = HashSet(prefs.getStringSet("liked", emptySet())!!); val u = HashSet(prefs.getStringSet("unliked", emptySet())!!)
-        if (on) { l += id; u -= id } else { l -= id; u += id }
-        prefs.edit().putStringSet("liked", l).putStringSet("unliked", u).apply()
-    }
+    private fun liked(id: String) = Likes.has(id, Feed.mode == "liked")
+    private fun setLiked(id: String, on: Boolean) = Likes.set(id, on)
 
     private fun back(extra: String, v: String) {
         startActivity(Intent(this, MainActivity::class.java).putExtra(extra, if (extra == "login") null else v).putExtra("login", extra == "login").addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))

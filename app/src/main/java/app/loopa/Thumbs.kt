@@ -12,7 +12,7 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 /**
- * Превью для сетки: память (~1/8 памяти приложения, LRU) и диск (128 МБ, кэш OkHttp [Net.img] — превью храним, даже
+ * Превью для сетки: память (~1/8 памяти приложения, LRU) и диск (128 МБ…1 ГБ, кэш OkHttp [Net.img] — превью храним, даже
  * если сервер не разрешил). Картинка декодируется под ширину ячейки ([width]), а не целиком.
  *
  * Два потока работ. Видимое ([load]) — 6 потоков, очередь «последним пришёл — первым загружен»: на медленной сети
@@ -41,8 +41,10 @@ object Thumbs {
     fun has(url: String) = url.isEmpty() || cache.get(url) != null
 
     fun load(iv: ImageView, url: String) {
+        // та же картинка уже на месте (ячейку перепривязали к тому же ролику) — не трогать: иначе мигает заглушкой
+        if (iv.tag == url && iv.drawable != null) return
         iv.tag = url
-        cache.get(url)?.let { iv.setImageBitmap(it); return }
+        cache.get(url)?.let { fromMem.incrementAndGet(); iv.setImageBitmap(it); return }
         iv.setImageDrawable(null)
         pool.execute {
             if (iv.tag != url) return@execute       // ячейку уже переиспользовали
@@ -65,12 +67,26 @@ object Thumbs {
         val g = ++gen; wanted = list.toHashSet()
         list.forEach { u ->
             ahead.execute {
+                // видимое — первым: пока на экране что-то грузится, прогноз ждёт (на медленном канале не делит его)
+                while (pool.activeCount > 0 || pool.queue.isNotEmpty()) {
+                    if (gen != g && u !in wanted) return@execute
+                    Thread.sleep(30)
+                }
                 if (gen != g && u !in wanted) return@execute   // прогноз сменился, а в новом её нет
                 if (cache.get(u) != null || u in inFlight) return@execute
                 runCatching { fetch(u) }
             }
         }
     }
+
+    /** Грузятся картинки, которые сейчас на экране, — видео заранее пусть подождёт ([Prefetch]). */
+    val busy get() = pool.activeCount > 0 || pool.queue.isNotEmpty()
+
+    /** Счётчики для журнала: картинки из памяти, с диска, из сети (с запуска). */
+    private val fromMem = java.util.concurrent.atomic.AtomicInteger()
+    private val fromDisk = java.util.concurrent.atomic.AtomicInteger()
+    private val fromNet = java.util.concurrent.atomic.AtomicInteger()
+    fun stats() = "картинки: из памяти ${fromMem.get()}, с диска ${fromDisk.get()}, из сети ${fromNet.get()}"
 
     /** Отменить ещё не начатое из прогноза (ушли в плеер — канал ролику). */
     fun stopPrefetch() { gen++; wanted = emptySet() }
@@ -83,6 +99,7 @@ object Thumbs {
             val rq = okhttp3.Request.Builder().url(url).header("User-Agent", Api.UA).build()
             val bytes = Net.img.newCall(rq).execute().use { r ->
                 if (!r.isSuccessful) throw HttpError(r.code)
+                (if (r.networkResponse == null) fromDisk else fromNet).incrementAndGet()
                 r.body?.bytes() ?: return null
             }
             val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
