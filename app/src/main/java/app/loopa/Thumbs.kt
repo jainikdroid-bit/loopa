@@ -81,6 +81,8 @@ object Thumbs {
 
     /** Грузятся картинки, которые сейчас на экране, — видео заранее пусть подождёт ([Prefetch]). */
     val busy get() = pool.activeCount > 0 || pool.queue.isNotEmpty()
+    /** Грузятся любые картинки — и на экране, и про запас: видео из сети начинаем после них. */
+    val loading get() = busy || ahead.activeCount > 0 || ahead.queue.isNotEmpty()
 
     /** Счётчики для журнала: картинки из памяти, с диска, из сети (с запуска). */
     private val fromMem = java.util.concurrent.atomic.AtomicInteger()

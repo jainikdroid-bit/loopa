@@ -78,6 +78,15 @@ object Video {
             if (Erome.ours(spec.uri.toString())) spec.withAdditionalHeaders(mapOf("Referer" to Erome.REFERER)) else spec })
     }
 
+    /** Ролик целиком лежит в дисковом кэше — превью и просмотр сети не просят. */
+    fun fullyCached(url: String): Boolean {
+        if (!::cache.isInitialized || url.isEmpty()) return false
+        return runCatching {
+            val len = androidx.media3.datasource.cache.ContentMetadata.getContentLength(cache.getContentMetadata(url))
+            len > 0 && cache.isCached(url, 0, len)
+        }.getOrDefault(false)
+    }
+
     /** Источник для фона: превью в сетке и предзагрузка ([Prefetch]). */
     lateinit var bgSource: CacheDataSource.Factory; private set
 

@@ -57,7 +57,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         // первый запуск — приветствие (до того, как что-то запишется в настройки: по их пустоте узнаём новую установку)
         val welcome = savedInstanceState == null && WelcomeActivity.needed(prefs)
-        I18n.init(this); Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); ForYou.init(this); Video.init(this); Hide.init(this)
+        I18n.init(this); Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); Video.init(this); Hide.init(this)
         @Suppress("DEPRECATION") if (welcome) startActivityForResult(Intent(this, WelcomeActivity::class.java), 4)
         preview.enabled = prefs.getBoolean("live", true)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
@@ -353,8 +353,9 @@ class MainActivity : Activity() {
         // сначала картинки: превью запускаем, только когда все видимые картинки догрузились (видео не отнимает у них канал)
         // (не дольше ~4 с: картинка могла не загрузиться вовсе)
         // (кроме ячейки, которой коснулись: её — сразу)
-        if (vis.any { !Thumbs.has(it.second.thumb) } && waits++ < 6) {
-            vis.firstOrNull { it.first === preview.touched }?.let { preview.update(listOf(it)) }
+        // на медленной сети — пока грузятся и картинки про запас; превью, целиком лежащие в кэше, сети не просят — их сразу
+        if ((vis.any { !Thumbs.has(it.second.thumb) } || Video.slow && Thumbs.loading) && waits++ < 6) {
+            preview.update(vis.filter { it.first === preview.touched || Video.fullyCached(it.second.sd) })
             grid.removeCallbacks(liveLater); grid.postDelayed(liveLater, 700); return
         }
         waits = 0

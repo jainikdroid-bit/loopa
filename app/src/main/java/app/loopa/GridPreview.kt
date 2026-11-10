@@ -58,8 +58,20 @@ class GridPreview(private val ctx: Context) {
     }
     var enabled = true
 
-    /** Сколько играют сразу: все на экране (до 8), на медленной сети — 2 (каждое превью — свой поток видео). */
-    fun limit() = when { !enabled -> 0; Video.slow -> 2; else -> 8 }
+    /**
+     * Сколько играют сразу: все на экране (до 8); на медленной сети — до [SLOW_TOTAL], из них из сети не больше
+     * [SLOW_NET] (каждое такое превью — свой поток видео), остальные — только ролики, целиком лежащие в кэше.
+     */
+    fun limit() = when { !enabled -> 0; Video.slow -> SLOW_TOTAL; else -> 8 }
+    private val SLOW_TOTAL = 6
+    private val SLOW_NET = 2
+
+    /** Кому играть: по порядку важности; на медленной сети сетевых — не больше [SLOW_NET]. */
+    private fun pick(sorted: List<Pair<Slot, Gif>>): List<Pair<Slot, Gif>> {
+        if (!Video.slow) return sorted.take(limit())
+        var net = 0
+        return sorted.filter { (_, g) -> Video.fullyCached(g.sd) || net++ < SLOW_NET }.take(limit())
+    }
 
     /** Ячейка, которой коснулись, — первая в очереди: превью запускается сразу. */
     @Volatile var touched: Slot? = null
@@ -73,7 +85,7 @@ class GridPreview(private val ctx: Context) {
     /** Какие ячейки играют: видимые целиком, первые [limit] по порядку. */
     fun update(visible: List<Pair<Slot, Gif>>) {
         val t = touched
-        val want = visible.sortedBy { if (it.first === t) 0 else 1 }.take(limit())
+        val want = pick(visible.sortedBy { if (it.first === t) 0 else 1 })
         val keep = want.map { it.first }.toSet()
         active.keys.filter { it !in keep }.forEach { stop(it) }
         // ячейку перепривязали к другому ролику — его превью, а не прежнее

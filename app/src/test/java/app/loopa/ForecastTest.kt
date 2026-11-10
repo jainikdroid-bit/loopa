@@ -74,8 +74,9 @@ class ForecastTest {
     }
 
     @Test fun thumbBudgetByNetwork() {
-        assertEquals(32, Forecaster.thumbBudget(NetKind.FAST, 8))
-        assertEquals(16, Forecaster.thumbBudget(NetKind.METERED, 8))
+        assertEquals(48, Forecaster.thumbBudget(NetKind.FAST, 8))
+        assertEquals(24, Forecaster.thumbBudget(NetKind.METERED, 8))
+        assertEquals(24, Forecaster.thumbBudget(NetKind.SLOW, 8))
         assertEquals(8, Forecaster.thumbBudget(NetKind.SAVER, 8))
         assertEquals(Forecaster.MAX_THUMBS, Forecaster.thumbBudget(NetKind.FAST, 1000))
     }

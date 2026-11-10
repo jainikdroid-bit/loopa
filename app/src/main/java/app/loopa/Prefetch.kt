@@ -29,9 +29,9 @@ object Prefetch {
             val box = arrayOfNulls<CacheWriter>(1)
             val f = pool.submit {
                 try {
-                    // картинки на экране — первыми: пока они грузятся, видео заранее ждёт (не дольше 5 с)
-                    val end = System.currentTimeMillis() + 5_000
-                    while (Thumbs.busy && !paused && System.currentTimeMillis() < end) Thread.sleep(50)
+                    // картинки (на экране и про запас) — первыми: пока они грузятся, видео заранее ждёт (не дольше 8 с)
+                    val end = System.currentTimeMillis() + 8_000
+                    while (Thumbs.loading && !paused && System.currentTimeMillis() < end) Thread.sleep(50)
                     if (paused) return@submit
                     val spec = DataSpec.Builder().setUri(u).setPosition(0).setLength(bytes).build()
                     val w = CacheWriter(Video.bgSource.createDataSource(), spec, null, null)

@@ -71,12 +71,12 @@ object Forecaster {
     }
 
     /**
-     * Сколько картинок прогноза заказывать — бюджет на канал ~5 Мбит/с (картинка ~30–60 КБ): быстрая — 4 экрана,
-     * лимитная и медленная — 2, экономия трафика и нет сети — только экран вперёд. [screen] — ячеек на экране.
+     * Сколько картинок прогноза заказывать — бюджет на канал ~5 Мбит/с (картинка ~30–60 КБ): быстрая — 6 экранов,
+     * лимитная и медленная — 3 (картинки — первыми и про запас, видео — после них), экономия трафика и нет сети — только экран вперёд. [screen] — ячеек на экране.
      */
     fun thumbBudget(net: NetKind, screen: Int): Int = when (net) {
-        NetKind.FAST -> 4 * screen
-        NetKind.METERED, NetKind.SLOW -> 2 * screen
+        NetKind.FAST -> 6 * screen
+        NetKind.METERED, NetKind.SLOW -> 3 * screen
         NetKind.SAVER, NetKind.OFFLINE -> screen
     }.coerceAtMost(MAX_THUMBS)
 

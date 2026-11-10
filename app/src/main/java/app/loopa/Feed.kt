@@ -107,8 +107,29 @@ object Feed {
         scoreOf.clear()
         items.clear(); page = 0; pages = 1; after = null; loading = false; error = null; fails = 0; chain = 0; stopRetry(); gen++
         if (mode == "foryou") ForYou.reset()
+        // первый показ ленты после запуска — сразу прошлая лента с диска (без уже просмотренного), свежее допишется
+        stale.clear()
+        cacheKey()?.takeIf { restored.add(it) }?.let { k ->
+            val old = FeedCache.load(k).filter { !Hide.hidden(it) && !(mode == "foryou" && Interests.isSeen(it.id)) }
+            items += old; old.forEach { stale += it.id }
+            if (old.isNotEmpty()) android.util.Log.i("Loopa", "лента $k: из кэша ${old.size}")
+        }
         changed(); more()
     }
+
+    /** Ленты, которые запоминаем между запусками: «Для вас» и «Популярное» (без поиска, автора и фильтров). */
+    private fun cacheKey(): String? = when {
+        text.isNotBlank() || author != null || filtered -> null
+        mode == "foryou" -> "foryou"
+        mode == null -> "home-$order"
+        else -> null
+    }
+    /** Какие ленты уже показывали из кэша в этом запуске (обновление потянув — уже только свежее). */
+    private val restored = HashSet<String>()
+    /** Ролики из прошлой ленты, показанные до загрузки свежих. */
+    private val stale = HashSet<String>()
+    /** В ленте сейчас только прошлая выдача — свежее ещё грузится. */
+    val fromCache get() = stale.isNotEmpty() && items.all { it.id in stale }
 
     /** Лента Reddit: сабреддит(ы), пользователь или главная; sort — id из [Reddit.SORTS]. */
     fun reddit(sub: String, sort: String = rorder) { this.sub = sub; rorder = sort; reset("", order, mode = "reddit") }
@@ -244,6 +265,8 @@ object Feed {
             val at = items.indexOfFirst { !hit(it) }.let { if (it < 0) items.size else it }
             items.addAll(at, hits); items += fresh.filterNot(::hit)
         }
+        // запомнить ленту к следующему запуску: свежее — первым, за ним остаток прошлой
+        if (p <= 3) cacheKey()?.let { k -> FeedCache.save(k, items.filter { it.id !in stale } + items.filter { it.id in stale }) }
         // мало нового (реклама, фильтры) или копим пул для досортировки — сразу следующая страница
         val need = fresh.size < 8 && (pg.gifs.isEmpty() || filtered || Hide.active) || cmp != null && items.size < POOL
         // предел подряд: фильтр может отсеивать почти всё — не выкачивать сотни страниц
