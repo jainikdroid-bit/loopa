@@ -107,8 +107,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.7**. Newer versions are already in
-the source (build them with the command below); their APKs will appear in Releases.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.10.2**.
 
 | Version | What's new |
 |---|---|

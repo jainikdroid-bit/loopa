@@ -113,8 +113,7 @@
 
 ## Версии
 
-Последний APK в [Releases](https://github.com/jainikdroid-bit/loopa/releases) — **1.7**. Более новые версии уже в
-исходниках (собираются командой ниже), их APK появятся в Releases.
+Последний APK в [Releases](https://github.com/jainikdroid-bit/loopa/releases) — **1.10.2**.
 
 | Версия | Что нового |
 |---|---|
