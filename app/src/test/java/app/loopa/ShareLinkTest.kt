@@ -27,6 +27,11 @@ class ShareLinkTest {
         assertEquals(Link.VReddit("abc123xyz"), ShareLink.parse("https://v.redd.it/abc123xyz"))
         val s = "https://www.reddit.com/r/gifs/s/AbCdEf1234"
         assertEquals(Link.Short(s), ShareLink.parse(s))
+        // «поделиться» с профиля пользователя: /u/имя/s/код и /user/имя/s/код
+        val u = "https://www.reddit.com/u/Ok_Association_8703/s/NrVwjF44Jr"
+        assertEquals(Link.Short(u), ShareLink.parse(u))
+        assertEquals(Link.Short("https://reddit.com/user/x_y/s/AbC123"), ShareLink.parse("https://reddit.com/user/x_y/s/AbC123"))
+        assertEquals(Link.Short(u), ShareLink.find("Смотри $u"))
     }
 
     @Test fun `чужие ссылки и страницы без ролика не берутся`() {

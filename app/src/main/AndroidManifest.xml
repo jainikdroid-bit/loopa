@@ -50,6 +50,8 @@
                 <data android:host="old.reddit.com" />
                 <data android:pathPattern=".*/comments/.*" />
                 <data android:pathPattern="/r/.*/s/.*" />
+                <data android:pathPattern="/u/.*/s/.*" />
+                <data android:pathPattern="/user/.*/s/.*" />
             </intent-filter>
         </activity>
         <activity

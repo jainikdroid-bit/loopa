@@ -212,6 +212,12 @@ var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');
         return null
     }
 
+    /** Куда ведёт ссылка-«поделиться» (/s/…): страницу открывает невидимый браузер, адрес после переадресации. */
+    fun openedUrl(url: String): String? {
+        val ctx = app ?: return null
+        return WebJson.page(ctx, url, "(function(){return location.href;})()", accept = "/comments/")
+    }
+
     /** Понравившееся пользователю (upvote) — со страницы сайта /user/имя/upvoted, постранично; курсор как у [page]. */
     fun upvoted(after: String?): Pair<List<Gif>, String?> {
         if (after?.startsWith(WEB) == true) return web(null, after.removePrefix(WEB))

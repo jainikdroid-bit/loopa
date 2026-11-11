@@ -19,7 +19,7 @@ object ShareLink {
     private val RG_PAGE = Regex("^/(?:watch|ifr|i)/([A-Za-z]+)")
     private val RG_MEDIA = Regex("^/([A-Za-z]+?)(?:-[a-z]+)?\\.(?:mp4|webm|jpg|mp3)$")
     private val POST = Regex("/comments/([a-z0-9]{5,8})(?:/|$)")
-    private val SHORT = Regex("^/r/[^/]+/s/[A-Za-z0-9]+")
+    private val SHORT = Regex("^/(?:r|u|user)/[^/]+/s/[A-Za-z0-9]+")
     private val SHORT_HOST = Regex("^/([a-z0-9]{5,8})$")
 
     /** Первая понятная ссылка в тексте (в «Поделиться» к ссылке нередко приписано название поста). */
@@ -54,8 +54,14 @@ object ShareLink {
     }
 
     /** Куда ведёт короткая ссылка (после переадресаций). */
-    private fun redirect(url: String): String? = runCatching {
-        val c = Net.open(url); c.instanceFollowRedirects = true
-        try { c.responseCode; c.url.toString() } finally { c.disconnect() }
-    }.getOrNull()
+    private fun redirect(url: String): String? {
+        // сначала обычным запросом; Reddit приложению нередко не отвечает — тогда через невидимый браузер
+        val plain = runCatching {
+            val c = Net.open(url); c.instanceFollowRedirects = true
+            try { c.responseCode; c.url.toString() } finally { c.disconnect() }
+        }.getOrNull()
+        if (plain != null && POST.containsMatchIn(plain)) return plain
+        android.util.Log.i("Loopa", "поделиться: короткая ссылка напрямую → ${plain ?: "нет ответа"}; открываю в браузере")
+        return Reddit.openedUrl(url).also { android.util.Log.i("Loopa", "поделиться: после браузера → ${it ?: "нет"}") }
+    }
 }
