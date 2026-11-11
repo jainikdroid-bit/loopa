@@ -539,6 +539,8 @@ class MainActivity : Activity() {
                 val asked = prefs.getString("upd_asked", null)
                 if (!manual && asked == v) return@runOnUiThread
                 prefs.edit().putString("upd_asked", v).apply()
+                // «автоматически»: сразу на установку (Android может попросить подтвердить сам)
+                if (!manual && Updater.mode(app) == Updater.AUTO) { Updater.install(app)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() }; return@runOnUiThread }
                 android.app.AlertDialog.Builder(this).setTitle(tr("Доступна версия %s", v)).setMessage(r.notes.take(700).ifBlank { r.message })
                     .setPositiveButton(tr("Установить")) { _, _ -> Updater.install(app)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() } }
                     .setNegativeButton(tr("Позже"), null).show()
@@ -549,9 +551,12 @@ class MainActivity : Activity() {
     /** Окно «Обновления…» из меню: версия, проверка вручную, установка скачанного, автопроверка вкл./выкл. */
     private fun showUpdates() {
         val v = Updater.ready(this)
-        val b = android.app.AlertDialog.Builder(this).setTitle(tr("Обновления Loopa"))
-            .setMessage(tr("Установлена версия %s", Updater.current(this)) + (v?.let { "\n" + tr("Версия %s скачана и проверена — можно ставить", it) } ?: ""))
-            .setMultiChoiceItems(arrayOf(tr("Проверять и скачивать автоматически")), booleanArrayOf(Updater.auto(this))) { _, _, on -> Updater.setAuto(this, on) }
+        val modes = listOf(Updater.MANUAL, Updater.ASK, Updater.AUTO)
+        // список и сообщение в одном окне не уживаются (сообщение прячет список) — версия в заголовке
+        val b = android.app.AlertDialog.Builder(this)
+            .setTitle(tr("Установлена версия %s", Updater.current(this)) + (v?.let { " · " + tr("Доступна версия %s", it) } ?: ""))
+            .setSingleChoiceItems(arrayOf(tr("Вручную — только по кнопке"), tr("Предлагать — скачать и спросить"), tr("Автоматически — скачать и установить")),
+                modes.indexOf(Updater.mode(this))) { _, i -> Updater.setMode(this, modes[i]) }
             .setNeutralButton(tr("Проверить сейчас")) { _, _ -> android.widget.Toast.makeText(this, tr("Проверяю…"), android.widget.Toast.LENGTH_SHORT).show(); checkUpdate(true) }
             .setNegativeButton("OK", null)
         if (v != null) b.setPositiveButton(tr("Установить")) { _, _ -> Updater.install(applicationContext)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() } }

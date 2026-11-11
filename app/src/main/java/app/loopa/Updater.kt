@@ -51,8 +51,14 @@ object Updater {
     private fun p(ctx: Context) = prefs ?: ctx.applicationContext.getSharedPreferences("loopa", Context.MODE_PRIVATE).also { prefs = it }
     private fun dir(ctx: Context) = File(ctx.cacheDir, "updates").apply { mkdirs() }
 
-    fun auto(ctx: Context) = p(ctx).getBoolean("upd_auto", true)
-    fun setAuto(ctx: Context, on: Boolean) { p(ctx).edit().putBoolean("upd_auto", on).apply() }
+    const val MANUAL = "manual"; const val ASK = "ask"; const val AUTO = "auto"
+    fun parseMode(s: String?) = if (s == MANUAL || s == ASK || s == AUTO) s else ASK
+
+    /** Режим: вручную (только по кнопке) / предлагать (скачать и спросить — по умолчанию) / автоматически (скачать и поставить). */
+    fun mode(ctx: Context): String = p(ctx).let { sp ->
+        sp.getString("upd_mode", null)?.let(::parseMode) ?: if (sp.getBoolean("upd_auto", true)) ASK else MANUAL   // прежняя галочка
+    }
+    fun setMode(ctx: Context, m: String) { p(ctx).edit().putString("upd_mode", parseMode(m)).apply() }
     fun current(ctx: Context): String = ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "0"
 
     /** Скачанная и проверенная версия, готовая к установке; null — нет. */
@@ -67,7 +73,7 @@ object Updater {
     /** Проверить и при необходимости скачать (в вызывающем потоке — только фоновом). [force] — вручную: без интервала. */
     fun check(ctx: Context, force: Boolean): Result {
         val sp = p(ctx)
-        if (!force && (!auto(ctx) || System.currentTimeMillis() - sp.getLong("upd_checked", 0) < EVERY_MS)) return Result(ready(ctx), "")
+        if (!force && (mode(ctx) == MANUAL || System.currentTimeMillis() - sp.getLong("upd_checked", 0) < EVERY_MS)) return Result(ready(ctx), "")
         val rel = try { latest() } catch (e: Exception) {
             android.util.Log.w("Loopa", "обновление: проверка не удалась", e)
             return Result(ready(ctx), tr("Не удалось проверить обновления: %s", e.message ?: e.javaClass.simpleName))

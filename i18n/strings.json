@@ -193,7 +193,10 @@
   "Не удалось проверить обновления: %s",
   "Разрешите Loopa устанавливать приложения: откроются настройки",
   "Не удалось установить: %s",
-  "Контрольная сумма не совпала — файл отброшен"
+  "Контрольная сумма не совпала — файл отброшен",
+  "Вручную — только по кнопке",
+  "Предлагать — скачать и спросить",
+  "Автоматически — скачать и установить"
  ],
  "en": [
   "Already downloaded: Downloads/Loopa/%s",
@@ -388,7 +391,10 @@
   "Could not check for updates: %s",
   "Allow Loopa to install apps: settings will open",
   "Could not install: %s",
-  "Checksum mismatch — file discarded"
+  "Checksum mismatch — file discarded",
+  "Manual — only on request",
+  "Ask — download and ask",
+  "Automatic — download and install"
  ],
  "es": [
   "Ya descargado: Descargas/Loopa/%s",
@@ -583,7 +589,10 @@
   "No se pudo buscar actualizaciones: %s",
   "Permite a Loopa instalar apps: se abrirán los ajustes",
   "No se pudo instalar: %s",
-  "La suma de verificación no coincide: archivo descartado"
+  "La suma de verificación no coincide: archivo descartado",
+  "Manual — solo bajo demanda",
+  "Preguntar — descargar y preguntar",
+  "Automático — descargar e instalar"
  ],
  "pt": [
   "Já baixado: Downloads/Loopa/%s",
@@ -778,7 +787,10 @@
   "Não foi possível verificar atualizações: %s",
   "Permita que o Loopa instale apps: as configurações serão abertas",
   "Não foi possível instalar: %s",
-  "Soma de verificação não confere — arquivo descartado"
+  "Soma de verificação não confere — arquivo descartado",
+  "Manual — só sob demanda",
+  "Perguntar — baixar e perguntar",
+  "Automático — baixar e instalar"
  ],
  "de": [
   "Bereits geladen: Downloads/Loopa/%s",
@@ -973,7 +985,10 @@
   "Updates konnten nicht geprüft werden: %s",
   "Erlaube Loopa, Apps zu installieren: die Einstellungen öffnen sich",
   "Installation nicht möglich: %s",
-  "Prüfsumme stimmt nicht — Datei verworfen"
+  "Prüfsumme stimmt nicht — Datei verworfen",
+  "Manuell — nur auf Wunsch",
+  "Fragen — laden und nachfragen",
+  "Automatisch — laden und installieren"
  ],
  "fr": [
   "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1168,7 +1183,10 @@
   "Impossible de vérifier les mises à jour : %s",
   "Autorisez Loopa à installer des applis : les réglages vont s’ouvrir",
   "Installation impossible : %s",
-  "Somme de contrôle incorrecte — fichier écarté"
+  "Somme de contrôle incorrecte — fichier écarté",
+  "Manuel — sur demande seulement",
+  "Proposer — télécharger et demander",
+  "Automatique — télécharger et installer"
  ],
  "it": [
   "Già scaricato: Download/Loopa/%s",
@@ -1363,7 +1381,10 @@
   "Impossibile controllare gli aggiornamenti: %s",
   "Consenti a Loopa di installare app: si apriranno le impostazioni",
   "Impossibile installare: %s",
-  "Checksum non corrispondente — file scartato"
+  "Checksum non corrispondente — file scartato",
+  "Manuale — solo su richiesta",
+  "Chiedi — scarica e chiedi",
+  "Automatico — scarica e installa"
  ],
  "tr": [
   "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -1558,7 +1579,10 @@
   "Güncellemeler denetlenemedi: %s",
   "Loopa’nın uygulama yüklemesine izin verin: ayarlar açılacak",
   "Yüklenemedi: %s",
-  "Sağlama toplamı uyuşmuyor — dosya silindi"
+  "Sağlama toplamı uyuşmuyor — dosya silindi",
+  "Elle — yalnızca istenince",
+  "Sor — indir ve sor",
+  "Otomatik — indir ve yükle"
  ],
  "pl": [
   "Już pobrano: Pobrane/Loopa/%s",
@@ -1753,7 +1777,10 @@
   "Nie udało się sprawdzić aktualizacji: %s",
   "Zezwól Loopie na instalowanie aplikacji: otworzą się ustawienia",
   "Nie udało się zainstalować: %s",
-  "Suma kontrolna się nie zgadza — plik odrzucony"
+  "Suma kontrolna się nie zgadza — plik odrzucony",
+  "Ręcznie — tylko na żądanie",
+  "Pytaj — pobierz i zapytaj",
+  "Automatycznie — pobierz i zainstaluj"
  ],
  "uk": [
   "Уже завантажено: Завантаження/Loopa/%s",
@@ -1948,6 +1975,9 @@
   "Не вдалося перевірити оновлення: %s",
   "Дозвольте Loopa встановлювати застосунки: відкриються налаштування",
   "Не вдалося встановити: %s",
-  "Контрольна сума не збігається — файл відкинуто"
+  "Контрольна сума не збігається — файл відкинуто",
+  "Вручну — лише за кнопкою",
+  "Пропонувати — завантажити й запитати",
+  "Автоматично — завантажити й встановити"
  ]
 }

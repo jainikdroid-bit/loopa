@@ -16,6 +16,14 @@ class UpdaterTest {
         assertFalse(Updater.isNewer("1.10.2", "v1.10"))
     }
 
+    @Test fun `режим обновления - три значения, остальное - предлагать`() {
+        assertEquals(Updater.MANUAL, Updater.parseMode("manual"))
+        assertEquals(Updater.ASK, Updater.parseMode("ask"))
+        assertEquals(Updater.AUTO, Updater.parseMode("auto"))
+        assertEquals(Updater.ASK, Updater.parseMode(null))
+        assertEquals(Updater.ASK, Updater.parseMode("что-то"))
+    }
+
     @Test fun `хеш файла берётся из SHA256SUMS по имени`() {
         val a = "a".repeat(64); val b = "B".repeat(64)
         val sums = "$a  Loopa-1.7.apk\n$b *Loopa-1.12.apk\n"
