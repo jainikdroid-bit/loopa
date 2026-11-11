@@ -65,6 +65,8 @@ class MainActivity : Activity() {
             Feed.desc = prefs.getBoolean("desc", true); Feed.searchReddit = prefs.getBoolean("search_reddit", true)
             prefs.getString("order", null)?.let { Feed.restore(it) }
             // лайки Reddit, поставленные раньше, — один раз сами (когда лента уже грузится)
+            // открыли поиск, автора или тег из «Поделиться» (приложение было закрыто): показать после запуска
+            if (intent.getBooleanExtra("shared", false)) window.decorView.post { onNewIntent(intent) }
             if (Reddit.hadUser && !prefs.getBoolean("rd_likes_done", false)) window.decorView.postDelayed({ importRedditLikes(false) }, 25_000)
             Feed.rorder = prefs.getString("rorder", "hot")!!
         }
@@ -372,6 +374,7 @@ class MainActivity : Activity() {
     /** Из плеера: нажали тег или автора. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        intent.getStringExtra("query")?.let { nav(); search.setText(it); go(it) }
         intent.getStringExtra("tag")?.let { search.setText(it); go(it, tag = true) }
         intent.getStringExtra("author")?.let { nav(); search.setText(""); Feed.reset("", Feed.order, it); grid.scrollToPosition(0) }
         intent.getStringExtra("sub")?.let { nav(); search.setText(""); openSub(it) }

@@ -13,9 +13,13 @@ object ShareLink {
         data class VReddit(val id: String) : Link()
         /** Короткая ссылка reddit.com/r/…/s/… — раскрывается переадресацией. */
         data class Short(val url: String) : Link()
+        /** Не ролик, а страница RedGIFs: поиск, автор, тег — открывается в ленте Loopa. */
+        data class RedGifsSearch(val query: String) : Link()
+        data class RedGifsUser(val name: String) : Link()
+        data class RedGifsTag(val tag: String) : Link()
     }
 
-    private val URL = Regex("https?://[^\\s<>\"']+")
+    private val URL = Regex("https?://[\\w\\-._~:/?#\\[\\]@!$&()*+,;=%]+")
     private val RG_PAGE = Regex("^/(?:watch|ifr|i)/([A-Za-z]+)")
     private val RG_MEDIA = Regex("^/([A-Za-z]+?)(?:-[a-z]+)?\\.(?:mp4|webm|jpg|mp3)$")
     private val POST = Regex("/comments/([a-z0-9]{5,8})(?:/|$)")
@@ -31,7 +35,7 @@ object ShareLink {
         val host = u.host?.lowercase()?.removePrefix("www.")?.removePrefix("old.")?.removePrefix("new.")?.removePrefix("m.") ?: return null
         val path = u.rawPath ?: ""
         return when (host) {
-            "redgifs.com", "v3.redgifs.com" -> RG_PAGE.find(path)?.let { Link.RedGifs(it.groupValues[1]) }
+            "redgifs.com", "v3.redgifs.com" -> RG_PAGE.find(path)?.let { Link.RedGifs(it.groupValues[1]) } ?: redgifsPage(path, u.rawQuery)
             "media.redgifs.com" -> RG_MEDIA.find(path)?.let { Link.RedGifs(it.groupValues[1]) }
             "v.redd.it" -> Regex("^/([a-z0-9]+)").find(path)?.let { Link.VReddit(it.groupValues[1]) }
             "redd.it" -> SHORT_HOST.find(path)?.let { Link.RedditPost(it.groupValues[1], null) }
@@ -39,6 +43,29 @@ object ShareLink {
                 ?: if (SHORT.containsMatchIn(path)) Link.Short(url) else null
             else -> null
         }
+    }
+
+    /** Поиск (/search/gifs?query=…), автор (/users/имя), тег (/gifs/тег-через-дефис). */
+    private fun redgifsPage(path: String, rawQuery: String?): Link? {
+        if (path.startsWith("/search")) {
+            val q = rawQuery?.split('&')?.firstOrNull { it.startsWith("query=") }?.substringAfter('=')
+                ?.let { java.net.URLDecoder.decode(it, "UTF-8").trim() }
+            return q?.takeIf { it.isNotEmpty() }?.let { Link.RedGifsSearch(it) }
+        }
+        Regex("^/users/([A-Za-z0-9._-]+)").find(path)?.let { return Link.RedGifsUser(it.groupValues[1]) }
+        Regex("^/gifs/([^/]+)").find(path)?.let { m ->
+            val t = java.net.URLDecoder.decode(m.groupValues[1], "UTF-8").replace('-', ' ').trim()
+            return t.takeIf { it.isNotEmpty() }?.let { Link.RedGifsTag(it) }
+        }
+        return null
+    }
+
+    /** Страница RedGIFs → что передать ленте (ключ extra и значение); null — это ссылка на ролик. */
+    fun screen(link: Link): Pair<String, String>? = when (link) {
+        is Link.RedGifsSearch -> "query" to link.query
+        is Link.RedGifsUser -> "author" to link.name
+        is Link.RedGifsTag -> "tag" to link.tag
+        else -> null
     }
 
     /** Ролик по ссылке; null — не нашли. */
@@ -50,6 +77,7 @@ object ShareLink {
                 dash = "https://v.redd.it/${link.id}/DASHPlaylist.mpd")
         }
         is Link.RedditPost -> Reddit.post(link.id, link.url)
+        is Link.RedGifsSearch, is Link.RedGifsUser, is Link.RedGifsTag -> null
         is Link.Short -> redirect(link.url)?.let { parse(it) }?.takeIf { it !is Link.Short }?.let { resolve(it) }
     }
 

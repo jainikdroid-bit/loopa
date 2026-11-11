@@ -37,8 +37,22 @@ class ShareLinkTest {
     @Test fun `чужие ссылки и страницы без ролика не берутся`() {
         assertNull(ShareLink.parse("https://example.com/watch/abc"))
         assertNull(ShareLink.parse("https://www.reddit.com/r/gifs/"))
-        assertNull(ShareLink.parse("https://www.redgifs.com/users/someone"))
         assertNull(ShareLink.parse("https://i.redd.it/abc123.jpg"))
+    }
+
+    @Test fun `страницы RedGIFs - поиск, автор и тег - открываются в ленте`() {
+        val s = ShareLink.parse("https://www.redgifs.com/search/gifs?query=Gear+shift+&order=score")
+        assertEquals(Link.RedGifsSearch("Gear shift"), s)
+        assertEquals("query" to "Gear shift", ShareLink.screen(s!!))
+        assertEquals(Link.RedGifsSearch("тест"), ShareLink.parse("https://redgifs.com/search?query=%D1%82%D0%B5%D1%81%D1%82"))
+        assertEquals(Link.RedGifsUser("someone"), ShareLink.parse("https://www.redgifs.com/users/someone"))
+        assertEquals(Link.RedGifsTag("gear shift"), ShareLink.parse("https://www.redgifs.com/gifs/gear-shift"))
+        assertNull(ShareLink.parse("https://www.redgifs.com/search/gifs?order=score"))
+        assertNull(ShareLink.screen(Link.RedGifs("x")))
+    }
+
+    @Test fun `русские слова сразу после ссылки в ссылку не попадают`() {
+        assertEquals(Link.RedGifsSearch("Gear shift"), ShareLink.find("https://www.redgifs.com/search/gifs?query=Gear+shift+&order=scoreтоже"))
     }
 
     @Test fun `в тексте поделиться ссылка находится среди слов`() {

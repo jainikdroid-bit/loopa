@@ -17,6 +17,12 @@ class ShareActivity : Activity() {
         val link = ShareLink.find(text)
         android.util.Log.i("Loopa", "поделиться: ссылка ${link ?: "не распознана"}")
         if (link == null) { toast(tr("Нужна ссылка на ролик RedGIFs или Reddit")); finish(); return }
+        // страница RedGIFs (поиск, автор, тег) — не ролик: открыть её в ленте Loopa
+        ShareLink.screen(link)?.let { (key, value) ->
+            startActivity(Intent(this, MainActivity::class.java).putExtra(key, value).putExtra("shared", true)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+            finish(); return
+        }
         toast(tr("Ищу ролик по ссылке…"))
         val app = applicationContext
         Thread {
