@@ -31,17 +31,17 @@ object WebJson {
 
     /** Открыть страницу и вернуть результат скрипта (строка; JSON — по договорённости со скриптом). */
     /** Открыть страницу; обрыв соединения (бывает на VPN) — ещё до 2 попыток с паузой. */
-    fun page(ctx: Context, url: String, js: String, timeoutMs: Long = 20_000): String? {
+    fun page(ctx: Context, url: String, js: String, timeoutMs: Long = 20_000, accept: String? = null): String? {
         repeat(2) { n ->
-            pageOnce(ctx, url, js, timeoutMs)?.let { return it }
+            pageOnce(ctx, url, js, timeoutMs, accept)?.let { return it }
             if (!lastWasError) return null                       // не ошибка, а тайм-аут — повтор не поможет
             android.util.Log.i("Loopa", "WebJson повтор ${n + 1}: $url"); Thread.sleep(1500L * (n + 1))
         }
-        return pageOnce(ctx, url, js, timeoutMs)
+        return pageOnce(ctx, url, js, timeoutMs, accept)
     }
     @Volatile private var lastWasError = false
 
-    private fun pageOnce(ctx: Context, url: String, js: String, timeoutMs: Long): String? = synchronized(lock) {
+    private fun pageOnce(ctx: Context, url: String, js: String, timeoutMs: Long, accept: String? = null): String? = synchronized(lock) {
         lastWasError = false
         val want = url.substringBefore('?').trimEnd('/').lowercase()
         val f = CompletableFuture<String?>()
@@ -51,7 +51,7 @@ object WebJson {
                 override fun onPageFinished(v: WebView, u: String) {
                     if (f.isDone) return
                     // запоздавшее окончание прошлой страницы — не наш ответ
-                    if (u.substringBefore('?').trimEnd('/').lowercase() != want) { android.util.Log.i("Loopa", "WebJson: не та страница " + u.substringBefore('?')); return }
+                    if (u.substringBefore('?').trimEnd('/').lowercase() != want && (accept == null || !u.lowercase().contains(accept))) { android.util.Log.i("Loopa", "WebJson: не та страница " + u.substringBefore('?')); return }
                     android.util.Log.i("Loopa", "WebJson загружено: " + u.substringBefore('?'))
                     v.evaluateJavascript(js) { raw -> f.complete(str(raw)) }
                 }

@@ -64,6 +64,8 @@ class MainActivity : Activity() {
             Feed.duration = prefs.getString("duration", "any")!!; Feed.audioOnly = prefs.getBoolean("audio", false)
             Feed.desc = prefs.getBoolean("desc", true); Feed.searchReddit = prefs.getBoolean("search_reddit", true)
             prefs.getString("order", null)?.let { Feed.restore(it) }
+            // лайки Reddit, поставленные раньше, — один раз сами (когда лента уже грузится)
+            if (Reddit.hadUser && !prefs.getBoolean("rd_likes_done", false)) window.decorView.postDelayed({ importRedditLikes(false) }, 25_000)
             Feed.rorder = prefs.getString("rorder", "hot")!!
         }
         window.statusBarColor = BG; window.navigationBarColor = BG
@@ -460,6 +462,7 @@ class MainActivity : Activity() {
             }
             m.menu.add(6, 2, 2, tr("Мои интересы…"))
             m.menu.add(6, 3, 3, tr("Сбросить интересы"))
+            if (Reddit.hadUser) m.menu.add(6, 4, 4, tr("Взять лайки с Reddit"))
         }
         val dur = m.menu.addSubMenu(2, 0, 100, tr("Длительность: %s", if (Feed.duration == "any") tr("любая") else tr(Feed.DURATIONS.first { it.first == Feed.duration }.second).let(I18n::lower)))
         Feed.DURATIONS.forEachIndexed { i, d -> dur.add(3, i, i, tr(d.second)).isChecked = d.first == Feed.duration }
@@ -483,6 +486,7 @@ class MainActivity : Activity() {
                         2 -> { android.app.AlertDialog.Builder(this).setTitle(tr("Мои интересы")).setMessage(Interests.summary()).setPositiveButton("OK", null).show(); return@setOnMenuItemClickListener true }
                     3 -> { android.app.AlertDialog.Builder(this).setMessage(tr("Забыть лайки, просмотры и поиски для «Для вас»?"))
                         .setPositiveButton(tr("Сбросить")) { _, _ -> Interests.reset(); reload() }.setNegativeButton(tr("Отмена"), null).show(); return@setOnMenuItemClickListener true }
+                    4 -> { importRedditLikes(true); return@setOnMenuItemClickListener true }
                     else -> return@setOnMenuItemClickListener false
                 }
                 10 -> {
@@ -509,6 +513,18 @@ class MainActivity : Activity() {
             .setPositiveButton(tr("Сохранить")) { _, _ -> Hide.custom = e.text.toString().trim(); reload() }.setNegativeButton(tr("Отмена"), null).show()
     }
 
+    /** Лайки с Reddit → вкусы ([RedditImport]); вручную — с сообщением, сам при первом запуске после входа — молча. */
+    private fun importRedditLikes(manual: Boolean) {
+        val app = applicationContext
+        if (manual) android.widget.Toast.makeText(this, tr("Читаю лайки Reddit…"), android.widget.Toast.LENGTH_SHORT).show()
+        Thread {
+            val r = runCatching { RedditImport.run(app) }
+            runOnUiThread {
+                if (manual) android.widget.Toast.makeText(this, r.fold({ tr("Учтено лайков Reddit: %s", it.toString()) }, { tr("Лайки Reddit не загрузились: %s", it.message ?: "?") }), android.widget.Toast.LENGTH_LONG).show()
+                if (r.getOrDefault(0) > 0 && Feed.mode == "foryou") reload()
+            }
+        }.start()
+    }
     private fun reload() = if (Feed.reddit) Feed.reddit(Feed.sub) else Feed.reset(Feed.text, Feed.order, Feed.author, Feed.mode, Feed.byTag && Feed.query == Feed.text)
     private val prefs by lazy { getSharedPreferences("loopa", MODE_PRIVATE) }
 

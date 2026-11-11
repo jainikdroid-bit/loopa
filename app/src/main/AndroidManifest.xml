@@ -17,6 +17,41 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- «Поделиться» ссылкой RedGIFs/Reddit и «Открыть в приложении» — сразу скачать ролик -->
+        <activity
+            android:name=".ShareActivity"
+            android:label="Loopa — download / скачать"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="redgifs.com" />
+                <data android:host="www.redgifs.com" />
+                <data android:host="v.redd.it" />
+                <data android:host="redd.it" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="reddit.com" />
+                <data android:host="www.reddit.com" />
+                <data android:host="old.reddit.com" />
+                <data android:pathPattern=".*/comments/.*" />
+                <data android:pathPattern="/r/.*/s/.*" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".WelcomeActivity"
             android:exported="false" />

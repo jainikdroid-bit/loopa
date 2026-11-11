@@ -133,6 +133,8 @@ object Interests {
 
     fun like(g: Gif, on: Boolean) = bump(g, if (on) 5.0 else -5.0)
     fun download(g: Gif) = bump(g, 4.0)
+    /** Лайк, поставленный на Reddit раньше (импорт): слабее свежего — вкус мог измениться. */
+    fun imported(g: Gif) = bump(g, 2.5)
 
     /** Сколько смотрели: fraction — доля длительности (больше 1 — пошёл по кругу), sec — секунды на экране. */
     fun watched(g: Gif, fraction: Double, sec: Double) {

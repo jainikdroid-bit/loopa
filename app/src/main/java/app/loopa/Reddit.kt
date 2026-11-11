@@ -212,6 +212,27 @@ var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');
         return null
     }
 
+    /** Понравившееся пользователю (upvote) — со страницы сайта /user/имя/upvoted, постранично; курсор как у [page]. */
+    fun upvoted(after: String?): Pair<List<Gif>, String?> {
+        if (after?.startsWith(WEB) == true) return web(null, after.removePrefix(WEB))
+        val name = token()?.let { me(it) } ?: throw RuntimeException(if (hadUser) LOGIN_EXPIRED else LOGIN_NEEDED)
+        return web("$WWW/user/$name/upvoted/", null)
+    }
+
+    /**
+     * Один пост по id (ссылка из «Поделиться»): API Reddit, а не пустил или не вошли — страница поста в невидимом
+     * браузере ([fromPage]). [url] — полный адрес поста, если он известен; иначе короткий /comments/id.
+     */
+    fun post(id: String, url: String? = null): Gif? {
+        runCatching { JSONObject(get("/api/info", "id=t3_$id&raw_json=1")).getJSONObject("data").getJSONArray("children").getJSONObject(0).getJSONObject("data") }
+            .getOrNull()?.let { d -> video(d)?.let { return it } }
+        val ctx = app ?: return null
+        val raw = WebJson.page(ctx, url ?: "$WWW/comments/$id/", "(function(){$GRAB return JSON.stringify({posts:G(document)});})()", accept = "/comments/$id") ?: return null
+        val a = runCatching { JSONObject(raw).optJSONArray("posts") }.getOrNull() ?: return null
+        for (i in 0 until a.length()) a.getJSONObject(i).let { o -> if (o.optString("id") == id) return fromPage(o) }
+        return null
+    }
+
     /** Поиск постов по всему Reddit (18+ включительно) — «Для вас» собирает не только из своих сабреддитов. */
     @Suppress("UNUSED_PARAMETER")
     fun searchPosts(term: String, after: String?): Pair<List<Gif>, String?> = emptyList<Gif>() to null   // поиск постов API режет (403)

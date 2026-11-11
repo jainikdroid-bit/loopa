@@ -175,6 +175,13 @@ object I18nTables {
         "Авто — по свободному месту" to "Auto — based on free space",
         "%s МБ" to "%s MB",
         "%s ГБ" to "%s GB",
+        "Ищу ролик по ссылке…" to "Looking for the clip…",
+        "Нужна ссылка на ролик RedGIFs или Reddit" to "A RedGIFs or Reddit clip link is needed",
+        "Ролик по ссылке не найден" to "No clip found at this link",
+        "Взять лайки с Reddit" to "Import Reddit likes",
+        "Читаю лайки Reddit…" to "Reading Reddit likes…",
+        "Учтено лайков Reddit: %s" to "Reddit likes counted: %s",
+        "Лайки Reddit не загрузились: %s" to "Could not load Reddit likes: %s",
     ) }
     private val ES by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Ya descargado: Descargas/Loopa/%s",
@@ -348,6 +355,13 @@ object I18nTables {
         "Авто — по свободному месту" to "Auto — según el espacio libre",
         "%s МБ" to "%s MB",
         "%s ГБ" to "%s GB",
+        "Ищу ролик по ссылке…" to "Buscando el clip…",
+        "Нужна ссылка на ролик RedGIFs или Reddit" to "Se necesita un enlace de RedGIFs o Reddit",
+        "Ролик по ссылке не найден" to "No se encontró ningún clip en el enlace",
+        "Взять лайки с Reddit" to "Importar likes de Reddit",
+        "Читаю лайки Reddit…" to "Leyendo likes de Reddit…",
+        "Учтено лайков Reddit: %s" to "Likes de Reddit contados: %s",
+        "Лайки Reddit не загрузились: %s" to "No se cargaron los likes de Reddit: %s",
     ) }
     private val PT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Já baixado: Downloads/Loopa/%s",
@@ -521,6 +535,13 @@ object I18nTables {
         "Авто — по свободному месту" to "Auto — pelo espaço livre",
         "%s МБ" to "%s MB",
         "%s ГБ" to "%s GB",
+        "Ищу ролик по ссылке…" to "Procurando o clipe…",
+        "Нужна ссылка на ролик RedGIFs или Reddit" to "É preciso um link do RedGIFs ou do Reddit",
+        "Ролик по ссылке не найден" to "Nenhum clipe encontrado neste link",
+        "Взять лайки с Reddit" to "Importar curtidas do Reddit",
+        "Читаю лайки Reddit…" to "Lendo curtidas do Reddit…",
+        "Учтено лайков Reddit: %s" to "Curtidas do Reddit contadas: %s",
+        "Лайки Reddit не загрузились: %s" to "Não foi possível carregar as curtidas do Reddit: %s",
     ) }
     private val DE by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Bereits geladen: Downloads/Loopa/%s",
@@ -694,6 +715,13 @@ object I18nTables {
         "Авто — по свободному месту" to "Auto — nach freiem Speicher",
         "%s МБ" to "%s MB",
         "%s ГБ" to "%s GB",
+        "Ищу ролик по ссылке…" to "Suche den Clip …",
+        "Нужна ссылка на ролик RedGIFs или Reddit" to "Link zu einem RedGIFs- oder Reddit-Clip nötig",
+        "Ролик по ссылке не найден" to "Unter diesem Link wurde kein Clip gefunden",
+        "Взять лайки с Reddit" to "Reddit-Likes übernehmen",
+        "Читаю лайки Reddit…" to "Lese Reddit-Likes …",
+        "Учтено лайков Reddit: %s" to "Reddit-Likes berücksichtigt: %s",
+        "Лайки Reddit не загрузились: %s" to "Reddit-Likes konnten nicht geladen werden: %s",
     ) }
     private val FR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -867,6 +895,13 @@ object I18nTables {
         "Авто — по свободному месту" to "Auto — selon l’espace libre",
         "%s МБ" to "%s Mo",
         "%s ГБ" to "%s Go",
+        "Ищу ролик по ссылке…" to "Recherche du clip…",
+        "Нужна ссылка на ролик RedGIFs или Reddit" to "Il faut un lien RedGIFs ou Reddit",
+        "Ролик по ссылке не найден" to "Aucun clip trouvé pour ce lien",
+        "Взять лайки с Reddit" to "Importer les likes Reddit",
+        "Читаю лайки Reddit…" to "Lecture des likes Reddit…",
+        "Учтено лайков Reddit: %s" to "Likes Reddit pris en compte : %s",
+        "Лайки Reddit не загрузились: %s" to "Impossible de charger les likes Reddit : %s",
     ) }
     private val IT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Già scaricato: Download/Loopa/%s",
@@ -1040,6 +1075,13 @@ object I18nTables {
         "Авто — по свободному месту" to "Auto — in base allo spazio libero",
         "%s МБ" to "%s MB",
         "%s ГБ" to "%s GB",
+        "Ищу ролик по ссылке…" to "Cerco la clip…",
+        "Нужна ссылка на ролик RedGIFs или Reddit" to "Serve un link RedGIFs o Reddit",
+        "Ролик по ссылке не найден" to "Nessuna clip trovata a questo link",
+        "Взять лайки с Reddit" to "Importa i like di Reddit",
+        "Читаю лайки Reddit…" to "Leggo i like di Reddit…",
+        "Учтено лайков Reddit: %s" to "Like di Reddit considerati: %s",
+        "Лайки Reddit не загрузились: %s" to "Impossibile caricare i like di Reddit: %s",
     ) }
     private val TR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -1213,6 +1255,13 @@ object I18nTables {
         "Авто — по свободному месту" to "Otomatik — boş alana göre",
         "%s МБ" to "%s MB",
         "%s ГБ" to "%s GB",
+        "Ищу ролик по ссылке…" to "Klip aranıyor…",
+        "Нужна ссылка на ролик RedGIFs или Reddit" to "RedGIFs veya Reddit klip bağlantısı gerekli",
+        "Ролик по ссылке не найден" to "Bu bağlantıda klip bulunamadı",
+        "Взять лайки с Reddit" to "Reddit beğenilerini al",
+        "Читаю лайки Reddit…" to "Reddit beğenileri okunuyor…",
+        "Учтено лайков Reddit: %s" to "Sayılan Reddit beğenileri: %s",
+        "Лайки Reddit не загрузились: %s" to "Reddit beğenileri yüklenemedi: %s",
     ) }
     private val PL by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Już pobrano: Pobrane/Loopa/%s",
@@ -1386,6 +1435,13 @@ object I18nTables {
         "Авто — по свободному месту" to "Auto — według wolnego miejsca",
         "%s МБ" to "%s MB",
         "%s ГБ" to "%s GB",
+        "Ищу ролик по ссылке…" to "Szukam klipu…",
+        "Нужна ссылка на ролик RedGIFs или Reddit" to "Potrzebny link do klipu RedGIFs lub Reddit",
+        "Ролик по ссылке не найден" to "Nie znaleziono klipu pod tym linkiem",
+        "Взять лайки с Reddit" to "Pobierz polubienia z Reddita",
+        "Читаю лайки Reddit…" to "Czytam polubienia z Reddita…",
+        "Учтено лайков Reddit: %s" to "Uwzględnione polubienia z Reddita: %s",
+        "Лайки Reddit не загрузились: %s" to "Nie udało się wczytać polubień z Reddita: %s",
     ) }
     private val UK by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Уже завантажено: Завантаження/Loopa/%s",
@@ -1559,6 +1615,13 @@ object I18nTables {
         "Авто — по свободному месту" to "Авто — за вільним місцем",
         "%s МБ" to "%s МБ",
         "%s ГБ" to "%s ГБ",
+        "Ищу ролик по ссылке…" to "Шукаю ролик…",
+        "Нужна ссылка на ролик RedGIFs или Reddit" to "Потрібне посилання на ролик RedGIFs або Reddit",
+        "Ролик по ссылке не найден" to "За цим посиланням ролика не знайдено",
+        "Взять лайки с Reddit" to "Взяти вподобання з Reddit",
+        "Читаю лайки Reddit…" to "Читаю вподобання Reddit…",
+        "Учтено лайков Reddit: %s" to "Враховано вподобань Reddit: %s",
+        "Лайки Reddit не загрузились: %s" to "Не вдалося завантажити вподобання Reddit: %s",
     ) }
 
     fun of(code: String): Map<String, String> = when (code) {
