@@ -65,6 +65,8 @@ class MainActivity : Activity() {
             Feed.desc = prefs.getBoolean("desc", true); Feed.searchReddit = prefs.getBoolean("search_reddit", true)
             prefs.getString("order", null)?.let { Feed.restore(it) }
             // лайки Reddit, поставленные раньше, — один раз сами (когда лента уже грузится)
+            // обновление из релизов GitHub: проверка и скачивание сами, потом — вопрос «Установить?»
+            window.decorView.postDelayed({ checkUpdate(false) }, 12_000)
             // открыли поиск, автора или тег из «Поделиться» (приложение было закрыто): показать после запуска
             if (intent.getBooleanExtra("shared", false)) window.decorView.post { onNewIntent(intent) }
             if (Reddit.hadUser && !prefs.getBoolean("rd_likes_done", false)) window.decorView.postDelayed({ importRedditLikes(false) }, 25_000)
@@ -405,6 +407,13 @@ class MainActivity : Activity() {
     private fun go(q: String, tag: Boolean = false) {
         (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(search.windowToken, 0)
         search.clearFocus()
+        // вставили ссылку: на ролик (RedGIFs, Reddit) — скачать его; на страницу RedGIFs (поиск, автор, тег) — открыть её
+        if (!tag) ShareLink.find(q)?.let { link ->
+            search.setText("")
+            val screen = ShareLink.screen(link)
+            if (screen == null) ShareLink.download(applicationContext, link) else onNewIntent(Intent().putExtra(screen.first, screen.second))
+            return
+        }
         nav()
         if (Feed.reddit) { openSub(q); return }
         // Erome/Eporner: поиск по тому же сайту (пусто — его лента)
@@ -473,6 +482,7 @@ class MainActivity : Activity() {
         m.menu.add(4, 0, 101, tr("Только со звуком")).apply { isCheckable = true; isChecked = Feed.audioOnly }
         m.menu.add(11, 0, 102, tr("Искать и на Reddit")).apply { isCheckable = true; isChecked = Feed.searchReddit; isEnabled = Reddit.hadUser }
         m.menu.add(8, 0, 103, tr("Живые превью в сетке")).apply { isCheckable = true; isChecked = preview.enabled }
+        m.menu.add(12, 0, 106, tr("Обновления…"))
         // кэш видео: авто по свободному месту или вручную; сейчас занято / предел
         val vc = m.menu.addSubMenu(30, 0, 105, tr("Кэш видео: %s", size(Video.cacheLimit)))
         vc.add(31, 99, 0, tr("Занято: %s", size(Video.cacheUsed + Net.imgCacheUsed))).isEnabled = false
@@ -496,6 +506,7 @@ class MainActivity : Activity() {
                     if (it.itemId == 99) { hideWords(); return@setOnMenuItemClickListener true }
                     val id = Hide.PRESETS[it.itemId].first; Hide.set(id, !Hide.on(id)); reload()
                 }
+                12 -> { showUpdates(); return@setOnMenuItemClickListener true }
                 31 -> { if (it.itemId != 99) Video.cacheChoice = PreloadPolicy.CACHE_CHOICES[it.itemId]; return@setOnMenuItemClickListener true }
                 8 -> { preview.enabled = !preview.enabled; prefs.edit().putBoolean("live", preview.enabled).apply(); if (preview.enabled) live() else preview.stopAll(); return@setOnMenuItemClickListener true }
                 11 -> { Feed.searchReddit = !Feed.searchReddit; prefs.edit().putBoolean("search_reddit", Feed.searchReddit).apply(); reload() }
@@ -514,6 +525,37 @@ class MainActivity : Activity() {
         val e = EditText(this).apply { setText(Hide.custom); hint = tr("например: cock, bbc"); setSingleLine() }
         android.app.AlertDialog.Builder(this).setTitle(tr("Скрывать ролики со словами")).setView(e)
             .setPositiveButton(tr("Сохранить")) { _, _ -> Hide.custom = e.text.toString().trim(); reload() }.setNegativeButton(tr("Отмена"), null).show()
+    }
+
+    /** Обновление Loopa: [manual] — по кнопке (с сообщением); сам — раз в 6 часов, спрашивает один раз на версию. */
+    private fun checkUpdate(manual: Boolean) {
+        val app = applicationContext
+        Thread {
+            val r = Updater.check(app, manual)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                val v = r.ready
+                if (v == null) { if (manual && r.message.isNotEmpty()) android.widget.Toast.makeText(this, r.message, android.widget.Toast.LENGTH_LONG).show(); return@runOnUiThread }
+                val asked = prefs.getString("upd_asked", null)
+                if (!manual && asked == v) return@runOnUiThread
+                prefs.edit().putString("upd_asked", v).apply()
+                android.app.AlertDialog.Builder(this).setTitle(tr("Доступна версия %s", v)).setMessage(r.notes.take(700).ifBlank { r.message })
+                    .setPositiveButton(tr("Установить")) { _, _ -> Updater.install(app)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() } }
+                    .setNegativeButton(tr("Позже"), null).show()
+            }
+        }.start()
+    }
+
+    /** Окно «Обновления…» из меню: версия, проверка вручную, установка скачанного, автопроверка вкл./выкл. */
+    private fun showUpdates() {
+        val v = Updater.ready(this)
+        val b = android.app.AlertDialog.Builder(this).setTitle(tr("Обновления Loopa"))
+            .setMessage(tr("Установлена версия %s", Updater.current(this)) + (v?.let { "\n" + tr("Версия %s скачана и проверена — можно ставить", it) } ?: ""))
+            .setMultiChoiceItems(arrayOf(tr("Проверять и скачивать автоматически")), booleanArrayOf(Updater.auto(this))) { _, _, on -> Updater.setAuto(this, on) }
+            .setNeutralButton(tr("Проверить сейчас")) { _, _ -> android.widget.Toast.makeText(this, tr("Проверяю…"), android.widget.Toast.LENGTH_SHORT).show(); checkUpdate(true) }
+            .setNegativeButton("OK", null)
+        if (v != null) b.setPositiveButton(tr("Установить")) { _, _ -> Updater.install(applicationContext)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() } }
+        b.show()
     }
 
     /** Лайки с Reddit → вкусы ([RedditImport]); вручную — с сообщением, сам при первом запуске после входа — молча. */

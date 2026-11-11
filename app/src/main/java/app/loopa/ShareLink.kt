@@ -81,6 +81,24 @@ object ShareLink {
         is Link.Short -> redirect(link.url)?.let { parse(it) }?.takeIf { it !is Link.Short }?.let { resolve(it) }
     }
 
+    private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+
+    /** Найти ролик по ссылке и поставить на скачивание; сообщения — в главный поток. */
+    fun download(app: android.content.Context, link: Link) {
+        fun say(t: String) = main.post { android.widget.Toast.makeText(app, t, android.widget.Toast.LENGTH_LONG).show() }
+        say(tr("Ищу ролик по ссылке…"))
+        Thread {
+            val r = runCatching { resolve(link) }.onFailure { android.util.Log.w("Loopa", "ссылка $link", it) }
+            val g = r.getOrNull()
+            android.util.Log.i("Loopa", "ссылка в поиске: ролик ${g?.id ?: "не найден"}")
+            when {
+                g != null -> main.post { Downloads.get(app, g) }
+                r.isFailure -> say(tr("Не скачать: %s", r.exceptionOrNull()?.message ?: "?"))
+                else -> say(tr("Ролик по ссылке не найден"))
+            }
+        }.start()
+    }
+
     /** Куда ведёт короткая ссылка (после переадресаций). */
     private fun redirect(url: String): String? {
         // сначала обычным запросом; Reddit приложению нередко не отвечает — тогда через невидимый браузер

@@ -15,8 +15,9 @@ android {
         applicationId = "app.loopa"
         minSdk = 26
         targetSdk = 35
-        versionCode = 37
-        versionName = "1.11.2"
+        // -PvCode=1 -PvName=1.0-test — сборка «старой» версии для проверки обновления на эмуляторе
+        versionCode = (project.findProperty("vCode") as String?)?.toInt() ?: 38
+        versionName = (project.findProperty("vName") as String?) ?: "1.12"
     }
     signingConfigs {
         if (signing != null) create("release") {
