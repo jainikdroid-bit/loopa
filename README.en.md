@@ -122,6 +122,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.11.2 | Sharing a RedGIFs page (search, user, tag) opens it in the Loopa feed |
 | 1.12 | Auto-update from GitHub Releases (checked every 6 hours, downloaded, SHA-256 verified, installed on a tap; “Updates…” menu); paste a RedGIFs or Reddit clip link into search and Loopa downloads it |
 | 1.12.1 | Update mode to choose: manual / ask (download and ask) / automatic (download and install); ⧩ menu → “Updates…” |
+| 1.12.2 | “For you” taste network: tags frequent in your likes and searches weigh more, weight flows to tags that always sit next to your favourites; search words get linked to the tags of clips you liked after it; “Close to your favourites” in “My interests” |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |
