@@ -71,7 +71,10 @@
   just like RedGIFs; 18+ content appears if it's enabled in your Reddit account settings.
 - **“For you” with its own algorithm.** An interest profile learns from likes, full watches and rewatches, skips,
   searches and downloads — by tags, words in titles and descriptions, subreddits and creators; old tastes fade on their
-  own. It picks RedGIFs videos and mixes in Reddit posts from matching subreddits (18+ included, which Reddit's own
+  own. Tags work as a small “taste network”: tags you like, download and search often weigh more, tags that keep
+  showing up together get linked, and a tag never liked by itself but always next to your favourites gets weight
+  from them; words of a search are linked to the tags of clips you like right after it, and skipping a clip the
+  network expected you to like counts double. It picks RedGIFs videos and mixes in Reddit posts from matching subreddits (18+ included, which Reddit's own
   recommendations leave out), plus Erome and Eporner if enabled. Each source's share is “low / medium / high”; the
   profile is shown in “My interests” and stays on the phone. While interests are still few, the feed is topped up
   with popular videos so it never runs dry.

@@ -196,7 +196,8 @@
   "Контрольная сумма не совпала — файл отброшен",
   "Вручную — только по кнопке",
   "Предлагать — скачать и спросить",
-  "Автоматически — скачать и установить"
+  "Автоматически — скачать и установить",
+  "Рядом с любимыми"
  ],
  "en": [
   "Already downloaded: Downloads/Loopa/%s",
@@ -394,7 +395,8 @@
   "Checksum mismatch — file discarded",
   "Manual — only on request",
   "Ask — download and ask",
-  "Automatic — download and install"
+  "Automatic — download and install",
+  "Close to your favourites"
  ],
  "es": [
   "Ya descargado: Descargas/Loopa/%s",
@@ -592,7 +594,8 @@
   "La suma de verificación no coincide: archivo descartado",
   "Manual — solo bajo demanda",
   "Preguntar — descargar y preguntar",
-  "Automático — descargar e instalar"
+  "Automático — descargar e instalar",
+  "Cerca de tus favoritos"
  ],
  "pt": [
   "Já baixado: Downloads/Loopa/%s",
@@ -790,7 +793,8 @@
   "Soma de verificação não confere — arquivo descartado",
   "Manual — só sob demanda",
   "Perguntar — baixar e perguntar",
-  "Automático — baixar e instalar"
+  "Automático — baixar e instalar",
+  "Perto dos seus favoritos"
  ],
  "de": [
   "Bereits geladen: Downloads/Loopa/%s",
@@ -988,7 +992,8 @@
   "Prüfsumme stimmt nicht — Datei verworfen",
   "Manuell — nur auf Wunsch",
   "Fragen — laden und nachfragen",
-  "Automatisch — laden und installieren"
+  "Automatisch — laden und installieren",
+  "Nah an deinen Favoriten"
  ],
  "fr": [
   "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1186,7 +1191,8 @@
   "Somme de contrôle incorrecte — fichier écarté",
   "Manuel — sur demande seulement",
   "Proposer — télécharger et demander",
-  "Automatique — télécharger et installer"
+  "Automatique — télécharger et installer",
+  "Proches de vos favoris"
  ],
  "it": [
   "Già scaricato: Download/Loopa/%s",
@@ -1384,7 +1390,8 @@
   "Checksum non corrispondente — file scartato",
   "Manuale — solo su richiesta",
   "Chiedi — scarica e chiedi",
-  "Automatico — scarica e installa"
+  "Automatico — scarica e installa",
+  "Vicino ai tuoi preferiti"
  ],
  "tr": [
   "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -1582,7 +1589,8 @@
   "Sağlama toplamı uyuşmuyor — dosya silindi",
   "Elle — yalnızca istenince",
   "Sor — indir ve sor",
-  "Otomatik — indir ve yükle"
+  "Otomatik — indir ve yükle",
+  "Favorilerinize yakın"
  ],
  "pl": [
   "Już pobrano: Pobrane/Loopa/%s",
@@ -1780,7 +1788,8 @@
   "Suma kontrolna się nie zgadza — plik odrzucony",
   "Ręcznie — tylko na żądanie",
   "Pytaj — pobierz i zapytaj",
-  "Automatycznie — pobierz i zainstaluj"
+  "Automatycznie — pobierz i zainstaluj",
+  "Blisko ulubionych"
  ],
  "uk": [
   "Уже завантажено: Завантаження/Loopa/%s",
@@ -1978,6 +1987,7 @@
   "Контрольна сума не збігається — файл відкинуто",
   "Вручну — лише за кнопкою",
   "Пропонувати — завантажити й запитати",
-  "Автоматично — завантажити й встановити"
+  "Автоматично — завантажити й встановити",
+  "Поруч з улюбленими"
  ]
 }

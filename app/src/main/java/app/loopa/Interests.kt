@@ -27,6 +27,10 @@ import kotlin.math.pow
  *    весит меньше, редкий и конкретный — больше (как IDF, 0,3…2,5);
  *  - склейка написаний: «Big Tits», «big  tits», «big-tits» — один термин ([key]);
  *  - лишнее уходит: термины слабее [PRUNE] после затухания удаляются, повторные пропуски копят минус.
+ *
+ * Сеть вкуса (14.11, [TagNet]): теги — узлы, сочетания — связи. Тег ролика оценивается не только своим весом, но и
+ * весами тех, с кем он часто нравится вместе; слова запроса связываются между собой и с тегами ролика, понравившегося
+ * в течение 30 минут после поиска. Пропуск того, что сеть считала «во вкусе», штрафуется сильнее (до ×2).
  */
 object Interests {
     private const val DECAY_PER_DAY = 0.97
@@ -42,8 +46,18 @@ object Interests {
     /** Сколько тегов ролика берём в сочетания (пары растут квадратично). */
     private const val PAIR_TAGS = 8
 
+    /** Сколько после поиска лайк/досмотр связывает теги запроса с тегами ролика. */
+    private const val QUERY_LINK_MS = 30 * 60_000L
+    /** Сила связи «запрос → тег ролика» от силы сигнала. */
+    private const val QUERY_LINK = 0.3
+
     private lateinit var file: File
     private var data = JSONObject()
+    /** Активация сети вкуса ([TagNet]) — пересчитывается после изменения весов. */
+    private var net: Map<String, Double>? = null
+    /** Теги последнего поиска и когда искали — для связей «запрос → понравившийся ролик». */
+    private var lastQuery: List<String> = emptyList()
+    private var lastQueryAt = 0L
     private val io by lazy { Handler(HandlerThread("interests").apply { start() }.looper) }
     private val seen = LinkedHashSet<String>()
 
@@ -51,6 +65,7 @@ object Interests {
         if (::file.isInitialized) return
         file = File(ctx.filesDir, "interests.json")
         data = runCatching { JSONObject(file.readText()) }.getOrDefault(JSONObject())
+        net = null
         AXES.forEach { if (!data.has(it)) data.put(it, JSONObject()) }
         COUNTS.forEach { c -> if (!data.has(c)) data.put(c, JSONObject()) }
         merge()
@@ -93,12 +108,20 @@ object Interests {
     // ---- сигналы ----
 
     private fun bump(g: Gif, w: Double) = synchronized(this) {
-        features(g).forEach { (axis, terms) -> terms.forEach { add(axis, it, w * when (axis) { "kw", "pair" -> 0.5; else -> 1.0 }) } }
+        val f = features(g)
+        f.forEach { (axis, terms) -> terms.forEach { add(axis, it, w * when (axis) { "kw", "pair" -> 0.5; else -> 1.0 }) } }
+        // понравилось вскоре после поиска — связать слова запроса с тегами ролика: сеть учит, какие теги RedGIFs
+        // отвечают твоим словам (свой словарь вместо общего)
+        if (w > 0 && lastQuery.isNotEmpty() && System.currentTimeMillis() - lastQueryAt < QUERY_LINK_MS) {
+            val tags = f["tag"].orEmpty().filter { !Api.isGeneric(it) }.take(PAIR_TAGS)
+            lastQuery.forEach { q -> tags.forEach { t -> TagNet.pairKey(q, t)?.let { add("pair", it, w * QUERY_LINK) } } }
+        }
         save()
     }
 
     @Synchronized private fun add(axis: String, term: String, w: Double) {
         if (term.isBlank()) return
+        net = null
         val o = data.getJSONObject(axis)
         o.put(term, o.optDouble(term, 0.0) + w)
         // подкрепление: положительный сигнал (лайк, досмотр, поиск) — счётчик повторов термина
@@ -144,7 +167,8 @@ object Interests {
             trimSeen()
         }
         when {
-            sec < 2.5 && g.duration > 6 -> bump(g, -0.4)
+            // пропуск того, что сеть считала «во вкусе», — её ошибка: штраф до двух раз сильнее
+            sec < 2.5 && g.duration > 6 -> bump(g, -0.4 * TagNet.surprise(score(g) * Ranker.norm(g.tags.size)))
             fraction >= 1.8 -> bump(g, 3.0)
             fraction >= 0.8 -> bump(g, 1.5)
             sec >= 3 -> bump(g, 0.3)
@@ -154,15 +178,19 @@ object Interests {
 
     /** Поиск: слова запроса — как теги и как слова. */
     fun search(q: String) = synchronized(this) {
-        words(q).forEach { add("tag", key(it), 3.0); add("kw", it, 1.5) }
+        val ws = words(q).map(::key).filter { it.isNotEmpty() }.distinct()
+        ws.forEach { add("tag", it, 3.0); add("kw", it, 1.5) }
+        // слова одного запроса связаны между собой (как теги одного ролика)
+        ws.take(PAIR_TAGS).let { t -> t.indices.forEach { i -> (i + 1 until t.size).forEach { j -> TagNet.pairKey(t[i], t[j])?.let { add("pair", it, 1.5) } } } }
+        lastQuery = ws.filter { !Api.isGeneric(it) }.take(4); lastQueryAt = System.currentTimeMillis()
         q.trim().lowercase().takeIf { it.length >= 3 }?.let { add("q", it, 3.0) }
         save()
     }
-    fun openTag(t: String) = synchronized(this) { add("tag", key(t), 3.0); save() }
+    fun openTag(t: String) = synchronized(this) { add("tag", key(t), 3.0); lastQuery = listOf(key(t)).filter { it.isNotEmpty() }; lastQueryAt = System.currentTimeMillis(); save() }
     fun openSub(s: String) = synchronized(this) { s.split("+").filter { it.isNotBlank() && !it.startsWith("u/") }.forEach { add("sub", it.lowercase(), 3.0) }; save() }
 
     fun reset() = synchronized(this) {
-        AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); seen.clear(); save()
+        AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); seen.clear(); net = null; lastQuery = emptyList(); save()
     }
 
     // ---- использование ----
@@ -172,12 +200,22 @@ object Interests {
     /** Насколько ролик в твоём вкусе (0 — ничего не известно); отрицательные — «пропускал такое». */
     fun score(g: Gif): Double = synchronized(this) {
         var s = 0.0
+        val act = activation()
         features(g).forEach { (axis, terms) ->
             val o = data.getJSONObject(axis)
             val k = when (axis) { "kw" -> 0.6; "sub" -> 1.2; "user" -> 0.8; "pair" -> 0.7; else -> 1.0 }
-            terms.forEach { s += k * eff(axis, it, o.optDouble(it, 0.0)) }
+            // теги — по активации сети: свой вес + вес частых соседей
+            terms.forEach { s += k * if (axis == "tag") act[it] ?: 0.0 else eff(axis, it, o.optDouble(it, 0.0)) }
         }
         s
+    }
+
+    /** Активация сети вкуса ([TagNet]): узлы — действующие веса тегов, связи — сочетания; кэш до следующего изменения. */
+    @Synchronized private fun activation(): Map<String, Double> = net ?: run {
+        val tags = data.getJSONObject("tag"); val pairs = data.getJSONObject("pair")
+        val nodes = tags.keys().asSequence().associateWith { eff("tag", it, tags.getDouble(it)) }
+        val edges = pairs.keys().asSequence().associateWith { eff("pair", it, pairs.getDouble(it)) }
+        TagNet.activate(nodes, edges).also { net = it }
     }
 
     /** Верх оси по весу. */
@@ -186,10 +224,15 @@ object Interests {
         o.keys().asSequence().map { it to eff(axis, it, o.getDouble(it)) }.filter { it.second > 0.3 }.sortedByDescending { it.second }.take(n).toList()
     }
 
+    /** Верх тегов по активации сети — вместе с теми, что сами не лайкались, но всегда рядом с любимыми. */
+    fun topNet(n: Int): List<Pair<String, Double>> = synchronized(this) {
+        activation().entries.asSequence().filter { it.value > 0.3 && ',' !in it.key }.sortedByDescending { it.value }.take(n).map { it.key to it.value }.toList()
+    }
+
     val empty get() = AXES.all { top(it, 1).isEmpty() }
 
-    /** Тег для подборки RedGIFs: случайный из верхних с вероятностью по весу (не только самый любимый); skip — исчерпанные. */
-    fun pickTag(skip: Set<String> = emptySet()): String? = weighted(top("tag", 30).filter { it.first !in skip }.take(20))
+    /** Тег для подборки RedGIFs: случайный из верхних по сети с вероятностью по весу (не только самый любимый); skip — исчерпанные. */
+    fun pickTag(skip: Set<String> = emptySet()): String? = weighted(topNet(30).filter { it.first !in skip }.take(20))
 
     /**
      * Сочетание тегов «a,b» для подборки: из выученных сочетаний, а пока их мало — пары из верхних конкретных тегов
@@ -237,6 +280,7 @@ object Interests {
         val days = (now - data.optLong("at", now)) / DAY.toDouble()
         if (days < 0.25) return
         val f = DECAY_PER_DAY.pow(days)
+        net = null
         AXES.forEach { axis ->
             val o = data.getJSONObject(axis)
             val kept = o.keys().asSequence().map { it to o.getDouble(it) * f }.filter { kotlin.math.abs(it.second) >= PRUNE }
@@ -267,7 +311,11 @@ object Interests {
             val t = top(axis, 12)
             if (t.isNotEmpty()) append(title).append(": ").append(t.joinToString(", ") { pre + it.first.replace(",", " + $pre") }).append("\n\n")
         }
-        line(tr("Теги"), "tag", "#"); line(tr("Сочетания"), "pair", "#"); line(tr("Запросы"), "q", ""); line(tr("Слова"), "kw", ""); line(tr("Сабреддиты"), "sub", "r/"); line(tr("Авторы"), "user", "")
+        line(tr("Теги"), "tag", "#")
+        // что подсказала сеть: теги, которых нет среди своих верхних, но они рядом с любимыми
+        val own = top("tag", 12).map { it.first }.toSet()
+        topNet(30).map { it.first }.filter { it !in own }.take(8).takeIf { it.isNotEmpty() }?.let { append(tr("Рядом с любимыми")).append(": ").append(it.joinToString(", ") { "#$it" }).append("\n\n") }
+        line(tr("Сочетания"), "pair", "#"); line(tr("Запросы"), "q", ""); line(tr("Слова"), "kw", ""); line(tr("Сабреддиты"), "sub", "r/"); line(tr("Авторы"), "user", "")
         if (isEmpty()) append(tr("Пока пусто: лайкайте, досматривайте и ищите — «Для вас» подстроится."))
     }.trim()
 

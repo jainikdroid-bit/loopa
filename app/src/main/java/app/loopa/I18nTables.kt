@@ -200,6 +200,7 @@ object I18nTables {
         "Вручную — только по кнопке" to "Manual — only on request",
         "Предлагать — скачать и спросить" to "Ask — download and ask",
         "Автоматически — скачать и установить" to "Automatic — download and install",
+        "Рядом с любимыми" to "Close to your favourites",
     ) }
     private val ES by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Ya descargado: Descargas/Loopa/%s",
@@ -398,6 +399,7 @@ object I18nTables {
         "Вручную — только по кнопке" to "Manual — solo bajo demanda",
         "Предлагать — скачать и спросить" to "Preguntar — descargar y preguntar",
         "Автоматически — скачать и установить" to "Automático — descargar e instalar",
+        "Рядом с любимыми" to "Cerca de tus favoritos",
     ) }
     private val PT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Já baixado: Downloads/Loopa/%s",
@@ -596,6 +598,7 @@ object I18nTables {
         "Вручную — только по кнопке" to "Manual — só sob demanda",
         "Предлагать — скачать и спросить" to "Perguntar — baixar e perguntar",
         "Автоматически — скачать и установить" to "Automático — baixar e instalar",
+        "Рядом с любимыми" to "Perto dos seus favoritos",
     ) }
     private val DE by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Bereits geladen: Downloads/Loopa/%s",
@@ -794,6 +797,7 @@ object I18nTables {
         "Вручную — только по кнопке" to "Manuell — nur auf Wunsch",
         "Предлагать — скачать и спросить" to "Fragen — laden und nachfragen",
         "Автоматически — скачать и установить" to "Automatisch — laden und installieren",
+        "Рядом с любимыми" to "Nah an deinen Favoriten",
     ) }
     private val FR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -992,6 +996,7 @@ object I18nTables {
         "Вручную — только по кнопке" to "Manuel — sur demande seulement",
         "Предлагать — скачать и спросить" to "Proposer — télécharger et demander",
         "Автоматически — скачать и установить" to "Automatique — télécharger et installer",
+        "Рядом с любимыми" to "Proches de vos favoris",
     ) }
     private val IT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Già scaricato: Download/Loopa/%s",
@@ -1190,6 +1195,7 @@ object I18nTables {
         "Вручную — только по кнопке" to "Manuale — solo su richiesta",
         "Предлагать — скачать и спросить" to "Chiedi — scarica e chiedi",
         "Автоматически — скачать и установить" to "Automatico — scarica e installa",
+        "Рядом с любимыми" to "Vicino ai tuoi preferiti",
     ) }
     private val TR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -1388,6 +1394,7 @@ object I18nTables {
         "Вручную — только по кнопке" to "Elle — yalnızca istenince",
         "Предлагать — скачать и спросить" to "Sor — indir ve sor",
         "Автоматически — скачать и установить" to "Otomatik — indir ve yükle",
+        "Рядом с любимыми" to "Favorilerinize yakın",
     ) }
     private val PL by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Już pobrano: Pobrane/Loopa/%s",
@@ -1586,6 +1593,7 @@ object I18nTables {
         "Вручную — только по кнопке" to "Ręcznie — tylko na żądanie",
         "Предлагать — скачать и спросить" to "Pytaj — pobierz i zapytaj",
         "Автоматически — скачать и установить" to "Automatycznie — pobierz i zainstaluj",
+        "Рядом с любимыми" to "Blisko ulubionych",
     ) }
     private val UK by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Уже завантажено: Завантаження/Loopa/%s",
@@ -1784,6 +1792,7 @@ object I18nTables {
         "Вручную — только по кнопке" to "Вручну — лише за кнопкою",
         "Предлагать — скачать и спросить" to "Пропонувати — завантажити й запитати",
         "Автоматически — скачать и установить" to "Автоматично — завантажити й встановити",
+        "Рядом с любимыми" to "Поруч з улюбленими",
     ) }
 
     fun of(code: String): Map<String, String> = when (code) {
