@@ -10,8 +10,8 @@ import kotlin.math.ln
 import kotlin.math.pow
 
 /**
- * Профиль интересов — только на телефоне (files/interests.json). Веса по четырём осям: теги роликов, слова из названий и
- * описаний, сабреддиты, авторы. Учится на действиях:
+ * Профиль интересов — только на телефоне (files/interests.json). Веса по осям: теги роликов, слова из названий и
+ * описаний, сабреддиты, авторы, запросы целиком («q») и сайты роликов («site»: redgifs, reddit, erome…). Учится на действиях:
  *  - лайк +5 (снят — −5), скачивание +4, досмотр (≥80 %) +1,5 и пересмотр по кругу ещё +1,5, мельком +0,3;
  *  - пропуск (< 2,5 с у ролика длиннее 6 с) −0,4;
  *  - поиск, открытый тег или сабреддит +3; сам запрос целиком тоже запоминается (ось «q») — «Для вас» ищет по нему.
@@ -28,16 +28,22 @@ import kotlin.math.pow
  *  - склейка написаний: «Big Tits», «big  tits», «big-tits» — один термин ([key]);
  *  - лишнее уходит: термины слабее [PRUNE] после затухания удаляются, повторные пропуски копят минус.
  *
- * Сеть вкуса (14.11, [TagNet]): теги — узлы, сочетания — связи. Тег ролика оценивается не только своим весом, но и
- * весами тех, с кем он часто нравится вместе; слова запроса связываются между собой и с тегами ролика, понравившегося
- * в течение 30 минут после поиска. Пропуск того, что сеть считала «во вкусе», штрафуется сильнее (до ×2).
+ * Сеть вкуса (14.11, [TagNet]; с 1.15 — из всех интересов): узлы — типизированные id «тип:термин» по всем осям,
+ * связи — сочетания тегов (ось «pair») и связи между типами (ось «link», ключ «idA|idB»: тег — автор, сабреддит, сайт;
+ * автор — сабреддит; слово названия — тег; запрос целиком — тег понравившегося ролика). Ролик оценивается не только
+ * своими весами, но и весами тех, с кем нравится вместе; слова запроса связываются между собой и с тегами ролика,
+ * понравившегося в течение 30 минут после поиска. Пропуск того, что сеть считала «во вкусе», штрафуется сильнее (до ×2).
+ * Сеть растёт по мере использования: пределы по осям — [MAX_TERMS], старое затухает и вымывается.
  */
 object Interests {
     private const val DECAY_PER_DAY = 0.97
-    private const val MAX_TERMS = 400
+    /** Сколько терминов держим по осям: сеть растёт, пока пользуешься, но не бесконечно. */
+    private val MAX_TERMS = mapOf("tag" to 1500, "kw" to 800, "user" to 600, "sub" to 300, "q" to 200, "site" to 20, "pair" to 4000, "link" to 6000)
     private const val MAX_SEEN = 5000
     private const val DAY = 86_400_000L
-    private val AXES = listOf("tag", "kw", "sub", "user", "pair", "q")
+    private val AXES = listOf("tag", "kw", "sub", "user", "pair", "q", "site", "link")
+    /** Оси-узлы сети (pair и link — связи). */
+    private val NODE_AXES = listOf("tag", "kw", "sub", "user", "q", "site")
     /** Счётчики: подкрепления термина (по осям) и встречаемость тегов/слов в просмотренном. */
     private val COUNTS = listOf("cnt", "df")
     private const val PRUNE = 0.15
@@ -50,6 +56,11 @@ object Interests {
     private const val QUERY_LINK_MS = 30 * 60_000L
     /** Сила связи «запрос → тег ролика» от силы сигнала. */
     private const val QUERY_LINK = 0.3
+    /** Сила связей между типами от силы сигнала; слово названия — тег слабее. */
+    private const val LINK = 0.3
+    private const val LINK_KW = 0.15
+    /** Сколько слов названия и тегов берём в связи слово — тег. */
+    private const val LINK_WORDS = 4
 
     private lateinit var file: File
     private var data = JSONObject()
@@ -57,6 +68,8 @@ object Interests {
     private var net: Map<String, Double>? = null
     /** Теги последнего поиска и когда искали — для связей «запрос → понравившийся ролик». */
     private var lastQuery: List<String> = emptyList()
+    /** Запрос целиком (для узла «q» и связи с тегами понравившегося ролика); null — последним был не поиск. */
+    private var lastQueryFull: String? = null
     private var lastQueryAt = 0L
     private val io by lazy { Handler(HandlerThread("interests").apply { start() }.looper) }
     private val seen = LinkedHashSet<String>()
@@ -71,6 +84,7 @@ object Interests {
         merge()
         if (!data.has("map")) data.put("map", JSONObject())
         if (!data.has("man")) data.put("man", JSONObject())
+        migrateMan()
         data.optJSONArray("seen")?.let { a -> for (i in 0 until a.length()) seen += a.getString(i) }
         if (!data.has("at")) data.put("at", System.currentTimeMillis())
         decay()
@@ -91,11 +105,15 @@ object Interests {
     fun words(s: String): Set<String> = s.lowercase().split(Regex("[^\\p{L}']+"))
         .map { it.trim('\'') }.filter { it.length in 3..20 && it !in STOP }.toSet()
 
+    /** Сайт ролика как узел сети: сторонние — свой id, остальные — «reddit» или «redgifs». */
+    private fun siteOf(g: Gif) = g.site.ifEmpty { if (g.reddit) "reddit" else "redgifs" }
+
     private fun features(g: Gif): Map<String, Collection<String>> = mapOf(
         "tag" to g.tags.filter { !it.startsWith("r/") }.map(::key).distinct(),
         "kw" to words(g.description),
         "sub" to listOfNotNull(g.sub.lowercase().takeIf { it.isNotEmpty() }),
         "user" to listOfNotNull(g.user.lowercase().takeIf { it.isNotEmpty() && it != "[deleted]" }),
+        "site" to listOf(siteOf(g)),
         "pair" to pairs(g.tags),
     )
 
@@ -111,13 +129,26 @@ object Interests {
     private fun bump(g: Gif, w: Double) = synchronized(this) {
         val f = features(g)
         f.forEach { (axis, terms) -> terms.forEach { add(axis, it, w * when (axis) { "kw", "pair" -> 0.5; else -> 1.0 }) } }
+        if (w > 0) linkTypes(f, w)
         // понравилось вскоре после поиска — связать слова запроса с тегами ролика: сеть учит, какие теги RedGIFs
         // отвечают твоим словам (свой словарь вместо общего)
         if (w > 0 && lastQuery.isNotEmpty() && System.currentTimeMillis() - lastQueryAt < QUERY_LINK_MS) {
             val tags = f["tag"].orEmpty().filter { !Api.isGeneric(it) }.take(PAIR_TAGS)
             lastQuery.forEach { q -> tags.forEach { t -> TagNet.pairKey(q, t)?.let { add("pair", it, w * QUERY_LINK) } } }
+            lastQueryFull?.let { q -> tags.forEach { t -> TagNet.linkKey("q:$q", "tag:$t")?.let { add("link", it, w * QUERY_LINK) } } }
         }
         save()
+    }
+
+    /** Связи между типами в одном ролике: тег — автор / сабреддит / сайт, автор — сабреддит, слово названия — тег. */
+    private fun linkTypes(f: Map<String, Collection<String>>, w: Double) {
+        val tags = f["tag"].orEmpty().filter { !Api.isGeneric(it) }.take(PAIR_TAGS)
+        val others = listOf("user", "sub", "site").flatMap { ax -> f[ax].orEmpty().map { "$ax:$it" } }
+        fun link(a: String, b: String, k: Double) { TagNet.linkKey(a, b)?.let { add("link", it, w * k) } }
+        tags.forEach { t -> others.forEach { o -> link("tag:$t", o, LINK) } }
+        val user = f["user"].orEmpty().firstOrNull(); val sub = f["sub"].orEmpty().firstOrNull()
+        if (user != null && sub != null) link("user:$user", "sub:$sub", LINK)
+        f["kw"].orEmpty().take(LINK_WORDS).forEach { k -> tags.take(LINK_WORDS).forEach { t -> link("kw:$k", "tag:$t", LINK_KW) } }
     }
 
     @Synchronized private fun add(axis: String, term: String, w: Double) {
@@ -126,7 +157,7 @@ object Interests {
         val o = data.getJSONObject(axis)
         o.put(term, o.optDouble(term, 0.0) + w)
         // подкрепление: положительный сигнал (лайк, досмотр, поиск) — счётчик повторов термина
-        if (w > 0.5) count("cnt", "$axis|$term", 1.0)
+        if (w > 0.5 && axis != "link") count("cnt", "$axis|$term", 1.0)
     }
 
     @Synchronized private fun count(c: String, k: String, d: Double) { val o = data.getJSONObject(c); o.put(k, o.optDouble(k, 0.0) + d) }
@@ -184,14 +215,15 @@ object Interests {
         // слова одного запроса связаны между собой (как теги одного ролика)
         ws.take(PAIR_TAGS).let { t -> t.indices.forEach { i -> (i + 1 until t.size).forEach { j -> TagNet.pairKey(t[i], t[j])?.let { add("pair", it, 1.5) } } } }
         lastQuery = ws.filter { !Api.isGeneric(it) }.take(4); lastQueryAt = System.currentTimeMillis()
-        q.trim().lowercase().takeIf { it.length >= 3 }?.let { add("q", it, 3.0) }
+        lastQueryFull = q.trim().lowercase().takeIf { it.length >= 3 }
+        lastQueryFull?.let { add("q", it, 3.0) }
         save()
     }
-    fun openTag(t: String) = synchronized(this) { add("tag", key(t), 3.0); lastQuery = listOf(key(t)).filter { it.isNotEmpty() }; lastQueryAt = System.currentTimeMillis(); save() }
+    fun openTag(t: String) = synchronized(this) { add("tag", key(t), 3.0); lastQuery = listOf(key(t)).filter { it.isNotEmpty() }; lastQueryFull = null; lastQueryAt = System.currentTimeMillis(); save() }
     fun openSub(s: String) = synchronized(this) { s.split("+").filter { it.isNotBlank() && !it.startsWith("u/") }.forEach { add("sub", it.lowercase(), 3.0) }; save() }
 
     fun reset() = synchronized(this) {
-        AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); data.put("man", JSONObject()); seen.clear(); net = null; lastQuery = emptyList(); save()
+        AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); data.put("man", JSONObject()); seen.clear(); net = null; lastQuery = emptyList(); lastQueryFull = null; save()
     }
 
     // ---- использование ----
@@ -203,40 +235,73 @@ object Interests {
         var s = 0.0
         val act = activation()
         features(g).forEach { (axis, terms) ->
-            val o = data.getJSONObject(axis)
-            val k = when (axis) { "kw" -> 0.6; "sub" -> 1.2; "user" -> 0.8; "pair" -> 0.7; else -> 1.0 }
-            // теги — по активации сети: свой вес + вес частых соседей
-            terms.forEach { s += k * if (axis == "tag") act[it] ?: 0.0 else eff(axis, it, o.optDouble(it, 0.0)) }
+            val k = when (axis) { "kw" -> 0.6; "sub" -> 1.2; "user" -> 0.8; "pair" -> 0.7; "site" -> 0.5; else -> 1.0 }
+            terms.forEach { t ->
+                s += when (axis) {
+                    // сочетание — не узел сети, берём свой вес
+                    "pair" -> k * eff(axis, t, data.getJSONObject(axis).optDouble(t, 0.0))
+                    // сайт — один на сотни роликов, его вес копится без предела: сглаживаем, иначе он перевесит остальное
+                    "site" -> k * damp(act["site:$t"] ?: 0.0)
+                    // остальное — по активации сети: свой вес + вес частых соседей
+                    else -> k * (act["$axis:$t"] ?: 0.0)
+                }
+            }
         }
         s
     }
 
-    /** Активация сети вкуса ([TagNet]): узлы — действующие веса тегов, связи — сочетания; кэш до следующего изменения. */
+    /** Связи сети: сочетания тегов («a,b» → «tag:a|tag:b») и связи между типами; вес — действующий. */
+    @Synchronized private fun netLinks(): Map<String, Double> {
+        val out = HashMap<String, Double>()
+        val pairs = data.getJSONObject("pair")
+        pairs.keys().forEach { k ->
+            val i = k.indexOf(',')
+            if (i > 0) TagNet.linkKey("tag:" + k.substring(0, i), "tag:" + k.substring(i + 1))?.let { out[it] = (out[it] ?: 0.0) + eff("pair", k, pairs.getDouble(k)) }
+        }
+        val links = data.getJSONObject("link")
+        links.keys().forEach { k -> out[k] = (out[k] ?: 0.0) + eff("link", k, links.getDouble(k)) }
+        return out
+    }
+
+    /** Узлы сети по всем осям: «тип:термин» → действующий вес. */
+    @Synchronized private fun netNodes(): Map<String, Double> {
+        val out = HashMap<String, Double>()
+        NODE_AXES.forEach { axis ->
+            val o = data.getJSONObject(axis)
+            // сайт есть почти у каждого ролика — его вес растёт без меры и через связи раздул бы все теги поровну: сглаживаем
+            o.keys().forEach { k -> val v = eff(axis, k, o.getDouble(k)); out["$axis:$k"] = if (axis == "site") damp(v) else v }
+        }
+        return out
+    }
+
+    /** Активация сети вкуса ([TagNet]): узлы — действующие веса всех осей, связи — сочетания и связи типов; кэш до следующего изменения. */
     @Synchronized private fun activation(): Map<String, Double> = net ?: run {
-        val tags = data.getJSONObject("tag"); val pairs = data.getJSONObject("pair")
-        val nodes = tags.keys().asSequence().associateWith { eff("tag", it, tags.getDouble(it)) }
-        val edges = pairs.keys().asSequence().associateWith { eff("pair", it, pairs.getDouble(it)) }
         val man = boosts()
-        TagNet.activate(nodes, edges).mapValues { (t, v) -> v * (man[t] ?: 1.0) }.also { net = it }
+        TagNet.activate(netNodes(), netLinks()).mapValues { (id, v) -> v * (man[id] ?: 1.0) }.also { net = it }
     }
 
     /** JSON графа интересов для экрана «3D-граф» ([InterestGraph]): те же действующие веса, что у [activation]. */
     @Synchronized fun graphJson(): String {
-        val tags = data.getJSONObject("tag"); val pairs = data.getJSONObject("pair")
         val man = boosts()
-        val own = tags.keys().asSequence().associateWith { eff("tag", it, tags.getDouble(it)) * (man[it] ?: 1.0) }
-        val edges = pairs.keys().asSequence().associateWith { eff("pair", it, pairs.getDouble(it)) }
-        return InterestGraph.build(own, edges, activation(), man)
+        val own = netNodes().mapValues { (id, v) -> v * (man[id] ?: 1.0) }
+        return InterestGraph.build(own, netLinks(), activation(), man)
     }
 
-    /** Ручная поправка веса тега (ползунок в 3D-графе): множитель [BOOST_MIN]…[BOOST_MAX], 1 — как выучено. */
-    @Synchronized fun boost(t: String): Double = data.getJSONObject("man").optDouble(key(t), 1.0)
-    /** Сохранить поправку: умножает и свой вес тега, и его вес в сети — «Для вас» и поиск сразу берут его чаще или реже. */
-    @Synchronized fun setBoost(t: String, m: Double) {
-        val o = data.getJSONObject("man"); val k = key(t)
+    /** Старые поправки были по голым тегам — теперь id типизированные: «blonde» → «tag:blonde». */
+    @Synchronized private fun migrateMan() {
+        val o = data.getJSONObject("man")
+        o.keys().asSequence().filter { ':' !in it }.toList().forEach { k -> val v = o.getDouble(k); o.remove(k); o.put("tag:$k", v) }
+    }
+
+    /** Ручная поправка веса узла (ползунок в 3D-графе): множитель [BOOST_MIN]…[BOOST_MAX], 1 — как выучено. id — «тип:термин»; голый тег тоже принимается. */
+    @Synchronized fun boost(id: String): Double = data.getJSONObject("man").optDouble(manId(id), 1.0)
+    /** Сохранить поправку: умножает и свой вес узла, и его вес в сети — «Для вас» и поиск сразу берут его чаще или реже. */
+    @Synchronized fun setBoost(id: String, m: Double) {
+        val o = data.getJSONObject("man"); val k = manId(id)
         if (kotlin.math.abs(m - 1.0) < 0.01) o.remove(k) else o.put(k, m.coerceIn(BOOST_MIN, BOOST_MAX))
         net = null; save()
     }
+    private fun manId(id: String) = if (':' in id) id else "tag:" + key(id)
     const val BOOST_MIN = 0.1
     const val BOOST_MAX = 3.0
     @Synchronized private fun boosts(): Map<String, Double> = data.getJSONObject("man").let { o -> o.keys().asSequence().associateWith { o.getDouble(it) } }
@@ -249,7 +314,8 @@ object Interests {
 
     /** Верх тегов по активации сети — вместе с теми, что сами не лайкались, но всегда рядом с любимыми. */
     fun topNet(n: Int): List<Pair<String, Double>> = synchronized(this) {
-        activation().entries.asSequence().filter { it.value > 0.3 && ',' !in it.key }.sortedByDescending { it.value }.take(n).map { it.key to it.value }.toList()
+        activation().entries.asSequence().filter { it.value > 0.3 && it.key.startsWith("tag:") }.map { it.key.removePrefix("tag:") to it.value }
+            .sortedByDescending { it.second }.take(n).toList()
     }
 
     val empty get() = AXES.all { top(it, 1).isEmpty() }
@@ -307,7 +373,7 @@ object Interests {
         AXES.forEach { axis ->
             val o = data.getJSONObject(axis)
             val kept = o.keys().asSequence().map { it to o.getDouble(it) * f }.filter { kotlin.math.abs(it.second) >= PRUNE }
-                .sortedByDescending { kotlin.math.abs(it.second) }.take(MAX_TERMS).toList()
+                .sortedByDescending { kotlin.math.abs(it.second) }.take(MAX_TERMS.getValue(axis)).toList()
             data.put(axis, JSONObject().apply { kept.forEach { (k, v) -> put(k, v) } })
         }
         // подкрепления затухают так же; встречаемость — нет (статистика просмотренного), но с потолком

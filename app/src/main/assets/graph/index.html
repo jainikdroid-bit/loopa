@@ -16,6 +16,10 @@
   #q { flex:1; min-width:0; height:40px; padding:0 12px; font:inherit; font-size:16px; color:var(--text); background:var(--panel);
     border:1px solid var(--line); border-radius:10px; outline:none; touch-action:auto; }
   #q:focus { border-color:var(--accent); }
+  #types { position:fixed; top:54px; left:0; right:0; display:flex; gap:6px; padding:0 8px; overflow-x:auto; z-index:5; touch-action:pan-x; scrollbar-width:none; }
+  #types::-webkit-scrollbar { display:none; }
+  #types .chip { height:28px; padding:0 10px; font-size:13px; opacity:.45; }
+  #types .chip.on { opacity:1; border-color:var(--accent); }
   #stat { color:var(--dim); font-size:12px; white-space:nowrap; text-shadow:0 0 3px #000; }
   #empty { position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:32px; text-align:center;
     color:var(--dim); font-size:16px; z-index:4; }
@@ -39,7 +43,7 @@
   #dl .chip { height:30px; padding:0 10px; font-size:13px; }
   #dl .chip span { display:block; height:3px; border-radius:2px; background:var(--dim); }
   #open { width:100%; height:44px; font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:10px; cursor:pointer; }
-  #zoom { position:fixed; right:8px; top:64px; display:flex; flex-direction:column; gap:8px; z-index:5; }
+  #zoom { position:fixed; right:8px; top:92px; display:flex; flex-direction:column; gap:8px; z-index:5; }
   #zoom button { width:44px; height:44px; font:inherit; font-size:22px; line-height:1; color:var(--text); background:var(--panel);
     border:1px solid var(--line); border-radius:12px; cursor:pointer; }
   #wbox { margin:6px 0 12px; }
@@ -55,6 +59,7 @@
 <div id="graph"></div>
 <div id="labels"></div>
 <div id="top"><input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false"><span id="stat"></span></div>
+<div id="types"></div>
 <div id="empty"></div>
 <div id="detail">
   <div id="dh"><i id="dc"></i><div id="dn"></div><button id="dx" type="button">&times;</button></div>

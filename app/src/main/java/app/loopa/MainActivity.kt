@@ -391,6 +391,16 @@ class MainActivity : Activity() {
         intent.getStringExtra("sub")?.let { nav(); search.setText(""); openSub(it) }
         // автор или тег ролика стороннего сайта — поиск по тому же сайту (extra — id сайта)
         for (m in Sources.ALL.map { it.id }) intent.getStringExtra(m)?.let { nav(); search.setText(it); Feed.reset(it, Feed.order, mode = m); grid.scrollToPosition(0) }
+        // вкладка сайта из 3D-графа: стороннего — своя лента, «reddit» — последний сабреддит, «redgifs» — главная
+        intent.getStringExtra("site")?.let { m ->
+            nav(); search.setText("")
+            when {
+                m == "reddit" -> openSub(prefs.getString("last_sub", "")!!)
+                Sources.byId(m) != null -> Feed.reset("", Feed.order, mode = m)
+                else -> Feed.reset("", Feed.order)
+            }
+            grid.scrollToPosition(0)
+        }
         if (intent.getBooleanExtra("login", false)) login(RgSite)
     }
 

@@ -1,4 +1,5 @@
-// Экран «3D-граф» Loopa: сеть вкуса в стиле graphify. Данные и подписи даёт Kotlin (Loopa.data / Loopa.texts).
+// Экран «3D-граф» Loopa: сеть вкуса (теги, авторы, сабреддиты, слова, запросы, сайты) в стиле graphify.
+// Данные и подписи даёт Kotlin (Loopa.data / Loopa.texts); id узла — «тип:термин».
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -6,19 +7,43 @@
   try { T = JSON.parse(Loopa.texts()); } catch (e) { /* подписей нет — страница покажет пустые */ }
   try { D = JSON.parse(Loopa.data()); } catch (e) { $('empty').textContent = T.error || 'Error'; $('empty').style.display = 'flex'; return; }
 
-  var LABELS = 30;                       // подписей у самых тяжёлых узлов
+  var LABELS = 30;                       // подписей у самых тяжёлых видимых узлов
+  var MAX_LINKS = 3000;                  // сильнее порога рисуем не больше стольких связей (на 2000 узлах иначе тормозит)
+  var TYPES = ['tag', 'user', 'sub', 'kw', 'q', 'site'];
+  var PREFIX = { tag: '#', user: '@', sub: 'r/', kw: '', q: '', site: '' };
   var nodes = D.nodes, comms = D.communities;
+  var typeOn = {};                       // какие типы узлов показаны
+  TYPES.forEach(function (t) { typeOn[t] = true; });
+  var TT = T.types || {}, T1 = T.type1 || {}, SITES = T.sites || {};
+  /** Подпись узла по типу: #тег, @автор, r/сабреддит, слово, «запрос», название сайта. */
+  function lab(t, name) {
+    if (t === 'q') return '\u00ab' + name + '\u00bb';
+    if (t === 'site') return SITES[name] || name;
+    return (PREFIX[t] || '') + name;
+  }
+  function labOf(n) { return lab(n.t, n.name); }
+  function vis(n) { return typeOn[n.t] !== false; }
   var byId = {}, nb = {};                // узел по имени; соседи: имя -> [{id, w}]
   nodes.forEach(function (n) { byId[n.id] = n; nb[n.id] = []; });
   var maxAct = 0.001, maxW = 0.001;
-  nodes.forEach(function (n) { if (n.act > maxAct) maxAct = n.act; });
+  /** Опорный вес для размера: у третьего по тяжести — один «сайт» с огромным весом иначе сделает всех остальных точками. */
+  function calcRef() {
+    var a = nodes.map(function (n) { return n.act; }).sort(function (x, y) { return y - x; });
+    maxAct = Math.max(a[Math.min(2, a.length - 1)] || 0, 0.001);
+  }
+  calcRef();
+  var linkThr = 0;                       // слабее — не рисуем
   D.links.forEach(function (l) {
     if (l.w > maxW) maxW = l.w;
     nb[l.source].push({ id: l.target, w: l.w }); nb[l.target].push({ id: l.source, w: l.w });
   });
+  if (D.links.length > MAX_LINKS) linkThr = D.links.map(function (l) { return l.w; }).sort(function (x, y) { return y - x; })[MAX_LINKS - 1];
   Object.keys(nb).forEach(function (k) { nb[k].sort(function (a, b) { return b.w - a.w; }); });
 
-  function stats() { return (T.stats || '%s / %s').replace('%s', nodes.length).replace('%s', D.links.length); }
+  function stats() {
+    var vn = nodes.filter(vis).length, vl = D.links.filter(function (l) { return vis(byId[l.source]) && vis(byId[l.target]); }).length;
+    return (T.stats || '%s / %s').replace('%s', vn).replace('%s', vl);
+  }
   $('q').placeholder = T.search || '';
   $('open').textContent = T.open || '';
   if (!nodes.length) { $('empty').textContent = T.empty || ''; $('empty').style.display = 'flex'; $('q').style.display = 'none'; return; }
@@ -28,8 +53,8 @@
   var focus = null;                           // множество подсвеченных id (null — всё как есть)
 
   // размер — по весу: радиус сферы растёт как вес (библиотека берёт объём, поэтому куб)
-  function nodeVal(n) { return Math.pow(0.45 + 2.6 * Math.max(n.act, 0) / maxAct, 3); }
-  function fontSize(id) { return (10 + 6 * Math.max(byId[id].act, 0) / maxAct).toFixed(1) + 'px'; }
+  function nodeVal(n) { return Math.pow(0.45 + 2.6 * Math.min(Math.max(n.act, 0) / maxAct, 1.15), 3); }
+  function fontSize(id) { return (10 + 6 * Math.min(Math.max(byId[id].act, 0) / maxAct, 1)).toFixed(1) + 'px'; }
   function rgba(hex, a) {
     return 'rgba(' + parseInt(hex.substr(1, 2), 16) + ',' + parseInt(hex.substr(3, 2), 16) + ',' + parseInt(hex.substr(5, 2), 16) + ',' + a + ')';
   }
@@ -46,6 +71,13 @@
     return 'rgba(160,160,200,' + (0.12 + 0.5 * l.w / maxW).toFixed(2) + ')';
   }
   function linkWidth(l) { var wn = l.w / maxW; return linkOn(l) ? 1.6 : (wn > 0.5 ? 0.4 + wn : 0); }
+  /** Связь рисуем, если оба конца показаны и она не слабее порога (связи выбранного узла — всегда). */
+  function linkVis(l) {
+    var a = endId(l.source), b = endId(l.target);
+    if (!vis(byId[a]) || !vis(byId[b])) return false;
+    return linkThr === 0 || l.w >= linkThr || a === sel || b === sel;
+  }
+  function nodeVis(n) { return vis(n); }
 
   var fitted = false;
   // слабый телефон: без сглаживания, ограниченное число шагов раскладки, пиксели не больше ×1.5
@@ -56,17 +88,19 @@
     .nodeId('id')
     .nodeVal(nodeVal)
     .nodeRelSize(2.2)
-    .nodeResolution(8)
+    .nodeResolution(6)
+    .nodeVisibility(nodeVis)
+    .linkVisibility(linkVis)
     .nodeOpacity(1)
     .nodeColor(nodeColor)
     .nodeLabel(function () { return ''; })
     .linkOpacity(1)
-    .linkResolution(3)
+    .linkResolution(2)
     .linkColor(linkColor)
     .linkWidth(linkWidth)
-    .warmupTicks(60)
-    .cooldownTicks(150)
-    .cooldownTime(5000)
+    .warmupTicks(nodes.length > 800 ? 20 : 60)
+    .cooldownTicks(nodes.length > 800 ? 90 : 150)
+    .cooldownTime(nodes.length > 800 ? 3500 : 5000)
     .d3AlphaDecay(0.04)
     .onEngineStop(function () { if (!fitted) { fitted = true; G.zoomToFit(600, 20); } })   // один раз: весь граф в кадре
     .onNodeClick(function (n) { select(n.id, true); })
@@ -87,11 +121,11 @@
   var shown = {}, boxes = {};
   function labelSet() {
     var s = {};
-    if (comm >= 0) {
-      var c = 0; nodes.forEach(function (n) { if (n.c === comm && c++ < LABELS) s[n.id] = 1; });
-    } else nodes.slice(0, LABELS).forEach(function (n) { s[n.id] = 1; });
+    var c = 0;
+    if (comm >= 0) nodes.forEach(function (n) { if (n.c === comm && vis(n) && c++ < LABELS) s[n.id] = 1; });
+    else nodes.forEach(function (n) { if (vis(n) && c++ < LABELS) s[n.id] = 1; });
     if (sel) { s[sel] = 1; nb[sel].forEach(function (x) { s[x.id] = 1; }); }
-    if (found) Object.keys(found).slice(0, 20).forEach(function (k) { if (byId[k]) s[k] = 1; });
+    if (found) Object.keys(found).slice(0, 20).forEach(function (k) { if (byId[k] && vis(byId[k])) s[k] = 1; });
     return s;
   }
   function relabel() {
@@ -99,7 +133,7 @@
     Object.keys(boxes).forEach(function (k) { if (!shown[k]) { boxes[k].remove(); delete boxes[k]; } });
     Object.keys(shown).forEach(function (k) {
       if (boxes[k]) return;
-      var d = document.createElement('div'); d.className = 'lb'; d.textContent = k;
+      var d = document.createElement('div'); d.className = 'lb'; d.textContent = labOf(byId[k]);
       d.style.fontSize = fontSize(k);
       $('labels').appendChild(d); boxes[k] = d;
     });
@@ -115,7 +149,7 @@
       if (!n || n.x === undefined) { b.style.display = 'none'; return; }
       if ((n.x - P.x) * dir.x + (n.y - P.y) * dir.y + (n.z - P.z) * dir.z <= 1) { b.style.display = 'none'; return; }   // позади камеры
       var p = G.graph2ScreenCoords(n.x, n.y, n.z);
-      var fs = parseFloat(b.style.fontSize), w = k.length * fs * 0.56, h = fs * 1.3, x = p.x - w / 2, y = p.y + 8;
+      var fs = parseFloat(b.style.fontSize), w = b.textContent.length * fs * 0.56, h = fs * 1.3, x = p.x - w / 2, y = p.y + 8;
       if (taken.some(function (t) { return x < t[2] && x + w > t[0] && y < t[3] && y + h > t[1]; })) { b.style.display = 'none'; return; }
       taken.push([x, y, x + w, y + h]);
       b.style.display = '';
@@ -133,7 +167,7 @@
     if (sel) { focus = {}; focus[sel] = 1; nb[sel].forEach(function (x) { focus[x.id] = 1; }); }
     else if (comm >= 0) { focus = {}; nodes.forEach(function (n) { if (n.c === comm) focus[n.id] = 1; }); }
     else if (found) focus = found;
-    G.nodeColor(nodeColor).linkColor(linkColor).linkWidth(linkWidth);
+    G.nodeColor(nodeColor).linkColor(linkColor).linkWidth(linkWidth).linkVisibility(linkVis);
     relabel(); legendMarks();
   }
   function fly(id) {
@@ -148,17 +182,18 @@
   function select(id, noFly) {
     sel = id; comm = -1; found = null; $('q').value = '';
     var n = byId[id], c = comms[n.c], m = $('dm');
-    $('dc').style.background = c.color; $('dn').textContent = id; m.textContent = '';
-    part(m, T.own || '', n.own.toFixed(1)); part(m, T.net || '', n.act.toFixed(1)); part(m, T.community || '', c.name);
+    $('dc').style.background = c.color; $('dn').textContent = labOf(n); m.textContent = '';
+    var tw = document.createElement('div'); tw.textContent = T1[n.t] || n.t; m.appendChild(tw);
+    part(m, T.own || '', n.own.toFixed(1)); part(m, T.net || '', n.act.toFixed(1)); part(m, T.community || '', lab(c.t, c.name));
     if (n.suggested && T.suggested) { var s = document.createElement('div'); s.textContent = T.suggested; m.appendChild(s); }
     weightUi(n);
     $('ds').textContent = T.neighbours || '';
     var dl = $('dl'); dl.textContent = '';
     if (!nb[id].length) dl.textContent = T.noLinks || '';
-    nb[id].forEach(function (x) {
+    nb[id].filter(function (x) { return vis(byId[x.id]); }).forEach(function (x) {
       var b = document.createElement('button'); b.type = 'button'; b.className = 'chip';
       var i = document.createElement('i'); i.style.background = comms[byId[x.id].c].color; b.appendChild(i);
-      b.appendChild(document.createTextNode(x.id));
+      b.appendChild(document.createTextNode(labOf(byId[x.id])));
       var bar = document.createElement('span'); bar.style.width = (8 + 28 * x.w / maxW).toFixed(0) + 'px'; b.appendChild(bar);
       b.onclick = function () { select(x.id); };
       dl.appendChild(b);
@@ -184,7 +219,7 @@
     try { R = JSON.parse(Loopa.setBoost(tag, m)); } catch (e) { return; }
     // новые веса — в те же объекты (раскладка не сбрасывается); соседи тоже меняются: вес идёт по связям
     R.nodes.forEach(function (r) { [byId[r.id], live[r.id]].forEach(function (x) { if (x) { x.act = r.act; x.own = r.own; x.boost = r.boost; x.suggested = r.suggested; } }); });
-    maxAct = 0.001; nodes.forEach(function (n) { if (n.act > maxAct) maxAct = n.act; });
+    calcRef();
     G.nodeVal(nodeVal).nodeColor(nodeColor);
     Object.keys(boxes).forEach(function (k) { boxes[k].style.fontSize = fontSize(k); });
     if (sel === tag) select(tag, true);
@@ -217,7 +252,7 @@
     list.slice(0, 14).forEach(function (c) {
       var b = document.createElement('button'); b.type = 'button'; b.className = 'chip';
       var i = document.createElement('i'); i.style.background = c.color; b.appendChild(i);
-      b.appendChild(document.createTextNode(c.name));
+      b.appendChild(document.createTextNode(lab(c.t, c.name)));
       var s = document.createElement('small'); s.textContent = c.size; b.appendChild(s);
       b.onclick = function () {
         var on = comm !== c.id; sel = null; found = null; $('detail').style.display = 'none'; $('q').value = '';
@@ -230,7 +265,7 @@
 
   // ---- поиск тега: подсветка сразу, подлёт камеры — когда договорил ----
   var timer = 0;
-  function hits(q) { return nodes.filter(function (n) { return n.id.toLowerCase().indexOf(q) >= 0; }); }
+  function hits(q) { return nodes.filter(function (n) { return vis(n) && n.name.toLowerCase().indexOf(q) >= 0; }); }
   $('q').addEventListener('input', function () {
     var q = this.value.trim().toLowerCase();
     sel = null; comm = -1; $('detail').style.display = 'none';
@@ -248,6 +283,21 @@
     var q = this.value.trim().toLowerCase(), hit = q ? hits(q)[0] : null;
     this.blur();
     if (hit) { clearTimeout(timer); select(hit.id); }
+  });
+  // ---- фильтр по типам: чипы-переключатели с числом узлов; выключенный тип скрыт вместе со своими связями ----
+  var counts = {};
+  nodes.forEach(function (n) { counts[n.t] = (counts[n.t] || 0) + 1; });
+  TYPES.filter(function (t) { return counts[t]; }).forEach(function (t) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'chip on';
+    b.appendChild(document.createTextNode((PREFIX[t] ? PREFIX[t] + ' ' : '') + (TT[t] || t)));
+    var s = document.createElement('small'); s.textContent = counts[t]; b.appendChild(s);
+    b.onclick = function () {
+      typeOn[t] = !typeOn[t]; b.classList.toggle('on', typeOn[t]);
+      if (sel && !vis(byId[sel])) { clearAll(); }
+      G.nodeVisibility(nodeVis).linkVisibility(linkVis);
+      $('stat').textContent = stats(); compute();
+    };
+    $('types').appendChild(b);
   });
   window.addEventListener('resize', function () { G.width(window.innerWidth).height(window.innerHeight); });
   relabel();
