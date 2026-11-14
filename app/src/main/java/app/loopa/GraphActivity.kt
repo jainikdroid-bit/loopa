@@ -22,11 +22,14 @@ import java.io.ByteArrayInputStream
  */
 class GraphActivity : Activity() {
     private lateinit var web: WebView
+    private lateinit var tier: Tier
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         I18n.init(this); Interests.init(this)
+        tier = DeviceTier.detect(this)
+        android.util.Log.i("Loopa", "граф: уровень $tier (ОЗУ ${DeviceTier.ramMb(this)} МБ, ядер ${Runtime.getRuntime().availableProcessors()})")
         val bg = Color.parseColor("#0f0f1a")
         window.statusBarColor = bg; window.navigationBarColor = bg
         val loader = WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this)).build()
@@ -76,6 +79,9 @@ class GraphActivity : Activity() {
             .put("notFound", tr("Ничего не найдено"))
             .put("suggested", tr("Рядом с любимыми"))
             .put("stats", tr("Узлов: %s, связей: %s", "%s", "%s"))
+            .put("shown", tr("показано %s", "%s"))
+            .put("lowNote", tr("Упрощённая отрисовка: слабое устройство"))
+            .put("tier", tier.name).put("tiers", DeviceTier.paramsJson())
             .put("error", tr("Не удалось загрузить граф"))
             .put("weight", tr("Мой вес"))
             .put("weightHint", tr("Меньше — реже в «Для вас», больше — чаще"))

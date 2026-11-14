@@ -21,6 +21,7 @@
   #types .chip { height:28px; padding:0 10px; font-size:13px; opacity:.45; }
   #types .chip.on { opacity:1; border-color:var(--accent); }
   #stat { color:var(--dim); font-size:12px; white-space:nowrap; text-shadow:0 0 3px #000; }
+  #low { position:fixed; top:86px; left:10px; right:64px; display:none; pointer-events:none; color:var(--dim); font-size:11px; text-shadow:0 0 3px #000; z-index:4; }
   #empty { position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:32px; text-align:center;
     color:var(--dim); font-size:16px; z-index:4; }
   #legend { position:fixed; left:0; right:0; bottom:0; display:flex; gap:8px; padding:10px 8px 10px;
@@ -60,6 +61,7 @@
 <div id="labels"></div>
 <div id="top"><input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false"><span id="stat"></span></div>
 <div id="types"></div>
+<div id="low"></div>
 <div id="empty"></div>
 <div id="detail">
   <div id="dh"><i id="dc"></i><div id="dn"></div><button id="dx" type="button">&times;</button></div>

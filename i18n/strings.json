@@ -232,7 +232,9 @@
   "Сабреддит",
   "Слово",
   "Запрос",
-  "Сайт"
+  "Сайт",
+  "показано %s",
+  "Упрощённая отрисовка: слабое устройство"
  ],
  "en": [
   "Already downloaded: Downloads/Loopa/%s",
@@ -466,7 +468,9 @@
   "Subreddit",
   "Word",
   "Query",
-  "Site"
+  "Site",
+  "shown: %s",
+  "Simplified rendering: weak device"
  ],
  "es": [
   "Ya descargado: Descargas/Loopa/%s",
@@ -700,7 +704,9 @@
   "Subreddit",
   "Palabra",
   "Consulta",
-  "Sitio"
+  "Sitio",
+  "mostrados: %s",
+  "Dibujo simplificado: dispositivo lento"
  ],
  "pt": [
   "Já baixado: Downloads/Loopa/%s",
@@ -934,7 +940,9 @@
   "Subreddit",
   "Palavra",
   "Consulta",
-  "Site"
+  "Site",
+  "mostrados: %s",
+  "Desenho simplificado: dispositivo fraco"
  ],
  "de": [
   "Bereits geladen: Downloads/Loopa/%s",
@@ -1168,7 +1176,9 @@
   "Subreddit",
   "Wort",
   "Suchanfrage",
-  "Seite"
+  "Seite",
+  "angezeigt: %s",
+  "Vereinfachte Darstellung: schwaches Gerät"
  ],
  "fr": [
   "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1402,7 +1412,9 @@
   "Subreddit",
   "Mot",
   "Requête",
-  "Site"
+  "Site",
+  "affichés : %s",
+  "Rendu simplifié : appareil peu puissant"
  ],
  "it": [
   "Già scaricato: Download/Loopa/%s",
@@ -1636,7 +1648,9 @@
   "Subreddit",
   "Parola",
   "Ricerca",
-  "Sito"
+  "Sito",
+  "mostrati: %s",
+  "Rendering semplificato: dispositivo lento"
  ],
  "tr": [
   "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -1870,7 +1884,9 @@
   "Subreddit",
   "Kelime",
   "Sorgu",
-  "Site"
+  "Site",
+  "gösterilen: %s",
+  "Basit çizim: zayıf cihaz"
  ],
  "pl": [
   "Już pobrano: Pobrane/Loopa/%s",
@@ -2104,7 +2120,9 @@
   "Subreddit",
   "Słowo",
   "Zapytanie",
-  "Serwis"
+  "Serwis",
+  "pokazano: %s",
+  "Uproszczone rysowanie: słabe urządzenie"
  ],
  "uk": [
   "Уже завантажено: Завантаження/Loopa/%s",
@@ -2338,6 +2356,8 @@
   "Сабреддіт",
   "Слово",
   "Запит",
-  "Сайт"
+  "Сайт",
+  "показано: %s",
+  "Спрощене відтворення: слабкий пристрій"
  ]
 }

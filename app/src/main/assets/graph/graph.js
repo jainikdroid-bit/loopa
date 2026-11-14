@@ -7,8 +7,10 @@
   try { T = JSON.parse(Loopa.texts()); } catch (e) { /* подписей нет — страница покажет пустые */ }
   try { D = JSON.parse(Loopa.data()); } catch (e) { $('empty').textContent = T.error || 'Error'; $('empty').style.display = 'flex'; return; }
 
-  var LABELS = 30;                       // подписей у самых тяжёлых видимых узлов
-  var MAX_LINKS = 3000;                  // сильнее порога рисуем не больше стольких связей (на 2000 узлах иначе тормозит)
+  // уровень железа: Kotlin присылает таблицу параметров отрисовки; на слабом телефоне рисуем меньше (данные и логика те же)
+  var TIERS = T.tiers || {}, ORDER = ['LOW', 'MID', 'HIGH'];
+  var tierIdx = Math.max(0, ORDER.indexOf(T.tier));
+  var P = TIERS[ORDER[tierIdx]] || { maxNodes: 2000, maxLinks: 6000, labels: 30, nodeResolution: 8, pixelRatio: 1.5, cooldownTicks: 150, warmupTicks: 60, thinLinks: false };
   var TYPES = ['tag', 'user', 'sub', 'kw', 'q', 'site'];
   var PREFIX = { tag: '#', user: '@', sub: 'r/', kw: '', q: '', site: '' };
   var nodes = D.nodes, comms = D.communities;
@@ -32,23 +34,23 @@
     maxAct = Math.max(a[Math.min(2, a.length - 1)] || 0, 0.001);
   }
   calcRef();
-  var linkThr = 0;                       // слабее — не рисуем
   D.links.forEach(function (l) {
     if (l.w > maxW) maxW = l.w;
     nb[l.source].push({ id: l.target, w: l.w }); nb[l.target].push({ id: l.source, w: l.w });
   });
-  if (D.links.length > MAX_LINKS) linkThr = D.links.map(function (l) { return l.w; }).sort(function (x, y) { return y - x; })[MAX_LINKS - 1];
   Object.keys(nb).forEach(function (k) { nb[k].sort(function (a, b) { return b.w - a.w; }); });
 
   function stats() {
     var vn = nodes.filter(vis).length, vl = D.links.filter(function (l) { return vis(byId[l.source]) && vis(byId[l.target]); }).length;
-    return (T.stats || '%s / %s').replace('%s', vn).replace('%s', vl);
+    var r = (T.stats || '%s / %s').replace('%s', vn).replace('%s', vl);
+    var sh = nodes.filter(function (n) { return drawn[n.id] && vis(n); }).length;
+    return sh < vn && T.shown ? r + ' (' + T.shown.replace('%s', sh) + ')' : r;   // сцена урезана — рядом «показано N»
   }
   $('q').placeholder = T.search || '';
   $('open').textContent = T.open || '';
   if (!nodes.length) { $('empty').textContent = T.empty || ''; $('empty').style.display = 'flex'; $('q').style.display = 'none'; return; }
+  var drawn = baseDrawn();               // id узлов, что сейчас на сцене (остальные есть только в данных)
   $('stat').textContent = stats();
-
   var sel = null, comm = -1, found = null;   // выбранный тег, выбранное сообщество, найденные поиском
   var focus = null;                           // множество подсвеченных id (null — всё как есть)
 
@@ -70,16 +72,53 @@
     if (focus && !(focus[endId(l.source)] && focus[endId(l.target)])) return 'rgba(160,160,200,0.03)';
     return 'rgba(160,160,200,' + (0.12 + 0.5 * l.w / maxW).toFixed(2) + ')';
   }
-  function linkWidth(l) { var wn = l.w / maxW; return linkOn(l) ? 1.6 : (wn > 0.5 ? 0.4 + wn : 0); }
-  /** Связь рисуем, если оба конца показаны и она не слабее порога (связи выбранного узла — всегда). */
-  function linkVis(l) {
-    var a = endId(l.source), b = endId(l.target);
-    if (!vis(byId[a]) || !vis(byId[b])) return false;
-    return linkThr === 0 || l.w >= linkThr || a === sel || b === sel;
-  }
+  // слабое устройство: все связи — тонкие GL-линии (ширина 0), выбранные видны цветом
+  function linkWidth(l) { if (P.thinLinks) return 0; var wn = l.w / maxW; return linkOn(l) ? 1.6 : (wn > 0.5 ? 0.4 + wn : 0); }
+  /** Связь рисуем, если оба конца показаны (на сцене остались только отобранные связи). */
+  function linkVis(l) { return vis(byId[endId(l.source)]) && vis(byId[endId(l.target)]); }
   function nodeVis(n) { return vis(n); }
 
-  var fitted = false;
+  var fitted = false, probeNext = true;
+  function cooldownMs() { return Math.max(2500, P.cooldownTicks * 35); }
+  function setPixelRatio() { try { G.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, P.pixelRatio)); } catch (e) { /* без этого тоже работает */ } }
+
+  // ---- сцена: на ней верхние maxNodes узлов по активации и сильнейшие maxLinks связей; всё остальное — только в данных ----
+  var linkSeen = {};                          // ключи нарисованных связей
+  function lkey(a, b) { return a < b ? a + '' + b : b + '' + a; }
+  function baseDrawn() {
+    var d = {};
+    nodes.slice().sort(function (x, y) { return y.act - x.act; }).slice(0, P.maxNodes).forEach(function (n) { d[n.id] = 1; });
+    return d;
+  }
+  /** Данные сцены: живые узлы остаются теми же объектами (координаты сохраняются), новые — копии, посаженные у соседа. */
+  function sceneData() {
+    var old = {};
+    if (typeof G !== 'undefined') G.graphData().nodes.forEach(function (n) { old[n.id] = n; });
+    var ns = [];
+    nodes.forEach(function (n) {
+      if (!drawn[n.id]) return;
+      if (old[n.id]) { ns.push(old[n.id]); return; }
+      var c = Object.assign({}, n), near = null;
+      nb[n.id].some(function (x) { if (old[x.id] && old[x.id].x !== undefined) { near = old[x.id]; return true; } return false; });
+      if (near) { c.x = near.x + Math.random() * 10 - 5; c.y = near.y + Math.random() * 10 - 5; c.z = near.z + Math.random() * 10 - 5; }
+      ns.push(c);
+    });
+    var cand = D.links.filter(function (l) { return drawn[l.source] && drawn[l.target]; });
+    var top = cand.length > P.maxLinks ? cand.slice().sort(function (a, b) { return b.w - a.w; }).slice(0, P.maxLinks) : cand;
+    var keep = {}; top.forEach(function (l) { keep[lkey(l.source, l.target)] = 1; });
+    if (sel) cand.forEach(function (l) { if (l.source === sel || l.target === sel) keep[lkey(l.source, l.target)] = 1; });   // связи выбранного — всегда
+    linkSeen = keep;
+    return { nodes: ns, links: cand.filter(function (l) { return keep[lkey(l.source, l.target)]; }).map(function (l) { return Object.assign({}, l); }) };
+  }
+  function syncLive() { live = {}; G.graphData().nodes.forEach(function (n) { live[n.id] = n; }); }
+  /** Поставить на сцену узлы ids (если их там нет) и перестроить; true — сцену меняли. */
+  function ensure(ids) {
+    var add = false;
+    ids.forEach(function (id) { if (!drawn[id]) { drawn[id] = 1; add = true; } });
+    if (!add && !(sel && nb[sel].some(function (x) { return drawn[x.id] && !linkSeen[lkey(sel, x.id)]; }))) return false;
+    G.graphData(sceneData()); syncLive();
+    return true;
+  }
   // слабый телефон: без сглаживания, ограниченное число шагов раскладки, пиксели не больше ×1.5
   var G = ForceGraph3D({ rendererConfig: { antialias: false, powerPreference: 'low-power' } })($('graph'))
     .backgroundColor('#0f0f1a')
@@ -88,7 +127,7 @@
     .nodeId('id')
     .nodeVal(nodeVal)
     .nodeRelSize(2.2)
-    .nodeResolution(6)
+    .nodeResolution(P.nodeResolution)
     .nodeVisibility(nodeVis)
     .linkVisibility(linkVis)
     .nodeOpacity(1)
@@ -98,15 +137,15 @@
     .linkResolution(2)
     .linkColor(linkColor)
     .linkWidth(linkWidth)
-    .warmupTicks(nodes.length > 800 ? 20 : 60)
-    .cooldownTicks(nodes.length > 800 ? 90 : 150)
-    .cooldownTime(nodes.length > 800 ? 3500 : 5000)
+    .warmupTicks(P.warmupTicks)
+    .cooldownTicks(P.cooldownTicks)
+    .cooldownTime(cooldownMs())
     .d3AlphaDecay(0.04)
-    .onEngineStop(function () { if (!fitted) { fitted = true; G.zoomToFit(600, 20); } })   // один раз: весь граф в кадре
+    .onEngineStop(function () { if (!fitted) { fitted = true; G.zoomToFit(600, 20); } if (probeNext) { probeNext = false; startProbe(); } })   // один раз: весь граф в кадре
     .onNodeClick(function (n) { select(n.id, true); })
     .onBackgroundClick(function () { clearAll(); })
-    .graphData({ nodes: nodes.map(function (n) { return Object.assign({}, n); }), links: D.links.map(function (l) { return Object.assign({}, l); }) });
-  try { G.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); } catch (e) { /* без этого тоже работает */ }
+    .graphData(sceneData());
+  setPixelRatio();
   var link = G.d3Force('link'); if (link) link.distance(34).strength(function (l) { return 0.15 + 0.6 * l.w / maxW; });
   var charge = G.d3Force('charge'); if (charge) charge.strength(-26);
   // притяжение к центру: одиночные теги без связей иначе разлетаются, и граф в кадре выходит мелким
@@ -115,17 +154,17 @@
   });
   setTimeout(function () { if (!fitted) G.zoomToFit(400, 20); }, 1500);   // первый вид — не дожидаясь конца раскладки
   var live = {};                              // узлы с координатами, которые считает движок
-  G.graphData().nodes.forEach(function (n) { live[n.id] = n; });
+  syncLive();
 
   // ---- подписи: HTML поверх сцены, позиции из камеры (без текстур и объектов three.js) ----
   var shown = {}, boxes = {};
   function labelSet() {
     var s = {};
     var c = 0;
-    if (comm >= 0) nodes.forEach(function (n) { if (n.c === comm && vis(n) && c++ < LABELS) s[n.id] = 1; });
-    else nodes.forEach(function (n) { if (vis(n) && c++ < LABELS) s[n.id] = 1; });
+    if (comm >= 0) nodes.forEach(function (n) { if (n.c === comm && drawn[n.id] && vis(n) && c++ < P.labels) s[n.id] = 1; });
+    else nodes.forEach(function (n) { if (drawn[n.id] && vis(n) && c++ < P.labels) s[n.id] = 1; });
     if (sel) { s[sel] = 1; nb[sel].forEach(function (x) { s[x.id] = 1; }); }
-    if (found) Object.keys(found).slice(0, 20).forEach(function (k) { if (byId[k] && vis(byId[k])) s[k] = 1; });
+    if (found) Object.keys(found).slice(0, 20).forEach(function (k) { if (byId[k] && drawn[k] && vis(byId[k])) s[k] = 1; });
     return s;
   }
   function relabel() {
@@ -140,7 +179,8 @@
   }
   /** Приоритет подписи: выбранный и найденный — первыми, дальше тяжёлые; наезжающие на уже показанные — прячем. */
   function rank(k) { return (k === sel ? 1e9 : 0) + (found && found[k] ? 1e8 : 0) + (sel && focus && focus[k] ? 1e7 : 0) + byId[k].act; }
-  function frame() {
+  function frame(ts) {
+    if (probe) probeTick(ts);
     var cam = G.camera(), dir = cam.position.clone(), P = cam.position;
     cam.getWorldDirection(dir);
     var taken = [];
@@ -181,6 +221,7 @@
   }
   function select(id, noFly) {
     sel = id; comm = -1; found = null; $('q').value = '';
+    ensure([id].concat(nb[id].map(function (x) { return x.id; })));   // выбранный и его соседи — на сцену, даже если вне предела
     var n = byId[id], c = comms[n.c], m = $('dm');
     $('dc').style.background = c.color; $('dn').textContent = labOf(n); m.textContent = '';
     var tw = document.createElement('div'); tw.textContent = T1[n.t] || n.t; m.appendChild(tw);
@@ -274,6 +315,7 @@
     var hit = hits(q);
     found = {}; hit.forEach(function (n) { found[n.id] = 1; });
     if (!hit.length) found = { '\u0000': 1 };          // ничего не нашлось — всё приглушено
+    ensure(hit.slice(0, 40).map(function (n) { return n.id; }));   // найденные вне предела — на сцену (первые 40)
     $('stat').textContent = hit.length ? stats() : (T.notFound || '');
     compute();
     if (hit.length) timer = setTimeout(function () { fly(hit[0].id); }, 450);
@@ -299,6 +341,35 @@
     };
     $('types').appendChild(b);
   });
+  // ---- подстройка на ходу: 3 с после раскладки меряем кадры; медленнее 24 к/с — уровень вниз и сцена меньше ----
+  var probe = null, lastDown = -1e9, lowNote = $('low');
+  function showNote() { var low = ORDER[tierIdx] === 'LOW'; lowNote.textContent = low ? (T.lowNote || '') : ''; lowNote.style.display = low ? 'block' : 'none'; }
+  function startProbe() { probe = { t0: 0, n: 0 }; }
+  /** Замер начнётся, когда раскладка встанет; не дождались события движка — по таймеру. */
+  function armProbe() { probeNext = true; setTimeout(function () { if (probeNext) { probeNext = false; startProbe(); } }, cooldownMs() + 1000); }
+  function probeTick(ts) {
+    if (document.hidden) { probe.t0 = 0; probe.n = 0; return; }       // свёрнуто — меряем заново
+    if (!probe.t0) { probe.t0 = ts; probe.n = 0; return; }
+    probe.n++;
+    if (ts - probe.t0 < 3000) return;
+    var fps = probe.n * 1000 / (ts - probe.t0);
+    probe = null;
+    if (fps < 24 && tierIdx > 0 && ts - lastDown >= 5000) { lastDown = ts; applyTier(tierIdx - 1); }
+  }
+  function applyTier(i) {
+    tierIdx = i; P = TIERS[ORDER[i]] || P;
+    G.nodeResolution(P.nodeResolution).warmupTicks(P.warmupTicks).cooldownTicks(P.cooldownTicks).cooldownTime(cooldownMs()).linkWidth(linkWidth);
+    setPixelRatio();
+    var keep = baseDrawn();
+    if (sel) { keep[sel] = 1; nb[sel].forEach(function (x) { keep[x.id] = 1; }); }
+    if (found) Object.keys(found).slice(0, 40).forEach(function (k) { if (byId[k]) keep[k] = 1; });
+    drawn = keep;
+    G.graphData(sceneData()); syncLive();
+    showNote(); relabel(); $('stat').textContent = stats();
+    armProbe();                                                        // после новой раскладки снова меряем: вдруг ещё мало
+  }
+  showNote(); armProbe();
+
   window.addEventListener('resize', function () { G.width(window.innerWidth).height(window.innerHeight); });
   relabel();
 })();

@@ -236,6 +236,8 @@ object I18nTables {
         "Слово" to "Word",
         "Запрос" to "Query",
         "Сайт" to "Site",
+        "показано %s" to "shown: %s",
+        "Упрощённая отрисовка: слабое устройство" to "Simplified rendering: weak device",
     ) }
     private val ES by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Ya descargado: Descargas/Loopa/%s",
@@ -470,6 +472,8 @@ object I18nTables {
         "Слово" to "Palabra",
         "Запрос" to "Consulta",
         "Сайт" to "Sitio",
+        "показано %s" to "mostrados: %s",
+        "Упрощённая отрисовка: слабое устройство" to "Dibujo simplificado: dispositivo lento",
     ) }
     private val PT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Já baixado: Downloads/Loopa/%s",
@@ -704,6 +708,8 @@ object I18nTables {
         "Слово" to "Palavra",
         "Запрос" to "Consulta",
         "Сайт" to "Site",
+        "показано %s" to "mostrados: %s",
+        "Упрощённая отрисовка: слабое устройство" to "Desenho simplificado: dispositivo fraco",
     ) }
     private val DE by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Bereits geladen: Downloads/Loopa/%s",
@@ -938,6 +944,8 @@ object I18nTables {
         "Слово" to "Wort",
         "Запрос" to "Suchanfrage",
         "Сайт" to "Seite",
+        "показано %s" to "angezeigt: %s",
+        "Упрощённая отрисовка: слабое устройство" to "Vereinfachte Darstellung: schwaches Gerät",
     ) }
     private val FR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1172,6 +1180,8 @@ object I18nTables {
         "Слово" to "Mot",
         "Запрос" to "Requête",
         "Сайт" to "Site",
+        "показано %s" to "affichés : %s",
+        "Упрощённая отрисовка: слабое устройство" to "Rendu simplifié : appareil peu puissant",
     ) }
     private val IT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Già scaricato: Download/Loopa/%s",
@@ -1406,6 +1416,8 @@ object I18nTables {
         "Слово" to "Parola",
         "Запрос" to "Ricerca",
         "Сайт" to "Sito",
+        "показано %s" to "mostrati: %s",
+        "Упрощённая отрисовка: слабое устройство" to "Rendering semplificato: dispositivo lento",
     ) }
     private val TR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -1640,6 +1652,8 @@ object I18nTables {
         "Слово" to "Kelime",
         "Запрос" to "Sorgu",
         "Сайт" to "Site",
+        "показано %s" to "gösterilen: %s",
+        "Упрощённая отрисовка: слабое устройство" to "Basit çizim: zayıf cihaz",
     ) }
     private val PL by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Już pobrano: Pobrane/Loopa/%s",
@@ -1874,6 +1888,8 @@ object I18nTables {
         "Слово" to "Słowo",
         "Запрос" to "Zapytanie",
         "Сайт" to "Serwis",
+        "показано %s" to "pokazano: %s",
+        "Упрощённая отрисовка: слабое устройство" to "Uproszczone rysowanie: słabe urządzenie",
     ) }
     private val UK by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Уже завантажено: Завантаження/Loopa/%s",
@@ -2108,6 +2124,8 @@ object I18nTables {
         "Слово" to "Слово",
         "Запрос" to "Запит",
         "Сайт" to "Сайт",
+        "показано %s" to "показано: %s",
+        "Упрощённая отрисовка: слабое устройство" to "Спрощене відтворення: слабкий пристрій",
     ) }
 
     fun of(code: String): Map<String, String> = when (code) {

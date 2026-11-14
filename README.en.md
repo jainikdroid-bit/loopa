@@ -117,7 +117,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.15**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.16**.
 
 | Version | What's new |
 |---|---|
@@ -133,6 +133,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.13 | Six new sources: xVideos, XNXX, Pornhub, RedTube, xHamster, FikFap — checkboxes on the welcome screen and in 👤 → “Sources”, tabs in the feed, mixed into “For you”, search and “Similar”; downloads work for xVideos, XNXX, Pornhub, RedTube (xHamster and FikFap not yet) |
 | 1.14 | 3D interest graph (⧩ menu → “Interest graph…”): tags are spheres sized by weight, links are what you like together, communities are coloured as in graphify; tag search, zoom with buttons and fingers; “My weight for this tag” slider ×0.1…×3 makes a tag show up more or less in “For you”; “Open in feed” |
 | 1.15 | Taste network from all interests: tags, creators, subreddits, title words, searches and sites are nodes of one network; a liked clip links its tags with its creator, subreddit and site, a search links to the tags of clips liked after it; weight flows across types and “For you” scores clips by the whole network; the network grows with use (up to 1500 tags, 6000 links); the 3D graph shows up to 2000 nodes with type filters, a weight slider on any node and “Open in feed” for creators, subreddits, searches and sites |
+| 1.16 | The 3D graph adapts to the hardware: memory, CPU cores and 64-bit support give the phone a level (low, mid, high); on low-end phones fewer nodes, links and labels are drawn with simpler spheres and lines, and if the frame rate drops below 24 fps the graph simplifies itself. The taste network logic, search and sliders stay the same on every phone |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |
