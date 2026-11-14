@@ -213,7 +213,8 @@
   function fly(id) {
     var n = live[id]; if (!n || n.x === undefined) return;
     var len = Math.hypot(n.x, n.y, n.z), d = 90, k = 1 + d / len;
-    G.cameraPosition(len < 1 ? { x: n.x, y: n.y, z: n.z + d } : { x: n.x * k, y: n.y * k, z: n.z * k }, n, 800);
+    // смотрим на центр графа, а не на узел: иначе узел становится осью вращения — стоит посреди экрана и «ездит» вместе с ним
+    G.cameraPosition(len < 1 ? { x: n.x, y: n.y, z: n.z + d } : { x: n.x * k, y: n.y * k, z: n.z * k }, { x: 0, y: 0, z: 0 }, 800);
   }
   function part(box, label, val) {
     var s = document.createElement('div'); s.appendChild(document.createTextNode(label + ': '));
