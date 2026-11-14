@@ -481,9 +481,10 @@ class MainActivity : Activity() {
                 ForYou.WEIGHTS.forEachIndexed { i, (v, t) -> sh.add(20 + FY_SRC.indexOfFirst { it.first == key }, v, i, tr(t)).isChecked = v == w }
                 sh.setGroupCheckable(20 + FY_SRC.indexOfFirst { it.first == key }, true, true)
             }
-            m.menu.add(6, 2, 2, tr("Мои интересы…"))
-            m.menu.add(6, 3, 3, tr("Сбросить интересы"))
-            if (Reddit.hadUser) m.menu.add(6, 4, 4, tr("Взять лайки с Reddit"))
+            m.menu.add(6, 2, 50, tr("Мои интересы…"))
+            m.menu.add(6, 5, 51, tr("Граф интересов…"))
+            m.menu.add(6, 3, 52, tr("Сбросить интересы"))
+            if (Reddit.hadUser) m.menu.add(6, 4, 53, tr("Взять лайки с Reddit"))
         }
         val dur = m.menu.addSubMenu(2, 0, 100, tr("Длительность: %s", if (Feed.duration == "any") tr("любая") else tr(Feed.DURATIONS.first { it.first == Feed.duration }.second).let(I18n::lower)))
         Feed.DURATIONS.forEachIndexed { i, d -> dur.add(3, i, i, tr(d.second)).isChecked = d.first == Feed.duration }
@@ -505,7 +506,9 @@ class MainActivity : Activity() {
         m.setOnMenuItemClickListener {
             when (it.groupId) {
                 6 -> when (it.itemId) {
-                        2 -> { android.app.AlertDialog.Builder(this).setTitle(tr("Мои интересы")).setMessage(Interests.summary()).setPositiveButton("OK", null).show(); return@setOnMenuItemClickListener true }
+                        2 -> { android.app.AlertDialog.Builder(this).setTitle(tr("Мои интересы")).setMessage(Interests.summary()).setPositiveButton("OK", null)
+                            .setNeutralButton(tr("3D-граф")) { _, _ -> startActivity(Intent(this, GraphActivity::class.java)) }.show(); return@setOnMenuItemClickListener true }
+                    5 -> { startActivity(Intent(this, GraphActivity::class.java)); return@setOnMenuItemClickListener true }
                     3 -> { android.app.AlertDialog.Builder(this).setMessage(tr("Забыть лайки, просмотры и поиски для «Для вас»?"))
                         .setPositiveButton(tr("Сбросить")) { _, _ -> Interests.reset(); reload() }.setNegativeButton(tr("Отмена"), null).show(); return@setOnMenuItemClickListener true }
                     4 -> { importRedditLikes(true); return@setOnMenuItemClickListener true }

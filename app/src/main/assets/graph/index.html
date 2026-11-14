@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Loopa</title>
+<style>
+  :root { --bg:#0f0f1a; --panel:#1a1a2e; --line:#2a2a4e; --text:#e0e0e0; --dim:#8a8aa8; --accent:#4E79A7; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); overflow:hidden; touch-action:none;
+    font:14px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #graph { position:fixed; inset:0; }
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+  .lb { position:absolute; left:0; top:0; white-space:nowrap; color:#fff; text-shadow:0 0 3px #000, 0 0 3px #000, 0 1px 2px #000; will-change:transform; }
+  #top { position:fixed; top:8px; left:8px; right:8px; display:flex; gap:8px; align-items:center; z-index:5; }
+  #q { flex:1; min-width:0; height:40px; padding:0 12px; font:inherit; font-size:16px; color:var(--text); background:var(--panel);
+    border:1px solid var(--line); border-radius:10px; outline:none; touch-action:auto; }
+  #q:focus { border-color:var(--accent); }
+  #stat { color:var(--dim); font-size:12px; white-space:nowrap; text-shadow:0 0 3px #000; }
+  #empty { position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:32px; text-align:center;
+    color:var(--dim); font-size:16px; z-index:4; }
+  #legend { position:fixed; left:0; right:0; bottom:0; display:flex; gap:8px; padding:10px 8px 10px;
+    overflow-x:auto; background:linear-gradient(transparent, rgba(15,15,26,.92) 40%); z-index:5; touch-action:pan-x; scrollbar-width:none; }
+  #legend::-webkit-scrollbar { display:none; }
+  .chip { flex:none; display:flex; align-items:center; gap:6px; height:32px; padding:0 12px; background:var(--panel);
+    border:1px solid var(--line); border-radius:16px; color:var(--text); font:inherit; cursor:pointer; }
+  .chip.on { border-color:#fff; }
+  .chip i { width:10px; height:10px; border-radius:50%; flex:none; }
+  .chip small { color:var(--dim); }
+  #detail { position:fixed; left:8px; right:8px; bottom:56px; max-height:46vh; overflow-y:auto; display:none; padding:12px;
+    background:var(--panel); border:1px solid var(--line); border-radius:14px; z-index:6; touch-action:pan-y; }
+  #dh { display:flex; align-items:center; gap:8px; }
+  #dh i { width:14px; height:14px; border-radius:50%; flex:none; }
+  #dn { flex:1; min-width:0; font-size:18px; font-weight:600; overflow-wrap:anywhere; }
+  #dx { flex:none; width:36px; height:36px; font-size:22px; line-height:1; color:var(--dim); background:none; border:0; cursor:pointer; }
+  #dm { margin:4px 0 8px; color:var(--dim); font-size:13px; }
+  #dm b { color:var(--text); font-weight:600; }
+  #dl { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; color:var(--dim); }
+  #dl .chip { height:30px; padding:0 10px; font-size:13px; }
+  #dl .chip span { display:block; height:3px; border-radius:2px; background:var(--dim); }
+  #open { width:100%; height:44px; font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:10px; cursor:pointer; }
+  #zoom { position:fixed; right:8px; top:64px; display:flex; flex-direction:column; gap:8px; z-index:5; }
+  #zoom button { width:44px; height:44px; font:inherit; font-size:22px; line-height:1; color:var(--text); background:var(--panel);
+    border:1px solid var(--line); border-radius:12px; cursor:pointer; }
+  #wbox { margin:6px 0 12px; }
+  #wrow { display:flex; align-items:center; gap:10px; }
+  #w { flex:1; min-width:0; height:32px; accent-color:var(--accent); touch-action:pan-x; }
+  #wv { flex:none; min-width:48px; text-align:right; font-weight:600; }
+  #wr { flex:none; height:30px; padding:0 10px; font:inherit; font-size:13px; color:var(--text); background:none; border:1px solid var(--line); border-radius:8px; }
+  #wh { color:var(--dim); font-size:12px; margin-top:2px; }
+  .sec { color:var(--dim); font-size:12px; text-transform:uppercase; letter-spacing:.04em; margin:6px 0; }
+</style>
+</head>
+<body>
+<div id="graph"></div>
+<div id="labels"></div>
+<div id="top"><input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false"><span id="stat"></span></div>
+<div id="empty"></div>
+<div id="detail">
+  <div id="dh"><i id="dc"></i><div id="dn"></div><button id="dx" type="button">&times;</button></div>
+  <div id="dm"></div>
+  <div id="wbox"><div class="sec" id="wl"></div>
+    <div id="wrow"><input id="w" type="range" step="0.1"><span id="wv"></span><button id="wr" type="button"></button></div>
+    <div id="wh"></div></div>
+  <div class="sec" id="ds"></div>
+  <div id="dl"></div>
+  <button id="open" type="button"></button>
+</div>
+<div id="legend"></div>
+<div id="zoom"><button id="zi" type="button">+</button><button id="zo" type="button">&minus;</button><button id="zf" type="button">&#x2922;</button></div>
+<!-- 3d-force-graph 1.73.4 вместе с three.js (jsdelivr, UMD); страница сеть не использует -->
+<script src="3d-force-graph.min.js"></script>
+<script src="graph.js"></script>
+</body>
+</html>

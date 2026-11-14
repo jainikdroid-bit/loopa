@@ -70,6 +70,7 @@ object Interests {
         COUNTS.forEach { c -> if (!data.has(c)) data.put(c, JSONObject()) }
         merge()
         if (!data.has("map")) data.put("map", JSONObject())
+        if (!data.has("man")) data.put("man", JSONObject())
         data.optJSONArray("seen")?.let { a -> for (i in 0 until a.length()) seen += a.getString(i) }
         if (!data.has("at")) data.put("at", System.currentTimeMillis())
         decay()
@@ -190,7 +191,7 @@ object Interests {
     fun openSub(s: String) = synchronized(this) { s.split("+").filter { it.isNotBlank() && !it.startsWith("u/") }.forEach { add("sub", it.lowercase(), 3.0) }; save() }
 
     fun reset() = synchronized(this) {
-        AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); seen.clear(); net = null; lastQuery = emptyList(); save()
+        AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); data.put("man", JSONObject()); seen.clear(); net = null; lastQuery = emptyList(); save()
     }
 
     // ---- использование ----
@@ -215,8 +216,30 @@ object Interests {
         val tags = data.getJSONObject("tag"); val pairs = data.getJSONObject("pair")
         val nodes = tags.keys().asSequence().associateWith { eff("tag", it, tags.getDouble(it)) }
         val edges = pairs.keys().asSequence().associateWith { eff("pair", it, pairs.getDouble(it)) }
-        TagNet.activate(nodes, edges).also { net = it }
+        val man = boosts()
+        TagNet.activate(nodes, edges).mapValues { (t, v) -> v * (man[t] ?: 1.0) }.also { net = it }
     }
+
+    /** JSON графа интересов для экрана «3D-граф» ([InterestGraph]): те же действующие веса, что у [activation]. */
+    @Synchronized fun graphJson(): String {
+        val tags = data.getJSONObject("tag"); val pairs = data.getJSONObject("pair")
+        val man = boosts()
+        val own = tags.keys().asSequence().associateWith { eff("tag", it, tags.getDouble(it)) * (man[it] ?: 1.0) }
+        val edges = pairs.keys().asSequence().associateWith { eff("pair", it, pairs.getDouble(it)) }
+        return InterestGraph.build(own, edges, activation(), man)
+    }
+
+    /** Ручная поправка веса тега (ползунок в 3D-графе): множитель [BOOST_MIN]…[BOOST_MAX], 1 — как выучено. */
+    @Synchronized fun boost(t: String): Double = data.getJSONObject("man").optDouble(key(t), 1.0)
+    /** Сохранить поправку: умножает и свой вес тега, и его вес в сети — «Для вас» и поиск сразу берут его чаще или реже. */
+    @Synchronized fun setBoost(t: String, m: Double) {
+        val o = data.getJSONObject("man"); val k = key(t)
+        if (kotlin.math.abs(m - 1.0) < 0.01) o.remove(k) else o.put(k, m.coerceIn(BOOST_MIN, BOOST_MAX))
+        net = null; save()
+    }
+    const val BOOST_MIN = 0.1
+    const val BOOST_MAX = 3.0
+    @Synchronized private fun boosts(): Map<String, Double> = data.getJSONObject("man").let { o -> o.keys().asSequence().associateWith { o.getDouble(it) } }
 
     /** Верх оси по весу. */
     fun top(axis: String, n: Int): List<Pair<String, Double>> = synchronized(this) {

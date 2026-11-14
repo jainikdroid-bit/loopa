@@ -67,6 +67,11 @@
             android:name=".LoginActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
+        <!-- граф интересов: 3D-страница из assets в WebView -->
+        <activity
+            android:name=".GraphActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
         <activity
             android:name=".PlayerActivity"
             android:exported="false"

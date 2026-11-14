@@ -16,8 +16,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // -PvCode=1 -PvName=1.0-test — сборка «старой» версии для проверки обновления на эмуляторе
-        versionCode = (project.findProperty("vCode") as String?)?.toInt() ?: 41
-        versionName = (project.findProperty("vName") as String?) ?: "1.13"
+        versionCode = (project.findProperty("vCode") as String?)?.toInt() ?: 42
+        versionName = (project.findProperty("vName") as String?) ?: "1.14"
     }
     signingConfigs {
         if (signing != null) create("release") {

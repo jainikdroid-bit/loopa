@@ -83,7 +83,7 @@
   from them; words of a search are linked to the tags of clips you like right after it, and skipping a clip the
   network expected you to like counts double. It picks RedGIFs videos and mixes in Reddit posts from matching subreddits (18+ included, which Reddit's own
   recommendations leave out), plus Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap if enabled. Each source's share is “low / medium / high”; the
-  profile is shown in “My interests” and stays on the phone. While interests are still few, the feed is topped up
+  profile is shown in “My interests” and in the 3D interest graph (⧩ menu → “Interest graph…”: sphere size is the tag weight, a slider raises or lowers any tag) and stays on the phone. While interests are still few, the feed is topped up
   with popular videos so it never runs dry.
 - **Hide topics:** gay content, sissy/femboy/trans (lesbian stays) and your own words. Duplicate videos and reuploads
   are removed from the feed.
@@ -117,7 +117,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.13**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.14**.
 
 | Version | What's new |
 |---|---|
@@ -131,6 +131,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.12.1 | Update mode to choose: manual / ask (download and ask) / automatic (download and install); ⧩ menu → “Updates…” |
 | 1.12.2 | “For you” taste network: tags frequent in your likes and searches weigh more, weight flows to tags that always sit next to your favourites; search words get linked to the tags of clips you liked after it; “Close to your favourites” in “My interests” |
 | 1.13 | Six new sources: xVideos, XNXX, Pornhub, RedTube, xHamster, FikFap — checkboxes on the welcome screen and in 👤 → “Sources”, tabs in the feed, mixed into “For you”, search and “Similar”; downloads work for xVideos, XNXX, Pornhub, RedTube (xHamster and FikFap not yet) |
+| 1.14 | 3D interest graph (⧩ menu → “Interest graph…”): tags are spheres sized by weight, links are what you like together, communities are coloured as in graphify; tag search, zoom with buttons and fingers; “My weight for this tag” slider ×0.1…×3 makes a tag show up more or less in “For you”; “Open in feed” |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |
