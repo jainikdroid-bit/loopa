@@ -11,7 +11,11 @@ import java.util.concurrent.TimeUnit
  * альбома — отдельный ролик в ленте. Файлы видео отдаются только с Referer сайта (без него 403) — плеер подставляет его
  * сам для адресов *.erome.com ([Video]). Альбомы только с картинками пропускаются.
  */
-object Erome {
+object Erome : Source {
+    override val id = "erome"
+    override val title = "Erome"
+    override val badge = "ER"
+    override val about = "альбомы пользователей"
     const val SITE = "https://www.erome.com"
     const val REFERER = "$SITE/"
     /** Альбомы страницы открываются параллельно (на странице до 36 альбомов). */
@@ -25,7 +29,7 @@ object Erome {
     private class Album(val id: String, val title: String, val user: String, val videos: Int, val views: Long)
 
     /** Страница ленты: q пусто — обзор, иначе поиск; fresh — сначала новые. */
-    fun page(q: String, fresh: Boolean, p: Int): Page {
+    override fun page(q: String, fresh: Boolean, p: Int): Page {
         val base = if (q.isBlank()) "$SITE/explore" + (if (fresh) "/new" else "") + "?page=$p"
         else "$SITE/search?q=" + URLEncoder.encode(q.trim(), "UTF-8") + (if (fresh) "&o=new" else "") + "&page=$p"
         return parse(get(base), p)

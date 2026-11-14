@@ -53,15 +53,15 @@ object Feed {
     var duration = "any"
     var audioOnly = false
     var author: String? = null; private set
-    /** foryou / liked / reddit / erome / eporner / null (популярное или поиск). */
+    /** foryou / liked / reddit / id сайта из [Sources.ALL] / null (популярное или поиск). */
     var mode: String? = null; private set
     /** Reddit: сабреддиты через «+» (пусто — главная с подписками, «u/имя» — посты пользователя), сортировка, курсор. */
     var sub = ""; private set
     var rorder = "hot"
     private var after: String? = null
     val reddit get() = mode == "reddit"
-    /** Лента стороннего сайта (Erome, Eporner): свой поиск, сортировка — сайта. */
-    val ext get() = mode == "erome" || mode == "eporner"
+    /** Лента стороннего сайта ([Sources.ALL]): свой поиск, сортировка — сайта. */
+    val ext get() = Sources.byId(mode) != null
     val items = ArrayList<Gif>()
     var tags: List<String> = emptyList(); private set
     var error: String? = null; private set
@@ -195,7 +195,7 @@ object Feed {
         if (ext) {
             val m = mode; val t = text; val fresh = sort.id == "date" && desc
             thread {
-                val r = runCatching { if (m == "erome") Erome.page(t, fresh, p) else Eporner.page(t, fresh, p) }
+                val r = runCatching { Sources.byId(m)!!.page(t, fresh, p) }
                 ui.post {
                     if (g != gen) return@post
                     loading = false

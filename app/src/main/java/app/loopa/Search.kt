@@ -91,9 +91,8 @@ object Search {
             src?.let { (s, byTag) -> val k = synchronized(this) { ((srcPage[s] ?: 1) + 1).also { srcPage[s] = it } }; rg(s, byTag, k) }
         }
         if (reddit) { cs.submit { redditPart(q, p) }; n++ }
-        // Erome и Eporner (галочки «Источники» в меню 👤): их поиск по тому же запросу, страница p
-        if (ForYou.useErome) { cs.submit { runCatching { Erome.page(q, false, p).gifs }.getOrDefault(emptyList()) }; n++ }
-        if (ForYou.useEporner) { cs.submit { runCatching { Eporner.page(q, false, p).gifs }.getOrDefault(emptyList()) }; n++ }
+        // сторонние сайты (галочки «Источники» в меню 👤): их поиск по тому же запросу, страница p
+        for (s in ForYou.onSources) { cs.submit { runCatching { s.page(q, false, p).gifs }.getOrDefault(emptyList()) }; n++ }
         var total = 0
         var synDone = p != 1
         if (p == 1) full = 0
@@ -110,7 +109,7 @@ object Search {
             }
             if (got.isEmpty()) continue
             total += got.size
-            // Erome/Eporner: ролики из поиска самого сайта по этому запросу — по теме; оценка не ниже синонима (7),
+            // сторонние сайты: ролики из поиска самого сайта по этому запросу — по теме; оценка не ниже синонима (7),
             // иначе за сотнями роликов RedGIFs их не видно
             val scored = got.map { it to if (it.ext) maxOf(score(it), EXT_SCORE) else score(it) }
             // теги, частые у роликов прямо по теме (оценка ≥ 8), — тоже искать (у «midget» — «Little People»)

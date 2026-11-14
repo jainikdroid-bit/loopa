@@ -1,6 +1,6 @@
 # Loopa
 
-> Loopa is a free, open-source (MIT), unofficial Android app for watching RedGIFs, Reddit, Erome and Eporner videos. Adults only (18+). Not affiliated with any of these services.
+> Loopa is a free, open-source (MIT), unofficial Android app for watching RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap videos. Adults only (18+). Not affiliated with any of these services.
 
 - Website: https://jainikdroid-bit.github.io/loopa/
 - Source code: https://github.com/jainikdroid-bit/loopa
@@ -12,6 +12,7 @@
 - Reddit videos in the same app: your subscriptions, any subreddits, user posts; Reddit sorting (hot, new, rising, top).
 - Full-screen vertical swiping like short-video apps.
 - Erome and Eporner tabs with search and optional sign-in; "Similar" videos in the player.
+- xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap: enabled by checkboxes (welcome screen, profile menu -> Sources), a tab and search for each, mixed into "For you", search and "Similar"; no sign-in. Downloads work for xVideos, XNXX, Pornhub and RedTube (not yet xHamster and FikFap).
 - Instagram-style smart preloading: from the fling it predicts where the feed stops and loads thumbnails, then the first seconds of videos there; the next page is requested early. Preloading never takes bandwidth from the video on screen and adapts to the network (Data Saver = none).
 - Disk cache: videos 512 MB-1 GB (configurable), thumbnails 128 MB; rewatching works without network.
 - Tuned for high-latency links (~800 ms ping, ~5 Mbit/s): one OkHttp client with connection reuse and HTTP/2, connections opened ahead, Auto quality starts in SD.

@@ -77,7 +77,7 @@ class GridPreview(private val ctx: Context) {
     @Volatile var touched: Slot? = null
 
     private fun player(): ExoPlayer = idle.removeLastOrNull() ?: ExoPlayer.Builder(ctx)
-        .setMediaSourceFactory(DefaultMediaSourceFactory(Video.bgSource))
+        .setMediaSourceFactory(DefaultMediaSourceFactory(Video.bgPlay))
         // превью: старт с четверти секунды, впрок немного — канал нужнее тому, что откроют
         .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(1_000, 4_000, 250, 500).build())
         .build().apply { volume = 0f; repeatMode = Player.REPEAT_MODE_ONE }

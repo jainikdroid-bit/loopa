@@ -68,23 +68,71 @@ object Video {
         // запрос — открытый диапазон «с позиции до конца», видео идёт одним потоком, а не мелкими кусками
         val http = OkHttpDataSource.Factory(Net.http).setUserAgent(Api.UA).setTransferListener(Counted(meter))
         // Erome отдаёт видео только с Referer своего сайта (без него 403)
-        val ref = ResolvingDataSource.Factory(http) { spec ->
-            if (Erome.ours(spec.uri.toString())) spec.withAdditionalHeaders(mapOf("Referer" to Erome.REFERER)) else spec }
+        val ref = ResolvingDataSource.Factory(http) { spec -> resolveSpec(spec) }
         source = cached(ref)
+        play = Split.Factory(source, ref)
         // фон (живые превью сетки, видео заранее) — тот же кэш, но свои соединения ([Net.bg]): открыли ролик — фон
         // обрывается целиком и не стоит в очереди перед ним
         val bgHttp = OkHttpDataSource.Factory(Net.bg).setUserAgent(Api.UA).setTransferListener(Counted(meter))
-        bgSource = cached(ResolvingDataSource.Factory(bgHttp) { spec ->
-            if (Erome.ours(spec.uri.toString())) spec.withAdditionalHeaders(mapOf("Referer" to Erome.REFERER)) else spec })
+        val bgRef = ResolvingDataSource.Factory(bgHttp) { spec -> resolveSpec(spec) }
+        bgSource = cached(bgRef)
+        bgPlay = Split.Factory(bgSource, bgRef)
+    }
+
+    /**
+     * Запрос к CDN: ленивый адрес ([Sources]) заменяется настоящим (сеть, но мы уже в потоке загрузки), заголовки сайта
+     * добавляются. Ключ кэша берётся из исходного запроса ([CacheDataSource] стоит снаружи) — остаётся ленивым адресом.
+     * Erome отдаёт видео только с Referer своего сайта (без него 403).
+     */
+    private fun resolveSpec(spec: androidx.media3.datasource.DataSpec): androidx.media3.datasource.DataSpec {
+        var s = spec
+        if (Sources.isLazy(s.uri.toString())) {
+            val r = try { Sources.resolve(s.uri.toString()) } catch (e: Exception) { throw unresolved(e, s) }
+            s = s.withUri(android.net.Uri.parse(r.url)).withAdditionalHeaders(r.headers)
+        }
+        return if (Erome.ours(s.uri.toString())) s.withAdditionalHeaders(mapOf("Referer" to Erome.REFERER)) else s
+    }
+
+    /**
+     * Адрес ролика не узнать. Ролик удалён или закрыт (ответ 4xx, на странице нет видео) — как ответ 404: плеер не
+     * повторяет ([errors]) и показывает «не открывается». Обрыв и таймаут — обычная ошибка сети, её повторяют.
+     */
+    private fun unresolved(e: Exception, spec: androidx.media3.datasource.DataSpec): java.io.IOException {
+        val gone = (e is HttpError && !e.transient) || e is IllegalStateException || e is IllegalArgumentException
+        if (!gone) return java.io.IOException("не удалось узнать адрес видео: ${e.message}", e)
+        return HttpDataSource.InvalidResponseCodeException(404, e.message, java.io.IOException(e), emptyMap(), spec, ByteArray(0))
     }
 
     /** Ролик целиком лежит в дисковом кэше — превью и просмотр сети не просят. */
     fun fullyCached(url: String): Boolean {
-        if (!::cache.isInitialized || url.isEmpty()) return false
+        if (!::cache.isInitialized || url.isEmpty() || Sources.uncached(url)) return false
         return runCatching {
             val len = androidx.media3.datasource.cache.ContentMetadata.getContentLength(cache.getContentMetadata(url))
             len > 0 && cache.isCached(url, 0, len)
         }.getOrDefault(false)
+    }
+
+    /** Для плеера и превью: как [source]/[bgSource], но ленивый HLS-плейлист — мимо кэша ([Split]). */
+    lateinit var play: DataSource.Factory; private set
+    lateinit var bgPlay: DataSource.Factory; private set
+
+    /**
+     * Ленивые HLS-плейлисты (xHamster, FikFap — [Sources.uncached]) идут мимо дискового кэша: в кэше под постоянным
+     * ленивым ключом остался бы плейлист со ссылками на сегменты, подписи которых через час-три истекают. Остальное
+     * (mp4, сегменты по настоящим адресам) — через кэш, как раньше.
+     */
+    private class Split(private val cached: DataSource, private val direct: DataSource) : DataSource {
+        private var cur: DataSource? = null
+        override fun addTransferListener(l: androidx.media3.datasource.TransferListener) { cached.addTransferListener(l); direct.addTransferListener(l) }
+        override fun open(spec: androidx.media3.datasource.DataSpec): Long =
+            (if (Sources.uncached(spec.uri.toString())) direct else cached).also { cur = it }.open(spec)
+        override fun read(buffer: ByteArray, offset: Int, length: Int) = cur!!.read(buffer, offset, length)
+        override fun getUri(): android.net.Uri? = cur?.uri
+        override fun getResponseHeaders(): Map<String, List<String>> = cur?.responseHeaders ?: emptyMap()
+        override fun close() { try { cur?.close() } finally { cur = null } }
+        class Factory(private val cached: DataSource.Factory, private val direct: DataSource.Factory) : DataSource.Factory {
+            override fun createDataSource(): DataSource = Split(cached.createDataSource(), direct.createDataSource())
+        }
     }
 
     /** Источник для фона: превью в сетке и предзагрузка ([Prefetch]). */

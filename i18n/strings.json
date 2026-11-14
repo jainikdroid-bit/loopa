@@ -197,7 +197,14 @@
   "Вручную — только по кнопке",
   "Предлагать — скачать и спросить",
   "Автоматически — скачать и установить",
-  "Рядом с любимыми"
+  "Рядом с любимыми",
+  "любительское и всё подряд",
+  "любительское, тот же движок",
+  "любительское и verified amateurs",
+  "та же сеть, что Pornhub",
+  "любительское и короткие Moments",
+  "короткие вертикальные любительские ролики",
+  "Скачивание с %s пока не поддерживается"
  ],
  "en": [
   "Already downloaded: Downloads/Loopa/%s",
@@ -396,7 +403,14 @@
   "Manual — only on request",
   "Ask — download and ask",
   "Automatic — download and install",
-  "Close to your favourites"
+  "Close to your favourites",
+  "amateur and everything else",
+  "amateur, same engine",
+  "amateur and verified amateurs",
+  "same network as Pornhub",
+  "amateur and short Moments",
+  "short vertical amateur clips",
+  "Downloading from %s is not supported yet"
  ],
  "es": [
   "Ya descargado: Descargas/Loopa/%s",
@@ -595,7 +609,14 @@
   "Manual — solo bajo demanda",
   "Preguntar — descargar y preguntar",
   "Automático — descargar e instalar",
-  "Cerca de tus favoritos"
+  "Cerca de tus favoritos",
+  "amateur y de todo",
+  "amateur, mismo motor",
+  "amateur y verified amateurs",
+  "misma red que Pornhub",
+  "amateur y Moments cortos",
+  "clips amateur cortos y verticales",
+  "La descarga desde %s aún no es compatible"
  ],
  "pt": [
   "Já baixado: Downloads/Loopa/%s",
@@ -794,7 +815,14 @@
   "Manual — só sob demanda",
   "Perguntar — baixar e perguntar",
   "Automático — baixar e instalar",
-  "Perto dos seus favoritos"
+  "Perto dos seus favoritos",
+  "amador e de tudo",
+  "amador, mesmo motor",
+  "amador e verified amateurs",
+  "mesma rede do Pornhub",
+  "amador e Moments curtos",
+  "clipes amadores curtos e verticais",
+  "Baixar do %s ainda não é suportado"
  ],
  "de": [
   "Bereits geladen: Downloads/Loopa/%s",
@@ -993,7 +1021,14 @@
   "Manuell — nur auf Wunsch",
   "Fragen — laden und nachfragen",
   "Automatisch — laden und installieren",
-  "Nah an deinen Favoriten"
+  "Nah an deinen Favoriten",
+  "Amateur und alles andere",
+  "Amateur, gleiche Engine",
+  "Amateur und Verified Amateurs",
+  "gleiches Netzwerk wie Pornhub",
+  "Amateur und kurze Moments",
+  "kurze vertikale Amateurclips",
+  "Download von %s wird noch nicht unterstützt"
  ],
  "fr": [
   "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1192,7 +1227,14 @@
   "Manuel — sur demande seulement",
   "Proposer — télécharger et demander",
   "Automatique — télécharger et installer",
-  "Proches de vos favoris"
+  "Proches de vos favoris",
+  "amateur et tout le reste",
+  "amateur, même moteur",
+  "amateur et verified amateurs",
+  "même réseau que Pornhub",
+  "amateur et Moments courts",
+  "courts clips amateurs verticaux",
+  "Le téléchargement depuis %s n’est pas encore pris en charge"
  ],
  "it": [
   "Già scaricato: Download/Loopa/%s",
@@ -1391,7 +1433,14 @@
   "Manuale — solo su richiesta",
   "Chiedi — scarica e chiedi",
   "Automatico — scarica e installa",
-  "Vicino ai tuoi preferiti"
+  "Vicino ai tuoi preferiti",
+  "amatoriale e di tutto",
+  "amatoriale, stesso motore",
+  "amatoriale e verified amateurs",
+  "stessa rete di Pornhub",
+  "amatoriale e Moments brevi",
+  "brevi clip amatoriali verticali",
+  "Il download da %s non è ancora supportato"
  ],
  "tr": [
   "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -1590,7 +1639,14 @@
   "Elle — yalnızca istenince",
   "Sor — indir ve sor",
   "Otomatik — indir ve yükle",
-  "Favorilerinize yakın"
+  "Favorilerinize yakın",
+  "amatör ve her şey",
+  "amatör, aynı altyapı",
+  "amatör ve verified amateurs",
+  "Pornhub ile aynı ağ",
+  "amatör ve kısa Moments",
+  "kısa dikey amatör klipler",
+  "%s üzerinden indirme henüz desteklenmiyor"
  ],
  "pl": [
   "Już pobrano: Pobrane/Loopa/%s",
@@ -1789,7 +1845,14 @@
   "Ręcznie — tylko na żądanie",
   "Pytaj — pobierz i zapytaj",
   "Automatycznie — pobierz i zainstaluj",
-  "Blisko ulubionych"
+  "Blisko ulubionych",
+  "amatorskie i wszystko inne",
+  "amatorskie, ten sam silnik",
+  "amatorskie i verified amateurs",
+  "ta sama sieć co Pornhub",
+  "amatorskie i krótkie Moments",
+  "krótkie pionowe klipy amatorskie",
+  "Pobieranie z %s nie jest jeszcze obsługiwane"
  ],
  "uk": [
   "Уже завантажено: Завантаження/Loopa/%s",
@@ -1988,6 +2051,13 @@
   "Вручну — лише за кнопкою",
   "Пропонувати — завантажити й запитати",
   "Автоматично — завантажити й встановити",
-  "Поруч з улюбленими"
+  "Поруч з улюбленими",
+  "аматорське і все поспіль",
+  "аматорське, той самий рушій",
+  "аматорське і verified amateurs",
+  "та сама мережа, що Pornhub",
+  "аматорське і короткі Moments",
+  "короткі вертикальні аматорські ролики",
+  "Завантаження з %s поки не підтримується"
  ]
 }

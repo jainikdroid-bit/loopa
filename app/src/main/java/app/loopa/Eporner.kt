@@ -8,13 +8,17 @@ import java.net.URLEncoder
  * Файл видео API не отдаёт; его даёт ссылка «скачать» сайта /dload/{id}/{высота}/{номер}-{высота}p.mp4 (переадресация
  * на CDN), где номер — тот же, что в адресе превью (…/thumbs/…/{номер}/5_360.jpg). lq=0 — только ролики в HD (720p есть всегда).
  */
-object Eporner {
+object Eporner : Source {
+    override val id = "eporner"
+    override val title = "Eporner"
+    override val badge = "EP"
+    override val about = "полные видео"
     const val SITE = "https://www.eporner.com"
     private const val PER_PAGE = 30
     private val NUM = Regex("""/(\d+)/\d+_\d+\.jpg""")
 
     /** q пусто — лучшее за неделю, иначе поиск по популярности; fresh — сначала новые. */
-    fun page(q: String, fresh: Boolean, p: Int): Page {
+    override fun page(q: String, fresh: Boolean, p: Int): Page {
         val order = when { fresh -> "latest"; q.isBlank() -> "top-weekly"; else -> "most-popular" }
         val url = "$SITE/api/v2/video/search/?query=" + URLEncoder.encode(q.trim().ifEmpty { "all" }, "UTF-8") +
             "&per_page=$PER_PAGE&page=$p&thumbsize=big&order=$order&gay=0&lq=0&format=json"

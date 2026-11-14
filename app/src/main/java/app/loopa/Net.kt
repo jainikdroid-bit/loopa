@@ -92,6 +92,20 @@ object Net {
      * Переадресации запоминаются на 30 минут: ссылка Eporner /dload/… ведёт на CDN, и без памяти каждый запрос куска
      * видео шёл бы через лишний круг. Запомненный адрес ответил ошибкой (ссылка CDN истекла) — забыть и пойти по исходному.
      */
+    /**
+     * CDN, которые без Referer своего сайта отвечают 403 (Erome, FikFap на b-cdn.net): подставить его во все запросы —
+     * видео, сегменты HLS, превью. Сегменты плейлиста иначе ушли бы без него: их адреса плеер берёт из плейлиста сам.
+     */
+    private object SiteReferer : okhttp3.Interceptor {
+        override fun intercept(chain: okhttp3.Interceptor.Chain): okhttp3.Response {
+            val req = chain.request()
+            if (req.header("Referer") != null) return chain.proceed(req)
+            val u = req.url.toString()
+            val ref = when { Erome.ours(u) -> Erome.REFERER; FikFap.ours(u) -> FikFap.REFERER; else -> null }
+            return chain.proceed(if (ref == null) req else req.newBuilder().header("Referer", ref).build())
+        }
+    }
+
     private object Redirects : okhttp3.Interceptor {
         private const val TTL = 30 * 60_000L
         private val memo = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, okhttp3.HttpUrl>>()
@@ -137,6 +151,7 @@ object Net {
             .readTimeout(MEDIA_READ_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
             .retryOnConnectionFailure(true)
             .addInterceptor(Redirects)
+            .addInterceptor(SiteReferer)
             .eventListenerFactory { SlowLog() }
             .build()
     }

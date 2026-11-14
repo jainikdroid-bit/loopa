@@ -201,6 +201,13 @@ object I18nTables {
         "Предлагать — скачать и спросить" to "Ask — download and ask",
         "Автоматически — скачать и установить" to "Automatic — download and install",
         "Рядом с любимыми" to "Close to your favourites",
+        "любительское и всё подряд" to "amateur and everything else",
+        "любительское, тот же движок" to "amateur, same engine",
+        "любительское и verified amateurs" to "amateur and verified amateurs",
+        "та же сеть, что Pornhub" to "same network as Pornhub",
+        "любительское и короткие Moments" to "amateur and short Moments",
+        "короткие вертикальные любительские ролики" to "short vertical amateur clips",
+        "Скачивание с %s пока не поддерживается" to "Downloading from %s is not supported yet",
     ) }
     private val ES by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Ya descargado: Descargas/Loopa/%s",
@@ -400,6 +407,13 @@ object I18nTables {
         "Предлагать — скачать и спросить" to "Preguntar — descargar y preguntar",
         "Автоматически — скачать и установить" to "Automático — descargar e instalar",
         "Рядом с любимыми" to "Cerca de tus favoritos",
+        "любительское и всё подряд" to "amateur y de todo",
+        "любительское, тот же движок" to "amateur, mismo motor",
+        "любительское и verified amateurs" to "amateur y verified amateurs",
+        "та же сеть, что Pornhub" to "misma red que Pornhub",
+        "любительское и короткие Moments" to "amateur y Moments cortos",
+        "короткие вертикальные любительские ролики" to "clips amateur cortos y verticales",
+        "Скачивание с %s пока не поддерживается" to "La descarga desde %s aún no es compatible",
     ) }
     private val PT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Já baixado: Downloads/Loopa/%s",
@@ -599,6 +613,13 @@ object I18nTables {
         "Предлагать — скачать и спросить" to "Perguntar — baixar e perguntar",
         "Автоматически — скачать и установить" to "Automático — baixar e instalar",
         "Рядом с любимыми" to "Perto dos seus favoritos",
+        "любительское и всё подряд" to "amador e de tudo",
+        "любительское, тот же движок" to "amador, mesmo motor",
+        "любительское и verified amateurs" to "amador e verified amateurs",
+        "та же сеть, что Pornhub" to "mesma rede do Pornhub",
+        "любительское и короткие Moments" to "amador e Moments curtos",
+        "короткие вертикальные любительские ролики" to "clipes amadores curtos e verticais",
+        "Скачивание с %s пока не поддерживается" to "Baixar do %s ainda não é suportado",
     ) }
     private val DE by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Bereits geladen: Downloads/Loopa/%s",
@@ -798,6 +819,13 @@ object I18nTables {
         "Предлагать — скачать и спросить" to "Fragen — laden und nachfragen",
         "Автоматически — скачать и установить" to "Automatisch — laden und installieren",
         "Рядом с любимыми" to "Nah an deinen Favoriten",
+        "любительское и всё подряд" to "Amateur und alles andere",
+        "любительское, тот же движок" to "Amateur, gleiche Engine",
+        "любительское и verified amateurs" to "Amateur und Verified Amateurs",
+        "та же сеть, что Pornhub" to "gleiches Netzwerk wie Pornhub",
+        "любительское и короткие Moments" to "Amateur und kurze Moments",
+        "короткие вертикальные любительские ролики" to "kurze vertikale Amateurclips",
+        "Скачивание с %s пока не поддерживается" to "Download von %s wird noch nicht unterstützt",
     ) }
     private val FR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -997,6 +1025,13 @@ object I18nTables {
         "Предлагать — скачать и спросить" to "Proposer — télécharger et demander",
         "Автоматически — скачать и установить" to "Automatique — télécharger et installer",
         "Рядом с любимыми" to "Proches de vos favoris",
+        "любительское и всё подряд" to "amateur et tout le reste",
+        "любительское, тот же движок" to "amateur, même moteur",
+        "любительское и verified amateurs" to "amateur et verified amateurs",
+        "та же сеть, что Pornhub" to "même réseau que Pornhub",
+        "любительское и короткие Moments" to "amateur et Moments courts",
+        "короткие вертикальные любительские ролики" to "courts clips amateurs verticaux",
+        "Скачивание с %s пока не поддерживается" to "Le téléchargement depuis %s n’est pas encore pris en charge",
     ) }
     private val IT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Già scaricato: Download/Loopa/%s",
@@ -1196,6 +1231,13 @@ object I18nTables {
         "Предлагать — скачать и спросить" to "Chiedi — scarica e chiedi",
         "Автоматически — скачать и установить" to "Automatico — scarica e installa",
         "Рядом с любимыми" to "Vicino ai tuoi preferiti",
+        "любительское и всё подряд" to "amatoriale e di tutto",
+        "любительское, тот же движок" to "amatoriale, stesso motore",
+        "любительское и verified amateurs" to "amatoriale e verified amateurs",
+        "та же сеть, что Pornhub" to "stessa rete di Pornhub",
+        "любительское и короткие Moments" to "amatoriale e Moments brevi",
+        "короткие вертикальные любительские ролики" to "brevi clip amatoriali verticali",
+        "Скачивание с %s пока не поддерживается" to "Il download da %s non è ancora supportato",
     ) }
     private val TR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -1395,6 +1437,13 @@ object I18nTables {
         "Предлагать — скачать и спросить" to "Sor — indir ve sor",
         "Автоматически — скачать и установить" to "Otomatik — indir ve yükle",
         "Рядом с любимыми" to "Favorilerinize yakın",
+        "любительское и всё подряд" to "amatör ve her şey",
+        "любительское, тот же движок" to "amatör, aynı altyapı",
+        "любительское и verified amateurs" to "amatör ve verified amateurs",
+        "та же сеть, что Pornhub" to "Pornhub ile aynı ağ",
+        "любительское и короткие Moments" to "amatör ve kısa Moments",
+        "короткие вертикальные любительские ролики" to "kısa dikey amatör klipler",
+        "Скачивание с %s пока не поддерживается" to "%s üzerinden indirme henüz desteklenmiyor",
     ) }
     private val PL by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Już pobrano: Pobrane/Loopa/%s",
@@ -1594,6 +1643,13 @@ object I18nTables {
         "Предлагать — скачать и спросить" to "Pytaj — pobierz i zapytaj",
         "Автоматически — скачать и установить" to "Automatycznie — pobierz i zainstaluj",
         "Рядом с любимыми" to "Blisko ulubionych",
+        "любительское и всё подряд" to "amatorskie i wszystko inne",
+        "любительское, тот же движок" to "amatorskie, ten sam silnik",
+        "любительское и verified amateurs" to "amatorskie i verified amateurs",
+        "та же сеть, что Pornhub" to "ta sama sieć co Pornhub",
+        "любительское и короткие Moments" to "amatorskie i krótkie Moments",
+        "короткие вертикальные любительские ролики" to "krótkie pionowe klipy amatorskie",
+        "Скачивание с %s пока не поддерживается" to "Pobieranie z %s nie jest jeszcze obsługiwane",
     ) }
     private val UK by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Уже завантажено: Завантаження/Loopa/%s",
@@ -1793,6 +1849,13 @@ object I18nTables {
         "Предлагать — скачать и спросить" to "Пропонувати — завантажити й запитати",
         "Автоматически — скачать и установить" to "Автоматично — завантажити й встановити",
         "Рядом с любимыми" to "Поруч з улюбленими",
+        "любительское и всё подряд" to "аматорське і все поспіль",
+        "любительское, тот же движок" to "аматорське, той самий рушій",
+        "любительское и verified amateurs" to "аматорське і verified amateurs",
+        "та же сеть, что Pornhub" to "та сама мережа, що Pornhub",
+        "любительское и короткие Moments" to "аматорське і короткі Moments",
+        "короткие вертикальные любительские ролики" to "короткі вертикальні аматорські ролики",
+        "Скачивание с %s пока не поддерживается" to "Завантаження з %s поки не підтримується",
     ) }
 
     fun of(code: String): Map<String, String> = when (code) {

@@ -5,7 +5,7 @@
 <h1 align="center">Loopa</h1>
 
 <p align="center">
-  A free, lightweight open-source Android app for short videos from RedGIFs, Reddit, Erome and Eporner in one ad-free
+  A free, lightweight open-source Android app for short videos from RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap in one ad-free
   feed: full-screen vertical swiping, fast playback, its own “For you”, search and downloads (Reddit videos with sound).
   <br><br>
   <a href="https://github.com/jainikdroid-bit/loopa/releases/latest"><b>Download APK</b></a> ·
@@ -14,11 +14,11 @@
 </p>
 
 > [!WARNING]
-> **Adults only (18+).** The app shows content from RedGIFs, Reddit, Erome and Eporner, some of which is sexually explicit. Install it only if
+> **Adults only (18+).** The app shows content from RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap, some of which is sexually explicit. Install it only if
 > you are 18 or older and viewing such content is legal where you live.
 
 > [!NOTE]
-> **Unofficial app.** Loopa is not affiliated with or endorsed by RedGIFs, Reddit, Erome or Eporner. Their names are
+> **Unofficial app.** Loopa is not affiliated with or endorsed by RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster or FikFap. Their names are
 > trademarks of their owners.
 > The app hosts and redistributes nothing: it only displays what the service already serves to any web browser.
 
@@ -64,7 +64,11 @@
 - **Erome and Eporner.** Tabs for these sites with their own search and “newest” sorting; a video's creator and tags are
   searched on the same site. Optional sign-in on the site's own page in an embedded window; once signed in, “For you”
   also draws on your subscriptions and favourites there.
-- **Welcome screen** on first launch: pick sources and sign in to them one by one (every step can be skipped). Sources
+- **xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap.** Each site gets a tab in the feed when it is enabled, with its
+  own search. Their videos are mixed into “For you”, search and “Similar” by your interests. There is no sign-in for
+  them. These sites sign their video links and the links expire quickly, so a video's address is only resolved when
+  it is opened; a removed video shows “can't be opened” right away.
+- **Welcome screen** on first launch: pick sources (including the new sites) and sign in to them one by one (every step can be skipped). Sources
   can be changed later via 👤 → “Sources: For you and search”.
 - **Optional sign-in** — “For you” feed, likes, “My likes”. Sign-in is remembered and silently renewed in the
   background, so you don't have to log in again.
@@ -78,14 +82,14 @@
   showing up together get linked, and a tag never liked by itself but always next to your favourites gets weight
   from them; words of a search are linked to the tags of clips you like right after it, and skipping a clip the
   network expected you to like counts double. It picks RedGIFs videos and mixes in Reddit posts from matching subreddits (18+ included, which Reddit's own
-  recommendations leave out), plus Erome and Eporner if enabled. Each source's share is “low / medium / high”; the
+  recommendations leave out), plus Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap if enabled. Each source's share is “low / medium / high”; the
   profile is shown in “My interests” and stays on the phone. While interests are still few, the feed is topped up
   with popular videos so it never runs dry.
 - **Hide topics:** gay content, sissy/femboy/trans (lesbian stays) and your own words. Duplicate videos and reuploads
   are removed from the feed.
-- **Downloads** into `Downloads/Loopa` — player button or long-press in the grid: RedGIFs, Imgur, Erome and Eporner via
-  the system download manager; Reddit videos are fetched as separate video and audio tracks and muxed into one mp4
-  without re-encoding.
+- **Downloads** into `Downloads/Loopa` — player button or long-press in the grid: RedGIFs, Imgur, Erome, Eporner, xVideos, XNXX, Pornhub and RedTube
+  via the system download manager (mp4); Reddit videos are fetched as separate video and audio tracks and muxed into one mp4
+  without re-encoding. xHamster and FikFap videos (HLS only) can't be downloaded yet.
 - Small, with no trackers, analytics or ad SDKs.
 
 The interface is available in 10 languages (system language by default; change it via 👤 → “Language”); tags on the service are in English. Translations live in `i18n/strings.json` — improvements welcome.
@@ -102,7 +106,7 @@ Requires Android 8.0+.
 
 - The app talks only to the sources themselves: the RedGIFs API and video servers; Reddit (`oauth.reddit.com` /
   `www.reddit.com`, `v.redd.it`, `i.redd.it`, `preview.redd.it`, `i.imgur.com`); `www.erome.com` and its video servers;
-  the open `www.eporner.com` API. For “related tags” in search it queries the open Pornhub webmasters API
+  the open `www.eporner.com` API; the pages and video servers of xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap. For “related tags” in search it queries the open Pornhub webmasters API
   (`www.pornhub.com/webmasters`, the query text only, nothing about you). The sign-in windows are the exception:
   they show the real sites with everything those sites load.
 - Without sign-in it uses the temporary guest token the service hands to every website visitor.
@@ -113,7 +117,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.12.2**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.13**.
 
 | Version | What's new |
 |---|---|
@@ -126,6 +130,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.12 | Auto-update from GitHub Releases (checked every 6 hours, downloaded, SHA-256 verified, installed on a tap; “Updates…” menu); paste a RedGIFs or Reddit clip link into search and Loopa downloads it |
 | 1.12.1 | Update mode to choose: manual / ask (download and ask) / automatic (download and install); ⧩ menu → “Updates…” |
 | 1.12.2 | “For you” taste network: tags frequent in your likes and searches weigh more, weight flows to tags that always sit next to your favourites; search words get linked to the tags of clips you liked after it; “Close to your favourites” in “My interests” |
+| 1.13 | Six new sources: xVideos, XNXX, Pornhub, RedTube, xHamster, FikFap — checkboxes on the welcome screen and in 👤 → “Sources”, tabs in the feed, mixed into “For you”, search and “Similar”; downloads work for xVideos, XNXX, Pornhub, RedTube (xHamster and FikFap not yet) |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |

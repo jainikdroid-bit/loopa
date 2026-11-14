@@ -16,8 +16,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // -PvCode=1 -PvName=1.0-test — сборка «старой» версии для проверки обновления на эмуляторе
-        versionCode = (project.findProperty("vCode") as String?)?.toInt() ?: 40
-        versionName = (project.findProperty("vName") as String?) ?: "1.12.2"
+        versionCode = (project.findProperty("vCode") as String?)?.toInt() ?: 41
+        versionName = (project.findProperty("vName") as String?) ?: "1.13"
     }
     signingConfigs {
         if (signing != null) create("release") {
@@ -54,4 +54,5 @@ dependencies {
     implementation("androidx.viewpager2:viewpager2:1.1.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20231013")
 }

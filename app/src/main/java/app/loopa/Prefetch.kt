@@ -22,7 +22,7 @@ object Prefetch {
 
     /** Загрузить начало этих роликов (адрес → байт); остальное, что ещё грузится, отменить. */
     fun video(urls: List<String>, bytes: Long) {
-        val want = if (paused || bytes <= 0) emptySet() else urls.filter { it.isNotEmpty() && !it.contains(".m3u8") }.toSet()
+        val want = if (paused || bytes <= 0) emptySet() else urls.filter { it.isNotEmpty() && !it.contains(".m3u8") && !Sources.uncached(it) }.toSet()
         jobs.keys.filter { it !in want }.forEach { cancel(it) }
         want.forEach { u ->
             if (jobs.containsKey(u)) return@forEach

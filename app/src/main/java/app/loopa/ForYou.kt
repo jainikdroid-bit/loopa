@@ -20,8 +20,10 @@ import java.util.concurrent.Executors
  * Смешивание: у каждого источника свой запас и доля ([weight]), порция — по долям равномерно ([weighted]).
  */
 object ForYou {
-    private val pool = Executors.newFixedThreadPool(3)
+    /** Потоков столько, чтобы RedGIFs, Reddit и все сайты шли разом: ждать очереди за медленным сайтом незачем. */
+    private val pool = Executors.newCachedThreadPool()
     private const val WAIT_RD = 6_000L
+    private const val WAIT_EXT = 15_000L
     private var prefs: SharedPreferences? = null
     private var rgPage = 0
     private val tagPage = HashMap<String, Int>()
@@ -46,18 +48,19 @@ object ForYou {
     var useRg: Boolean
         get() = prefs?.getBoolean("fy_rg", true) ?: true
         set(v) { prefs?.edit()?.putBoolean("fy_rg", v)?.apply() }
-    var useErome: Boolean
-        get() = prefs?.getBoolean("fy_erome", true) ?: true
-        set(v) { prefs?.edit()?.putBoolean("fy_erome", v)?.apply() }
-    var useEporner: Boolean
-        get() = prefs?.getBoolean("fy_eporner", true) ?: true
-        set(v) { prefs?.edit()?.putBoolean("fy_eporner", v)?.apply() }
+    /** Ключи галочек Erome и Eporner остались прежними (у пользователей не слетают); у остальных сайтов — use_{id}. */
+    private fun useKey(s: Source) = when (s.id) { "erome" -> "fy_erome"; "eporner" -> "fy_eporner"; else -> "use_${s.id}" }
+    /** Включён ли сторонний сайт (галочка в меню 👤): ключ старый — по умолчанию включён, как было до реестра. */
+    fun uses(s: Source): Boolean = prefs?.getBoolean(useKey(s), if (s.id == "erome" || s.id == "eporner") true else s.default) ?: s.default
+    fun setUses(s: Source, on: Boolean) { prefs?.edit()?.putBoolean(useKey(s), on)?.apply() }
+    /** Включённые сторонние сайты по порядку вкладок. */
+    val onSources get() = Sources.ALL.filter { uses(it) }
     /** Подписи источников для строки статуса. */
-    val sources get() = listOfNotNull("RedGIFs".takeIf { useRg }, "Reddit".takeIf { reddit }, "Erome".takeIf { useErome }, "Eporner".takeIf { useEporner })
+    val sources get() = listOfNotNull("RedGIFs".takeIf { useRg }, "Reddit".takeIf { reddit }) + onSources.map { it.title }
     /** Почему Reddit не подмешался (для строки статуса); null — всё в порядке. */
     @Volatile var redditNote: String? = null; private set
 
-    @Synchronized fun reset() { rgBuf.clear(); rdBuf.clear(); erBuf.clear(); epBuf.clear(); dead.clear(); extra = 0; pendingRd = null; redditNote = null; turn = 0; rr = 0; subCursor.clear(); searchAfter.clear(); rgPage = 0; tagPage.clear(); subs = emptyList(); after = null; redditDry = 0; shown.clear(); extTurn.clear() }
+    @Synchronized fun reset() { rgBuf.clear(); rdBuf.clear(); extBuf.clear(); dead.clear(); extra = 0; pendingRd = null; redditNote = null; turn = 0; rr = 0; subCursor.clear(); searchAfter.clear(); rgPage = 0; tagPage.clear(); subs = emptyList(); after = null; redditDry = 0; shown.clear(); extTurn.clear() }
 
     /** Следующая порция (в фоне). Пусто — источники кончились. Ошибка — только если не ответил ни один. */
     /** Порция Reddit, не успевшая к прошлой выдаче, — войдёт в следующую. */
@@ -66,8 +69,9 @@ object ForYou {
     /** Запасы кандидатов по источникам: RedGIFs приносит ~160 за раз, Reddit ~10–20 — выдаём по долям, остальное ждёт. */
     private val rgBuf = ArrayList<Gif>()
     private val rdBuf = ArrayList<Gif>()
-    private val erBuf = ArrayList<Gif>()
-    private val epBuf = ArrayList<Gif>()
+    /** Запасы сторонних сайтов по id. */
+    private val extBuf = HashMap<String, ArrayList<Gif>>()
+    private fun bufOf(id: String) = extBuf.getOrPut(id) { ArrayList() }
     /** Запас источника, больше которого не догружаем (новое ждёт, пока выдадим старое). */
     private const val STOCK = 40
     /** Роликов в порции. */
@@ -82,13 +86,13 @@ object ForYou {
         val rdOn = reddit && redditDry < 3
         fun low(b: ArrayList<Gif>) = synchronized(this) { b.size } < STOCK
         val rgF = if (useRg && low(rgBuf)) pool.submit<List<Gif>> { rg() } else null
-        val erF = if (useErome && low(erBuf)) pool.submit<List<Gif>> { ext(Ext.EROME) } else null
-        val epF = if (useEporner && low(epBuf)) pool.submit<List<Gif>> { ext(Ext.EPORNER) } else null
+        val extF = onSources.mapNotNull { s -> if (low(synchronized(this) { bufOf(s.id) })) s to pool.submit<List<Gif>> { ext(s) } else null }
         // Reddit (страница сайта) бывает медленным — не успел за WAIT_RD — войдёт в следующую порцию
         val rdF = pendingRd ?: if (rdOn && low(rdBuf)) pool.submit<List<Gif>> { redditBatch() } else null
         val a = rgF?.let { runCatching { it.get() } }
-        val e1 = erF?.let { runCatching { it.get() } }
-        val e2 = epF?.let { runCatching { it.get() } }
+        // сторонний сайт не ответил за WAIT_EXT (блок, капча, медленная сеть) — порция без него, ответ отменяем
+        val until = System.currentTimeMillis() + WAIT_EXT
+        val extR = extF.map { (s, f) -> s to runCatching { f.get(maxOf(1L, until - System.currentTimeMillis()), java.util.concurrent.TimeUnit.MILLISECONDS) }.onFailure { f.cancel(true) } }
         val b = rdF?.let { f ->
             try { runCatching { f.get(WAIT_RD, java.util.concurrent.TimeUnit.MILLISECONDS) }.also { pendingRd = null } }
             catch (e: Exception) { null }
@@ -98,13 +102,12 @@ object ForYou {
         return synchronized(this) {
             a?.getOrNull()?.let { rgBuf += rank(it) }
             b?.getOrNull()?.let { rdBuf += rank(it) }
-            e1?.getOrNull()?.let { erBuf += rank(it) }
-            e2?.getOrNull()?.let { epBuf += rank(it) }
-            val tried = listOfNotNull(a, b, e1, e2)
-            if (rgBuf.isEmpty() && rdBuf.isEmpty() && erBuf.isEmpty() && epBuf.isEmpty() && tried.isNotEmpty() && tried.all { it.isFailure })
+            extR.forEach { (s, r) -> r.getOrNull()?.let { bufOf(s.id) += rank(it) } }
+            val tried = listOfNotNull(a, b) + extR.map { it.second }
+            if (rgBuf.isEmpty() && rdBuf.isEmpty() && extBuf.values.all { it.isEmpty() } && tried.isNotEmpty() && tried.all { it.isFailure })
                 throw unwrap(tried.first().exceptionOrNull()!!)
-            val out = weighted(listOf(rgBuf to weight("rg"), rdBuf to weight("rd"), erBuf to weight("er"), epBuf to weight("ep")))
-            android.util.Log.i("Loopa", "Для вас: порция ${out.size}, в запасе RG ${rgBuf.size} RD ${rdBuf.size} ER ${erBuf.size} EP ${epBuf.size}")
+            val out = weighted(listOf(rgBuf to weight("rg"), rdBuf to weight("rd")) + onSources.map { bufOf(it.id) to weight(it.badge.lowercase()) })
+            android.util.Log.i("Loopa", "Для вас: порция ${out.size}, в запасе RG ${rgBuf.size} RD ${rdBuf.size} " + extBuf.entries.joinToString(" ") { "${it.key} ${it.value.size}" })
             out
         }
     }
@@ -166,23 +169,24 @@ object ForYou {
     private const val MIN_RG = 20
 
     /** Сторонний сайт: по очереди личная лента (если вошли) и поиск по интересу; пусто — источник на эту ленту исчерпан. */
-    private fun ext(s: Ext.Site): List<Gif> {
-        val feeds = if (Ext.loggedIn(s)) Ext.feeds(s).filter { "${s.id}:$it" !in dead } else emptyList()
-        val n = synchronized(this) { extTurn.merge(s.id, 1, Int::plus)!! }
+    private fun ext(src: Source): List<Gif> {
+        val s = Ext.site(src.id)
+        val feeds = if (s != null && Ext.loggedIn(s)) Ext.feeds(s).filter { "${s.id}:$it" !in dead } else emptyList()
+        val n = synchronized(this) { extTurn.merge(src.id, 1, Int::plus)!! }
         val feed = feeds.takeIf { it.isNotEmpty() && n % 2 == 1 }?.random()
-        if (feed != null && s === Ext.EROME) {
-            val k = "${s.id}:$feed"
+        if (feed != null && src === Erome) {
+            val k = "${src.id}:$feed"
             val g = runCatching { Erome.feed(feed, next(k)).gifs }.getOrDefault(emptyList())
             if (g.isEmpty()) dead += k
-            android.util.Log.i("Loopa", "Для вас: ${s.title} лента $feed — ${g.size}")
+            android.util.Log.i("Loopa", "Для вас: ${src.title} лента $feed — ${g.size}")
             if (g.isNotEmpty()) return g
         }
         val term = (if (n % 3 == 0) Interests.pickQuery(dead) else null) ?: Interests.pickTag(dead) ?: Interests.top("kw", 5).randomOrNull()?.first ?: ""
-        val k = "${s.id}:q:$term"
+        val k = "${src.id}:q:$term"
         if (k in dead) return emptyList()
-        val g = if (s === Ext.EROME) Erome.page(term, false, next(k)).gifs else Eporner.page(term, false, next(k)).gifs
+        val g = src.page(term, false, next(k)).gifs
         if (g.isEmpty()) dead += k
-        android.util.Log.i("Loopa", "Для вас: ${s.title} «$term» — ${g.size}")
+        android.util.Log.i("Loopa", "Для вас: ${src.title} «$term» — ${g.size}")
         return g
     }
     private val extTurn = HashMap<String, Int>()

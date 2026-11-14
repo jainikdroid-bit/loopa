@@ -34,12 +34,11 @@ class WelcomeActivity : Activity() {
     }
 
     private class Src(val key: String, val title: String, val note: String, var on: Boolean)
+    /** RedGIFs и Reddit, затем все сторонние сайты из [Sources.ALL] (ключ — id сайта). */
     private val src = listOf(
         Src("rg", "RedGIFs", "короткие ролики по тегам", true),
         Src("rd", "Reddit", "сабреддиты и подписки", true),
-        Src("er", "Erome", "альбомы пользователей", false),
-        Src("ep", "Eporner", "полные видео", false),
-    )
+    ) + Sources.ALL.map { Src(it.id, it.title, it.about, it.default) }
     /** Очередь входов после выбора галочек. */
     private val queue = ArrayDeque<String>()
 
@@ -71,19 +70,21 @@ class WelcomeActivity : Activity() {
             setOnApplyWindowInsetsListener { v, ins -> @Suppress("DEPRECATION") v.setPadding(0, ins.systemWindowInsetTop, 0, ins.systemWindowInsetBottom); ins } })
     }
 
-    /** Галочки выбраны: сохранить источники и пройти входы по порядку (RedGIFs → Reddit → Erome → Eporner). */
+    /** Галочки выбраны: сохранить источники и пройти входы по порядку (RedGIFs → Reddit → сайты со входом: Erome, Eporner). */
     private fun next() {
         val on = src.associate { it.key to it.on }
         if (on.values.none { it }) { android.widget.Toast.makeText(this, tr("Выберите хотя бы один источник"), android.widget.Toast.LENGTH_SHORT).show(); return }
-        save(on["rg"]!!, on["rd"]!!, on["er"]!!, on["ep"]!!)
-        queue.clear(); src.filter { it.on }.forEach { queue.addLast(it.key) }
+        save(on)
+        queue.clear(); src.filter { it.on && (it.key == "rg" || it.key == "rd" || Ext.site(it.key) != null) }.forEach { queue.addLast(it.key) }
         login()
     }
 
-    private fun skip() { save(rg = true, rd = true, er = false, ep = false); finishWelcome() }
+    private fun skip() { save(mapOf("rg" to true, "rd" to true)); finishWelcome() }
 
-    private fun save(rg: Boolean, rd: Boolean, er: Boolean, ep: Boolean) {
-        ForYou.useRg = rg; ForYou.mixReddit = rd; ForYou.useErome = er; ForYou.useEporner = ep
+    /** Сохранить галочки: ключ rg, rd или id стороннего сайта (нет в карте — выключен). */
+    private fun save(on: Map<String, Boolean>) {
+        ForYou.useRg = on["rg"] == true; ForYou.mixReddit = on["rd"] == true
+        Sources.ALL.forEach { ForYou.setUses(it, on[it.id] == true) }
     }
 
     /** Следующий вход из очереди; очередь пуста — в ленту. Вход отменили («Назад») — просто дальше. */
@@ -93,8 +94,7 @@ class WelcomeActivity : Activity() {
         val i = when (k) {
             "rg" -> Intent(this, LoginActivity::class.java).putExtra("site", "rg")
             "rd" -> Intent(this, LoginActivity::class.java).putExtra("site", "reddit")
-            "er" -> Intent(this, ExtLoginActivity::class.java).putExtra("site", "erome")
-            else -> Intent(this, ExtLoginActivity::class.java).putExtra("site", "eporner")
+            else -> Intent(this, ExtLoginActivity::class.java).putExtra("site", k)
         }
         android.widget.Toast.makeText(this, tr("Совет: войдите через Google — так проще. «Назад» — пропустить этот вход."), android.widget.Toast.LENGTH_LONG).show()
         startActivityForResult(i, RQ)

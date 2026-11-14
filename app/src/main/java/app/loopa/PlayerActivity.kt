@@ -80,7 +80,7 @@ class PlayerActivity : Activity() {
     private var net0 = 0L
     /** Сколько были на экране последние страницы, мс — понять, что листают быстро ([PreloadPolicy.flinging]). */
     private val dwells = ArrayDeque<Long>()
-    private val factory by lazy { androidx.media3.exoplayer.source.DefaultMediaSourceFactory(Video.source).setLoadErrorHandlingPolicy(Video.errors) }
+    private val factory by lazy { androidx.media3.exoplayer.source.DefaultMediaSourceFactory(Video.play).setLoadErrorHandlingPolicy(Video.errors) }
 
     /** Новое из ленты — в конец своего списка (порядок уже показанного не трогаем). */
     private fun merge() {
@@ -187,6 +187,8 @@ class PlayerActivity : Activity() {
                     // сеть: показать и повторить самим; прочее (файл удалён, вместо видео картинка или заглушка) — так и сказать,
                     // но не листать самим: иначе на этот ролик не вернуться — каждый раз уносит к следующему
                     android.util.Log.w("Loopa", "ошибка плеера ${e.errorCodeName}: ${list.getOrNull(current)?.id}")
+                    // ленивый адрес мог устареть (подпись истекла, 403) — повтор спросит сайт заново
+                    list.getOrNull(current)?.let { Sources.forget(it.hd); Sources.forget(it.sd) }
                     if (e.errorCode in 2000..2999 && e.errorCode != androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) {
                         holder?.spin?.apply { text = tr("нет связи — повторю…"); visibility = View.VISIBLE }
                         ui.removeCallbacks(replay); ui.postDelayed(replay, minOf(30_000L, 2000L shl minOf(fails, 4))); fails++

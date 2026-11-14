@@ -29,12 +29,31 @@ object Downloads {
         val name = "${g.user.ifBlank { "loopa" }}_${g.id}.mp4".replace(Regex("[^A-Za-z0-9._-]"), "_")
         val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         if (File(dir, "Loopa/$name").exists()) { toast(ctx, tr("Уже скачано: Загрузки/Loopa/%s", name)); return }
+        // HLS сторонних сайтов (xHamster, FikFap) сшивать в mp4 пока не умеем — только Reddit (DASH)
+        if (g.hls && g.ext) { toast(ctx, tr("Скачивание с %s пока не поддерживается", Sources.byId(g.site)?.title ?: g.site)); return }
         if (g.hls) { reddit(ctx.applicationContext, g, name); return }
-        val rq = DownloadManager.Request(Uri.parse(g.hd))
+        if (Sources.isLazy(g.hd)) {
+            // адрес видео ещё надо узнать на странице ролика (сеть) — не в UI-потоке
+            thread {
+                runCatching { Sources.resolve(g.hd) }
+                    .onSuccess { enqueue(ctx, name, it) }
+                    .onFailure { toast(ctx, tr("Не скачать: %s", it.message ?: it.javaClass.simpleName)) }
+            }
+            return
+        }
+        enqueue(ctx, name, Resolved(g.hd))
+    }
+
+    /** Поставить mp4 в системную очередь скачивания; заголовки — сайта (Referer и т. п.), у Erome — его Referer. */
+    private fun enqueue(ctx: Context, name: String, r: Resolved) {
+        val rq = DownloadManager.Request(Uri.parse(r.url))
             .setTitle(name)
             .setDescription("Loopa")
-            .addRequestHeader("User-Agent", Api.UA)
-            .apply { if (Erome.ours(g.hd)) addRequestHeader("Referer", Erome.REFERER) }
+            .apply {
+                if (r.headers.keys.none { it.equals("User-Agent", true) }) addRequestHeader("User-Agent", Api.UA)
+                if (Erome.ours(r.url)) addRequestHeader("Referer", Erome.REFERER) else if (FikFap.ours(r.url)) addRequestHeader("Referer", FikFap.REFERER)
+                r.headers.forEach { (k, v) -> addRequestHeader(k, v) }
+            }
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Loopa/$name")
         runCatching { (ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(rq) }

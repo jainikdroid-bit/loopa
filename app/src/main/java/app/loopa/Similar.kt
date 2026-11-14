@@ -11,7 +11,7 @@ import kotlin.math.sqrt
  * Похожие ролики для открытого в плеере.
  *
  * Кандидаты (параллельно, у каждого источника свой срок): сочетания двух самых конкретных тегов ролика и отдельные такие теги
- * в RedGIFs (по тегу — точнее текста), другие ролики того же автора, тот же сабреддит, поиск Erome и Eporner по тем же
+ * в RedGIFs (по тегу — точнее текста), другие ролики того же автора, тот же сабреддит, поиск сторонних сайтов по тем же
  * тегам (если эти сайты включены в меню 👤).
  *
  * Оценка — строгая, похожесть по смыслу, а не популярность:
@@ -55,8 +55,7 @@ object Similar {
         // без конкретных тегов (пост Reddit, Eporner без ключевых слов) — по словам названия
         val q = (sp.take(2).takeIf { it.isNotEmpty() } ?: words(g).take(3).toList()).joinToString(" ")
         if (sp.isEmpty() && q.isNotBlank()) src { Api.page(q, "trending", 1, byTag = false).gifs }
-        if (q.isNotBlank() && (ForYou.useErome || g.site == "erome")) src { Erome.page(q, false, 1).gifs }
-        if (q.isNotBlank() && (ForYou.useEporner || g.site == "eporner")) src { Eporner.page(q, false, 1).gifs }
+        if (q.isNotBlank()) Sources.ALL.filter { ForYou.uses(it) || g.site == it.id }.forEach { s -> src { s.page(q, false, 1).gifs } }
         val all = jobs.flatMap { runCatching { it.get(30, TimeUnit.SECONDS) }.getOrDefault(emptyList()) }
         return rank(g, all).also { cache.put(g.id, it) }
     }

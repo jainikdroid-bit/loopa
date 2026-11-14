@@ -100,7 +100,7 @@ class MainActivity : Activity() {
         root.addView(bar)
         // вкладки: рекомендации по лайкам (нужен вход), популярное, лайкнутое
         tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(2), dp(10), dp(2)) }
-        TABS.forEach { (t, m) -> tabs.addView(chip(tr(t), CHIP) { tab(m) }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) }) }
+        buildTabs()
         // не влезают — строка прокручивается вбок, а не сжимает вкладки в столбик
         root.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(tabs) })
         chips = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(4), dp(10), dp(4)) }
@@ -181,6 +181,15 @@ class MainActivity : Activity() {
     /** Без поиска релевантности нет — тогда популярное. */
     private fun homeOrder() = Feed.order.takeIf { it != "score" } ?: "trending"
 
+    /** Вкладки: общие и по одной на каждый включённый сторонний сайт (галочки в меню 👤). */
+    private fun tabList() = TABS + ForYou.onSources.map { it.title to it.id as String? }
+    private var tabsKey = ""
+    private fun buildTabs() {
+        val l = tabList(); tabsKey = l.joinToString { it.second.orEmpty() }
+        tabs.removeAllViews()
+        l.forEach { (t, m) -> tabs.addView(chip(tr(t), CHIP) { tab(m) }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) }) }
+    }
+
     private fun tab(m: String?) {
         if (m == "reddit") {
             if (!Reddit.hadUser) { login(Reddit.SITE); return }
@@ -218,14 +227,14 @@ class MainActivity : Activity() {
         Ext.ALL.forEachIndexed { i, s -> m.menu.add(0, 4 + i, 1, if (Ext.loggedIn(s)) tr("Выйти из %s", s.title) else tr("Войти в %s", s.title)) }
         // галочки: какие сайты подмешивать в «Для вас» — вход на сайт при этом не снимается
         val fy = m.menu.addSubMenu(0, 9, 2, "♥ " + tr("Источники: «Для вас» и поиск"))
-        listOf("RedGIFs" to ForYou.useRg, "Reddit" to ForYou.mixReddit, "Erome" to ForYou.useErome, "Eporner" to ForYou.useEporner)
+        (listOf("RedGIFs" to ForYou.useRg, "Reddit" to ForYou.mixReddit) + Sources.ALL.map { it.title to ForYou.uses(it) })
             .forEachIndexed { i, (t, on) -> fy.add(14, i, i, t).apply { isCheckable = true; isChecked = on } }
         langMenu(m.menu)
         m.setOnMenuItemClickListener {
             if (it.groupId == 12) { I18n.choice = LANG_IDS[it.itemId]; recreate(); return@setOnMenuItemClickListener true }
             if (it.groupId == 14) {
                 val on = !it.isChecked; it.isChecked = on
-                when (it.itemId) { 0 -> ForYou.useRg = on; 1 -> ForYou.mixReddit = on; 2 -> ForYou.useErome = on; 3 -> ForYou.useEporner = on }
+                when (it.itemId) { 0 -> ForYou.useRg = on; 1 -> ForYou.mixReddit = on; else -> ForYou.setUses(Sources.ALL[it.itemId - 2], on) }
                 if (Feed.mode == "foryou") reload() else refresh()
                 return@setOnMenuItemClickListener true
             }
@@ -380,8 +389,8 @@ class MainActivity : Activity() {
         intent.getStringExtra("tag")?.let { search.setText(it); go(it, tag = true) }
         intent.getStringExtra("author")?.let { nav(); search.setText(""); Feed.reset("", Feed.order, it); grid.scrollToPosition(0) }
         intent.getStringExtra("sub")?.let { nav(); search.setText(""); openSub(it) }
-        // автор или тег ролика Erome/Eporner — поиск по тому же сайту
-        for (m in listOf("erome", "eporner")) intent.getStringExtra(m)?.let { nav(); search.setText(it); Feed.reset(it, Feed.order, mode = m); grid.scrollToPosition(0) }
+        // автор или тег ролика стороннего сайта — поиск по тому же сайту (extra — id сайта)
+        for (m in Sources.ALL.map { it.id }) intent.getStringExtra(m)?.let { nav(); search.setText(it); Feed.reset(it, Feed.order, mode = m); grid.scrollToPosition(0) }
         if (intent.getBooleanExtra("login", false)) login(RgSite)
     }
 
@@ -416,7 +425,7 @@ class MainActivity : Activity() {
         }
         nav()
         if (Feed.reddit) { openSub(q); return }
-        // Erome/Eporner: поиск по тому же сайту (пусто — его лента)
+        // сторонний сайт: поиск по тому же сайту (пусто — его лента)
         if (Feed.ext) { Feed.reset(q.trim(), Feed.order, mode = Feed.mode); grid.scrollToPosition(0); return }
         if (q.isBlank()) { home(); return }
         if (tag) Interests.openTag(q.trim()) else Interests.search(q)
@@ -510,7 +519,7 @@ class MainActivity : Activity() {
                 31 -> { if (it.itemId != 99) Video.cacheChoice = PreloadPolicy.CACHE_CHOICES[it.itemId]; return@setOnMenuItemClickListener true }
                 8 -> { preview.enabled = !preview.enabled; prefs.edit().putBoolean("live", preview.enabled).apply(); if (preview.enabled) live() else preview.stopAll(); return@setOnMenuItemClickListener true }
                 11 -> { Feed.searchReddit = !Feed.searchReddit; prefs.edit().putBoolean("search_reddit", Feed.searchReddit).apply(); reload() }
-                in 20..23 -> { ForYou.setWeight(FY_SRC[it.groupId - 20].first, it.itemId); reload() }
+                in 20..29 -> { ForYou.setWeight(FY_SRC[it.groupId - 20].first, it.itemId); reload() }
                 3 -> { Feed.duration = Feed.DURATIONS[it.itemId].first; prefs.edit().putString("duration", Feed.duration).apply(); reload() }
                 4 -> { Feed.audioOnly = !Feed.audioOnly; prefs.edit().putBoolean("audio", Feed.audioOnly).apply(); reload() }
                 else -> return@setOnMenuItemClickListener false
@@ -618,8 +627,10 @@ class MainActivity : Activity() {
 
     private fun refresh() {
         userBtn.text = when { Api.loggedIn || Reddit.loggedIn || Ext.ALL.any(Ext::loggedIn) -> "👤✓"; Api.hadUser || Reddit.hadUser -> "👤!"; else -> "👤" }
-        search.hint = when { Feed.reddit -> tr("Сабреддит: r/… (через пробел — несколько)"); Feed.ext -> tr("Поиск на %s", if (Feed.mode == "erome") "Erome" else "Eporner"); else -> tr("Поиск по тегам: blonde, POV, car…") }
-        for (i in 0 until tabs.childCount) tabs.getChildAt(i).background = pill(if (TABS[i].second == Feed.mode && Feed.author == null && Feed.text.isEmpty()) ACCENT else CHIP)
+        search.hint = when { Feed.reddit -> tr("Сабреддит: r/… (через пробел — несколько)"); Feed.ext -> tr("Поиск на %s", Sources.byId(Feed.mode)?.title.orEmpty()); else -> tr("Поиск по тегам: blonde, POV, car…") }
+        if (tabsKey != tabList().joinToString { it.second.orEmpty() }) buildTabs()
+        val tl = tabList()
+        for (i in 0 until tabs.childCount) tabs.getChildAt(i).background = pill(if (tl[i].second == Feed.mode && Feed.author == null && Feed.text.isEmpty()) ACCENT else CHIP)
         sortBtn.visibility = if (Feed.mode == null || Feed.reddit || Feed.mode == "foryou") View.VISIBLE else View.GONE
         filterBtn.visibility = View.VISIBLE
         when (Feed.error) {
@@ -644,7 +655,7 @@ class MainActivity : Activity() {
                     " · " + (if (Interests.empty) tr("лайкайте и досматривайте — подстроится") else tr("по вашим интересам")) +
                     ForYou.redditNote?.let { " · $it" }.orEmpty())
                 Feed.mode == "liked" -> append(tr("Ваши лайки"))
-                Feed.ext -> append((if (Feed.mode == "erome") "Erome" else "Eporner") + " · " + if (Feed.text.isNotEmpty()) tr("Поиск: «%s»", Feed.text) else tr("популярное"))
+                Feed.ext -> append(Sources.byId(Feed.mode)?.title.orEmpty() + " · " + if (Feed.text.isNotEmpty()) tr("Поиск: «%s»", Feed.text) else tr("популярное"))
                 Feed.reddit -> append("Reddit · " + when {
                     Feed.sub.isEmpty() -> tr("подписки") + Reddit.name.takeIf { it.isNotEmpty() }?.let { " u/$it" }.orEmpty()
                     Feed.sub.startsWith("u/") -> tr("посты %s", Feed.sub)
@@ -744,10 +755,10 @@ class MainActivity : Activity() {
 
     companion object {
         /** Источники «Для вас»: ключ доли, название, включён ли. */
-        private val FY_SRC = listOf<Triple<String, String, () -> Boolean>>(
-            Triple("rg", "RedGIFs") { ForYou.useRg }, Triple("rd", "Reddit") { ForYou.reddit },
-            Triple("er", "Erome") { ForYou.useErome }, Triple("ep", "Eporner") { ForYou.useEporner })
-        val TABS = listOf("♥ Для вас" to "foryou", "🔥 Популярное" to null, "Мои лайки" to "liked", "Reddit" to "reddit", "Erome" to "erome", "Eporner" to "eporner")
+        private val FY_SRC: List<Triple<String, String, () -> Boolean>> = listOf(
+            Triple("rg", "RedGIFs") { ForYou.useRg }, Triple("rd", "Reddit") { ForYou.reddit }) +
+            Sources.ALL.map { s -> Triple(s.badge.lowercase(), s.title) { ForYou.uses(s) } }
+        val TABS = listOf("♥ Для вас" to "foryou", "🔥 Популярное" to null, "Мои лайки" to "liked", "Reddit" to "reddit")
         /** Пункты меню языка: «auto», затем коды. */
         val LANG_IDS = listOf("auto") + I18n.LANGS.keys
         /** Как часто при прокрутке пересчитывать, какие превью играют, мс. */
@@ -757,10 +768,12 @@ class MainActivity : Activity() {
         val BG = 0xFF0E1015.toInt(); val ACCENT = 0xFF7C3AED.toInt(); val CHIP = 0xFF262B34.toInt()
         /** Метки источника: RedGIFs — малиновый, Reddit — фирменный оранжевый. */
         val RG_COLOR = 0xE0D6246E.toInt(); val RD_COLOR = 0xE0FF4500.toInt()
-        private const val ER_COLOR = 0xE01E88E5.toInt(); private const val EP_COLOR = 0xE043A047.toInt()
+        private val SITE_COLORS = mapOf("erome" to 0xE01E88E5.toInt(), "eporner" to 0xE043A047.toInt())
+        /** Цвет метки стороннего сайта: Erome и Eporner — как были, остальные — по хэшу id (стабильный оттенок). */
+        private fun siteColor(id: String) = SITE_COLORS[id] ?: android.graphics.Color.HSVToColor(0xE0, floatArrayOf((id.hashCode().mod(360)).toFloat(), 0.65f, 0.75f))
         /** Метка источника на карточке и в плеере. */
-        fun mark(g: Gif) = when { g.reddit -> "RD"; g.site == "erome" -> "ER"; g.site == "eporner" -> "EP"; else -> "RG" }
-        fun markColor(g: Gif) = when { g.reddit -> RD_COLOR; g.site == "erome" -> ER_COLOR; g.site == "eporner" -> EP_COLOR; else -> RG_COLOR }
+        fun mark(g: Gif) = if (g.reddit) "RD" else Sources.byId(g.site)?.badge ?: "RG"
+        fun markColor(g: Gif) = if (g.reddit) RD_COLOR else if (Sources.byId(g.site) != null) siteColor(g.site) else RG_COLOR
         fun time(s: Double) = "%d:%02d".format(s.toInt() / 60, s.toInt() % 60)
         fun count(n: Long) = when { n >= 1_000_000 -> "%.1fM".format(n / 1e6); n >= 1000 -> "%.0fK".format(n / 1e3); else -> "$n" }
     }
