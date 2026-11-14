@@ -1,4 +1,4 @@
-// Экран «3D-граф» Loopa: сеть вкуса (теги, авторы, сабреддиты, слова, запросы, сайты) в стиле graphify.
+// Экран «3D-граф» Adult Space: сеть вкуса (теги, авторы, сабреддиты, слова, запросы, сайты) в стиле graphify.
 // Данные и подписи даёт Kotlin (Loopa.data / Loopa.texts); id узла — «тип:термин».
 (function () {
   'use strict';
@@ -120,8 +120,21 @@
     return true;
   }
   // слабый телефон: без сглаживания, ограниченное число шагов раскладки, пиксели не больше ×1.5
-  var G = ForceGraph3D({ rendererConfig: { antialias: false, powerPreference: 'low-power' } })($('graph'))
-    .backgroundColor('#0f0f1a')
+  // звёздный фон (CSS, одна тень на звезду): на уровне LOW его нет, холст остаётся непрозрачным
+  var starsOn = ORDER[tierIdx] !== 'LOW';
+  (function () {
+    var sh = [], n = 70, seed = 7;
+    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    for (var k = 0; k < n; k++) {
+      var x = Math.round(rnd() * 1000) / 10, y = Math.round(rnd() * 1000) / 10;      // проценты экрана
+      var a = (0.25 + rnd() * 0.55).toFixed(2), big = rnd() < 0.15;
+      sh.push('calc(' + x + 'vw) calc(' + y + 'vh) 0 ' + (big ? '1px' : '0') + ' rgba(' + (big ? '200,190,255' : '255,255,255') + ',' + a + ')');
+    }
+    $('stars').firstChild.style.boxShadow = sh.join(',');
+    if (starsOn) $('stars').className = 'on';
+  })();
+  var G = ForceGraph3D({ rendererConfig: { antialias: false, alpha: starsOn, powerPreference: 'low-power' } })($('graph'))
+    .backgroundColor(starsOn ? 'rgba(15,15,26,0)' : '#0f0f1a')
     .showNavInfo(false)
     .enableNodeDrag(false)
     .nodeId('id')
@@ -359,6 +372,7 @@
   }
   function applyTier(i) {
     tierIdx = i; P = TIERS[ORDER[i]] || P;
+    if (i === 0) $('stars').className = '';                            // LOW: звёзды убираем, фон — сплошной цвет
     G.nodeResolution(P.nodeResolution).warmupTicks(P.warmupTicks).cooldownTicks(P.cooldownTicks).cooldownTime(cooldownMs()).linkWidth(linkWidth);
     setPixelRatio();
     var keep = baseDrawn();

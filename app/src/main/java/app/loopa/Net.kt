@@ -161,7 +161,10 @@ object Net {
      * уже отправленных сервером данных; в общем соединении (HTTP/2) он стоял перед ответом ролику, который открыли.
      */
     val bg: okhttp3.OkHttpClient by lazy {
-        http.newBuilder().connectionPool(okhttp3.ConnectionPool(2, 2, java.util.concurrent.TimeUnit.MINUTES)).dispatcher(okhttp3.Dispatcher()).build()
+        // очередь своя, но предел на хост — как у общего: каждое живое превью держит поток видео открытым, и при пределе по
+        // умолчанию (5) шестое-восьмое превью с того же CDN стояли в очереди — картинка в плитке замирала
+        http.newBuilder().connectionPool(okhttp3.ConnectionPool(2, 2, java.util.concurrent.TimeUnit.MINUTES))
+            .dispatcher(okhttp3.Dispatcher().apply { maxRequestsPerHost = 16 }).build()
     }
 
     /** Открыли ролик — фон оборвать совсем: запросы отменить, соединения закрыть (хвосты пропадают вместе с ними). */

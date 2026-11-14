@@ -140,7 +140,7 @@ object Updater {
         val f = File(dir(ctx), "Loopa-$v.apk")
         if (!ctx.packageManager.canRequestPackageInstalls()) {
             ctx.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            return tr("Разрешите Loopa устанавливать приложения: откроются настройки")
+            return tr("Разрешите Adult Space устанавливать приложения: откроются настройки")
         }
         return try {
             val pi = ctx.packageManager.packageInstaller

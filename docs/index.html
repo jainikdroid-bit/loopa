@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Loopa — RedGIFs and Reddit video app for Android · клиент RedGIFs и Reddit без рекламы</title>
-<meta name="description" content="Loopa is a free open-source Android app for RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap videos: ad-free vertical feed, smart preloading and disk cache, own “For you”, search, downloads with sound, tuned for slow high-latency networks. Бесплатный открытый клиент RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster и FikFap для Android. 18+, unofficial.">
+<title>Adult Space (formerly Loopa) — RedGIFs and Reddit video app for Android · клиент RedGIFs и Reddit без рекламы</title>
+<meta name="description" content="Adult Space is a free open-source Android app for RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap videos: ad-free vertical feed, smart preloading and disk cache, own “For you”, search, downloads with sound, tuned for slow high-latency networks. Бесплатный открытый клиент RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster и FikFap для Android. 18+, unofficial.">
 <meta name="google-site-verification" content="ZkbL1thjnhfFA4i_G-4QYlL3HUuCjJPBUYFbKsiqsDQ" />
 <meta name="rating" content="adult">
 <meta name="robots" content="index, follow, max-snippet:-1">
@@ -13,16 +13,16 @@
 <link rel="alternate" type="text/plain" title="LLM summary" href="https://jainikdroid-bit.github.io/loopa/llms.txt">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://jainikdroid-bit.github.io/loopa/">
-<meta property="og:site_name" content="Loopa">
-<meta property="og:title" content="Loopa — RedGIFs and Reddit video app for Android">
+<meta property="og:site_name" content="Adult Space">
+<meta property="og:title" content="Adult Space — RedGIFs and Reddit video app for Android">
 <meta property="og:description" content="Free, open-source, ad-free Android client for RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap videos: vertical feed, smart preloading, own “For you”, search, downloads with sound. 18+.">
 <meta name="twitter:card" content="summary">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "Loopa",
-  "alternateName": ["Loopa for RedGIFs", "Loopa RedGIFs client"],
+  "name": "Adult Space",
+  "alternateName": ["Loopa", "Adult Space (formerly Loopa)", "Loopa for RedGIFs", "Loopa RedGIFs client"],
   "description": "Unofficial open-source Android client for RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap videos. Ad-free vertical feed, fast playback with scroll-forecast preloading and a disk video cache, similar videos in the player, tag and text search with relevance sorting, live grid previews, Reddit subreddits and subscriptions, downloads (Reddit videos with sound), optional sign-in with a 'For you' feed, works on slow and unstable networks. Adults only (18+).",
   "applicationCategory": "MultimediaApplication",
   "applicationSubCategory": "Video player",
@@ -62,13 +62,13 @@
   "@type": "FAQPage",
   "mainEntity": [
     { "@type": "Question", "name": "Is there an app for RedGIFs on Android?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Loopa is a free, open-source, unofficial Android app for RedGIFs (and Reddit videos). It is installed from the APK on the GitHub releases page; Android 8.0 or newer." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Adult Space is a free, open-source, unofficial Android app for RedGIFs (and Reddit videos). It is installed from the APK on the GitHub releases page; Android 8.0 or newer." } },
     { "@type": "Question", "name": "How do I download RedGIFs or Reddit videos on Android?",
-      "acceptedAnswer": { "@type": "Answer", "text": "In Loopa, long-press a video in the grid or tap the download button in the player. Files go to Downloads/Loopa; Reddit videos are saved with sound." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "In Adult Space, long-press a video in the grid or tap the download button in the player. Files go to Downloads/Loopa; Reddit videos are saved with sound." } },
     { "@type": "Question", "name": "Can I watch Reddit NSFW videos in a TikTok-style feed?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Loopa shows videos from your Reddit subscriptions or any subreddits in a full-screen vertical feed with sound. NSFW content appears if it is enabled in your Reddit account settings." } },
-    { "@type": "Question", "name": "Is Loopa official, and does it have ads or trackers?",
-      "acceptedAnswer": { "@type": "Answer", "text": "No, Loopa is an independent open-source project (MIT), not affiliated with RedGIFs or Reddit. It has no ads, trackers or analytics." } }
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Adult Space shows videos from your Reddit subscriptions or any subreddits in a full-screen vertical feed with sound. NSFW content appears if it is enabled in your Reddit account settings." } },
+    { "@type": "Question", "name": "Is Adult Space official, and does it have ads or trackers?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No, Adult Space is an independent open-source project (MIT), not affiliated with RedGIFs or Reddit. It has no ads, trackers or analytics." } }
   ]
 }
 </script>
@@ -122,6 +122,7 @@
   .card .ico { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; background: rgba(124,58,237,.18); margin-bottom: 14px; }
   .card h3 { margin: 0 0 6px; font-size: 17px; }
   .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+  .card .gif { display: block; width: 100%; max-width: 300px; height: auto; margin: 16px auto 0; border-radius: 16px; border: 1px solid var(--line); }
 
   .steps { counter-reset: s; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
   .step { position: relative; padding: 22px 22px 22px 70px; border: 1px solid var(--line); border-radius: 20px; background: var(--bg2); }
@@ -163,7 +164,7 @@
 <div class="glow"></div>
 <header class="wrap">
   <nav>
-    <a class="brand" href="#"><img src="img/icon.svg" alt="">Loopa</a>
+    <a class="brand" href="#"><img src="img/icon.svg" alt="">Adult Space</a>
     <div class="navlinks">
       <a href="#features"><span data-ru>Возможности</span><span data-en>Features</span></a>
       <a href="#install"><span data-ru>Установка</span><span data-en>Install</span></a>
@@ -180,8 +181,8 @@
       <span class="badge">🔞 <span data-ru>Только для взрослых · 18+</span><span data-en>Adults only · 18+</span></span>
       <h1 data-ru>Короткие ролики. <span>Без лишнего.</span></h1>
       <h1 data-en>Short videos. <span>Nothing extra.</span></h1>
-      <p class="lead" data-ru>Loopa — лёгкий открытый Android-просмотрщик для RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster и FikFap. Лента без рекламы, вертикальная прокрутка на весь экран, умная предзагрузка и «Для вас» по вашим интересам.</p>
-      <p class="lead" data-en>Loopa is a lightweight open-source Android viewer for RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap. An ad-free feed, full-screen vertical swiping, smart preloading and a “For you” that learns your taste.</p>
+      <p class="lead" data-ru>Adult Space (бывш. Loopa) — лёгкий открытый Android-просмотрщик для RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster и FikFap. Лента без рекламы, вертикальная прокрутка на весь экран, умная предзагрузка и «Для вас» по вашим интересам.</p>
+      <p class="lead" data-en>Adult Space (formerly Loopa) is a lightweight open-source Android viewer for RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap. An ad-free feed, full-screen vertical swiping, smart preloading and a “For you” that learns your taste.</p>
       <div class="cta">
         <a class="btn primary" href="https://github.com/jainikdroid-bit/loopa/releases/latest">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 20h16"/></svg>
@@ -195,7 +196,7 @@
       <div class="meta" data-ru>Android 8.0+ · ~4 МБ · MIT · без трекеров</div>
       <div class="meta" data-en>Android 8.0+ · ~4 MB · MIT · no trackers</div>
     </div>
-    <img class="shot" src="img/screens.svg" alt="Loopa: сетка, плеер, поиск">
+    <img class="shot" src="img/screens.svg" alt="Adult Space: сетка, плеер, поиск">
   </div>
 
   <section id="features">
@@ -239,7 +240,8 @@
           <p data-ru>xVideos, XNXX, Pornhub, RedTube, xHamster и FikFap: включаются галочками, у каждого своя вкладка и поиск; ролики подмешиваются в «Для вас» и «Похожие». Входа нет. Скачивание — с xVideos, XNXX, Pornhub и RedTube.</p><p data-en>xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap: enable them with checkboxes; each has its own tab and search; videos are mixed into “For you” and “Similar”. No sign-in. Downloads work for xVideos, XNXX, Pornhub and RedTube.</p></div>
         <div class="card"><div class="ico">🕸️</div>
           <h3 data-ru>3D-граф интересов</h3><h3 data-en>3D interest graph</h3>
-          <p data-ru>Сеть вкуса из тегов, авторов, сабреддитов, слов, запросов и сайтов растёт с использованием. В 3D-графе — вес и сообщества каждого узла, поиск, масштаб и ползунок веса; на слабом телефоне отрисовка проще, логика та же.</p><p data-en>A taste network of tags, creators, subreddits, words, searches and sites grows as you use the app. The 3D graph shows each node’s weight and community, with search, zoom and a weight slider; low-end phones get lighter rendering, same logic.</p></div>
+          <p data-ru>Сеть вкуса из тегов, авторов, сабреддитов, слов, запросов и сайтов растёт с использованием. В 3D-графе — вес и сообщества каждого узла, поиск, масштаб и ползунок веса; на слабом телефоне отрисовка проще, логика та же.</p><p data-en>A taste network of tags, creators, subreddits, words, searches and sites grows as you use the app. The 3D graph shows each node’s weight and community, with search, zoom and a weight slider; low-end phones get lighter rendering, same logic.</p>
+          <img class="gif" src="img/graph.gif" width="300" loading="lazy" alt="3D interest graph: your taste as a starry sky / 3D-граф интересов: ваш вкус — как звёздное небо"></div>
         <div class="card"><div class="ico">▦</div>
           <h3 data-ru>«Похожие» и «Для вас»</h3><h3 data-en>“Similar” and “For you”</h3>
           <p data-ru>Кнопка в плеере — ролики, похожие по тегам, названию и автору. «Для вас» учится на лайках, досмотрах и поисках; профиль хранится только на телефоне.</p><p data-en>A player button shows videos similar by tags, title and creator. “For you” learns from likes, full watches and searches; the profile stays on your phone.</p></div>
@@ -282,12 +284,12 @@
         </ul>
         <ul class="clean" data-ru>
           <li><b>Данные остаются на телефоне</b>, облачная копия отключена.</li>
-          <li><b>Без посредников</b>: запросы идут с телефона напрямую к сервисам, своего сервера у Loopa нет.</li>
+          <li><b>Без посредников</b>: запросы идут с телефона напрямую к сервисам, своего сервера у Adult Space нет.</li>
           <li><b>Бережно к сервису</b>: грузит только то, что вы смотрите.</li>
         </ul>
         <ul class="clean" data-en>
           <li><b>Data stays on your phone</b>; cloud backup is disabled.</li>
-          <li><b>No middleman</b>: requests go straight from your phone to the services; Loopa has no server.</li>
+          <li><b>No middleman</b>: requests go straight from your phone to the services; Adult Space has no server.</li>
           <li><b>Gentle on the service</b>: it loads only what you watch.</li>
         </ul>
       </div>
@@ -298,18 +300,18 @@
     <div class="wrap">
       <h2>FAQ</h2>
       <details><summary data-ru>Это официальное приложение RedGIFs?</summary><summary data-en>Is this an official RedGIFs app?</summary>
-        <p data-ru>Нет. Loopa — независимый открытый проект, не связанный с RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster и FikFap и не одобренный ими. Их названия — товарные знаки владельцев.</p>
-        <p data-en>No. Loopa is an independent open-source project, not affiliated with or endorsed by RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster or FikFap. Their names are trademarks of their owners.</p></details>
+        <p data-ru>Нет. Adult Space — независимый открытый проект, не связанный с RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster и FikFap и не одобренный ими. Их названия — товарные знаки владельцев.</p>
+        <p data-en>No. Adult Space is an independent open-source project, not affiliated with or endorsed by RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster or FikFap. Their names are trademarks of their owners.</p></details>
       <details><summary data-ru>Есть ли приложение RedGIFs для Android?</summary><summary data-en>Is there an app for RedGIFs on Android?</summary>
-        <p data-ru>Loopa — бесплатное открытое неофициальное Android-приложение для RedGIFs (и видео Reddit). Ставится из APK со страницы релизов на GitHub, нужен Android 8.0 или новее.</p>
-        <p data-en>Loopa is a free, open-source, unofficial Android app for RedGIFs (and Reddit videos). It is installed from the APK on the GitHub releases page; Android 8.0 or newer.</p></details>
+        <p data-ru>Adult Space — бесплатное открытое неофициальное Android-приложение для RedGIFs (и видео Reddit). Ставится из APK со страницы релизов на GitHub, нужен Android 8.0 или новее.</p>
+        <p data-en>Adult Space is a free, open-source, unofficial Android app for RedGIFs (and Reddit videos). It is installed from the APK on the GitHub releases page; Android 8.0 or newer.</p></details>
       <details><summary data-ru>Как скачать видео с RedGIFs или Reddit на Android?</summary><summary data-en>How do I download RedGIFs or Reddit videos on Android?</summary>
-        <p data-ru>В Loopa — долгое нажатие на ролик в сетке или кнопка скачивания в плеере. Файлы попадают в «Загрузки/Loopa», видео Reddit сохраняются со звуком.</p>
-        <p data-en>In Loopa, long-press a video in the grid or tap the download button in the player. Files go to Downloads/Loopa; Reddit videos are saved with sound.</p></details>
+        <p data-ru>В Adult Space — долгое нажатие на ролик в сетке или кнопка скачивания в плеере. Файлы попадают в «Загрузки/Loopa», видео Reddit сохраняются со звуком.</p>
+        <p data-en>In Adult Space, long-press a video in the grid or tap the download button in the player. Files go to Downloads/Loopa; Reddit videos are saved with sound.</p></details>
       <details><summary data-ru>Можно смотреть видео Reddit 18+ лентой, как в TikTok?</summary><summary data-en>Can I watch Reddit NSFW videos in a TikTok-style feed?</summary>
-        <p data-ru>Да. Loopa показывает видео из ваших подписок Reddit или любых сабреддитов вертикальной лентой на весь экран, со звуком. Контент 18+ — если он включён в настройках вашего аккаунта Reddit.</p>
-        <p data-en>Yes. Loopa shows videos from your Reddit subscriptions or any subreddits in a full-screen vertical feed with sound. NSFW content appears if it is enabled in your Reddit account settings.</p></details>
-      <details><summary data-ru>Есть ли в Loopa реклама или трекеры?</summary><summary data-en>Does Loopa have ads or trackers?</summary>
+        <p data-ru>Да. Adult Space показывает видео из ваших подписок Reddit или любых сабреддитов вертикальной лентой на весь экран, со звуком. Контент 18+ — если он включён в настройках вашего аккаунта Reddit.</p>
+        <p data-en>Yes. Adult Space shows videos from your Reddit subscriptions or any subreddits in a full-screen vertical feed with sound. NSFW content appears if it is enabled in your Reddit account settings.</p></details>
+      <details><summary data-ru>Есть ли в Adult Space реклама или трекеры?</summary><summary data-en>Does Adult Space have ads or trackers?</summary>
         <p data-ru>Нет. Это независимый открытый проект (MIT), без рекламы, трекеров и аналитики.</p>
         <p data-en>No. It is an independent open-source project (MIT) with no ads, trackers or analytics.</p></details>
       <details><summary data-ru>Где хранятся ролики?</summary><summary data-en>Where are the videos stored?</summary>
@@ -334,7 +336,7 @@
 
 <footer>
   <div class="wrap row">
-    <span>Loopa · MIT · <a href="https://github.com/jainikdroid-bit/loopa">GitHub</a> · <a href="guides/redgifs-app-android/">RedGIFs app for Android</a> · <a href="guides/download-reddit-videos-with-sound-android/">Download Reddit videos with sound</a></span>
+    <span>Adult Space · MIT · <a href="https://github.com/jainikdroid-bit/loopa">GitHub</a> · <a href="guides/redgifs-app-android/">RedGIFs app for Android</a> · <a href="guides/download-reddit-videos-with-sound-android/">Download Reddit videos with sound</a></span>
     <span data-ru>Неофициальный клиент. Не связан с RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster и FikFap.</span><span data-en>Unofficial client. Not affiliated with RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster or FikFap.</span>
   </div>
 </footer>

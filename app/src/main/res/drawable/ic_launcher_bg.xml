@@ -1,12 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- фон значка: фиолетово-розовый градиент -->
+<!-- фон значка: глубокий космос (тёмно-фиолетовый -> синий) и редкие далёкие звёзды -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
     <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
             <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="108" android:endY="108"
-                android:startColor="#FF6D28D9" android:endColor="#FFEC4899" />
+                android:startColor="#FF33106B" android:centerColor="#FF15134A" android:endColor="#FF060A22" />
         </aapt:attr>
     </path>
+    <path android:pathData="M13.1,18a0.9,0.9 0,1 0,1.8,0a0.9,0.9 0,1 0,-1.8,0z" android:fillColor="#B3FFFFFF" />
+    <path android:pathData="M91.2,14a0.8,0.8 0,1 0,1.6,0a0.8,0.8 0,1 0,-1.6,0z" android:fillColor="#B3FFFFFF" />
+    <path android:pathData="M21.2,90a0.8,0.8 0,1 0,1.6,0a0.8,0.8 0,1 0,-1.6,0z" android:fillColor="#B3FFFFFF" />
+    <path android:pathData="M95.1,70a0.9,0.9 0,1 0,1.8,0a0.9,0.9 0,1 0,-1.8,0z" android:fillColor="#B3FFFFFF" />
+    <path android:pathData="M9.3,52a0.7,0.7 0,1 0,1.4,0a0.7,0.7 0,1 0,-1.4,0z" android:fillColor="#B3FFFFFF" />
+    <path android:pathData="M83.3,94a0.7,0.7 0,1 0,1.4,0a0.7,0.7 0,1 0,-1.4,0z" android:fillColor="#B3FFFFFF" />
+    <path android:pathData="M49.3,12a0.7,0.7 0,1 0,1.4,0a0.7,0.7 0,1 0,-1.4,0z" android:fillColor="#B3FFFFFF" />
+    <path android:pathData="M35.4,98a0.6,0.6 0,1 0,1.2,0a0.6,0.6 0,1 0,-1.2,0z" android:fillColor="#B3FFFFFF" />
 </vector>

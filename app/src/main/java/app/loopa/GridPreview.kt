@@ -37,6 +37,40 @@ class GridPreview(private val ctx: Context) {
     private class Cuts(val at: LongArray, val len: Long) { var i = 0 }
     private val cuts = HashMap<ExoPlayer, Cuts>()
     private val ui = Handler(Looper.getMainLooper())
+
+    /** Сторож: превью, что застряло (грузится дольше [STUCK_BUFFER_MS] или кадр стоит [STUCK_FROZEN_MS]), — перезапустить. */
+    private class Watch(var pos: Long = -1, var since: Long = System.currentTimeMillis())
+    private val watch = HashMap<ExoPlayer, Watch>()
+    /** Сколько раз подряд превью ячейки перезапускали после ошибки или застревания (по id ролика). */
+    private val retries = HashMap<String, Int>()
+    private val STUCK_BUFFER_MS = 8_000L
+    private val STUCK_FROZEN_MS = 4_000L
+    private val MAX_RETRIES = 3
+    private val guard: Runnable = object : Runnable {
+        override fun run() {
+            val now = System.currentTimeMillis()
+            active.entries.toList().forEach { (s, p) ->
+                val w = watch.getOrPut(p) { Watch() }
+                val pos = p.currentPosition
+                val moving = p.playbackState == Player.STATE_READY && p.isPlaying && pos != w.pos
+                if (moving || p.playbackState == Player.STATE_IDLE && p.playerError == null) { w.pos = pos; w.since = now; return@forEach }
+                val stuck = now - w.since > if (p.playbackState == Player.STATE_BUFFERING) STUCK_BUFFER_MS else STUCK_FROZEN_MS
+                if (stuck) { android.util.Log.i("Loopa", "превью застряло (${p.playbackState}) — перезапуск"); restart(s) }
+            }
+            if (active.isNotEmpty()) ui.postDelayed(this, 1_000)
+        }
+    }
+    /** Перезапустить превью ячейки тем же роликом (не больше [MAX_RETRIES] раз подряд — дальше остаётся картинка). */
+    private fun restart(s: Slot) {
+        val g = gifs[s] ?: return
+        val n = (retries[g.id] ?: 0) + 1
+        stop(s)
+        if (n > MAX_RETRIES) return
+        if (retries.size > 500) retries.clear()
+        retries[g.id] = n
+        ui.postDelayed({ if (s !in active && s.id == g.id && enabled) start(s, g) }, 1_500L * n)
+    }
+    private val gifs = HashMap<Slot, Gif>()
     private val tick: Runnable = object : Runnable {
         override fun run() {
             for ((p, c) in cuts) {
@@ -100,14 +134,16 @@ class GridPreview(private val ctx: Context) {
 
     private fun start(s: Slot, g: Gif) {
         val p = player()
-        active[s] = p; s.player = p; s.playing = g.id
+        active[s] = p; s.player = p; s.playing = g.id; gifs[s] = g
+        watch[p] = Watch(); ui.removeCallbacks(guard); ui.postDelayed(guard, 1_000)
         s.tex.alpha = 0f
         p.clearVideoSurface()
         p.setVideoTextureView(s.tex)
         p.addListener(object : Player.Listener {
-            override fun onRenderedFirstFrame() { if (s.player === p) s.tex.alpha = 1f }
             override fun onVideoSizeChanged(v: VideoSize) { if (s.player === p) crop(s.tex, v.width, v.height) }
-            override fun onPlayerError(e: androidx.media3.common.PlaybackException) { if (s.player === p) stop(s) }
+            // ошибка сети — не гасить до следующей прокрутки: перезапуск через пару секунд (до [MAX_RETRIES] раз)
+            override fun onPlayerError(e: androidx.media3.common.PlaybackException) { if (s.player === p) restart(s) }
+            override fun onRenderedFirstFrame() { if (s.player === p) s.tex.alpha = 1f }
             // длительность из API бывает пустой (Imgur) — тогда берём у плеера, когда он её узнал
             override fun onPlaybackStateChanged(st: Int) { if (st == Player.STATE_READY && s.player === p && p.duration > 0) plan(p, p.duration / 1000.0, Sources.intro(g)) }
         }.also { listeners[p] = it })
@@ -125,7 +161,7 @@ class GridPreview(private val ctx: Context) {
         val p = active.remove(s) ?: return
         s.player = null; s.playing = null; s.tex.alpha = 0f
         listeners.remove(p)?.let { p.removeListener(it) }
-        cuts.remove(p)
+        cuts.remove(p); watch.remove(p); gifs.remove(s)
         p.stop(); p.clearMediaItems(); p.clearVideoTextureView(s.tex)
         idle += p
     }

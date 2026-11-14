@@ -47,9 +47,10 @@ class WelcomeActivity : Activity() {
         I18n.init(this); ForYou.init(this); Ext.init(this)
         window.statusBarColor = MainActivity.BG; window.navigationBarColor = MainActivity.BG
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(28), dp(22), dp(22)) }
-        box.addView(TextView(this).apply { text = tr("Добро пожаловать в Loopa"); setTextColor(Color.WHITE); textSize = 24f; typeface = android.graphics.Typeface.DEFAULT_BOLD })
+        box.addView(TextView(this).apply { text = tr("Добро пожаловать в Adult Space"); setTextColor(Color.WHITE); textSize = 24f; typeface = android.graphics.Typeface.DEFAULT_BOLD })
+        box.addView(TextView(this).apply { text = tr("Твоя вселенная коротких роликов: интересы — звёзды, связи — созвездия"); setTextColor(0xFFB9A7F5.toInt()); textSize = 14f; setPadding(0, dp(6), 0, 0) })
         box.addView(TextView(this).apply {
-            text = tr("Loopa собирает короткие видео с нескольких сайтов в одну ленту. «Для вас» учится на ваших лайках, досмотрах и поисках: что нравится раз за разом — показывается чаще, что пролистываете — реже. Всё хранится только на телефоне.")
+            text = tr("Adult Space собирает короткие видео с нескольких сайтов в одну ленту. «Для вас» учится на ваших лайках, досмотрах и поисках: что нравится раз за разом — показывается чаще, что пролистываете — реже. Всё хранится только на телефоне.")
             setTextColor(0xFFC9CDD4.toInt()); textSize = 15f; setPadding(0, dp(12), 0, dp(18)); setLineSpacing(0f, 1.15f)
         })
         box.addView(TextView(this).apply { text = tr("Откуда брать видео для ленты:"); setTextColor(Color.WHITE); textSize = 16f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(0, 0, 0, dp(6)) })

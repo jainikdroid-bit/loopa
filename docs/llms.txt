@@ -1,6 +1,6 @@
-# Loopa
+# Adult Space (formerly Loopa)
 
-> Loopa is a free, open-source (MIT), unofficial Android app for watching RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap videos. Adults only (18+). Not affiliated with any of these services.
+> Adult Space (formerly Loopa) is a free, open-source (MIT), unofficial Android app for watching RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap videos. Adults only (18+). Not affiliated with any of these services.
 
 - Website: https://jainikdroid-bit.github.io/loopa/
 - Source code: https://github.com/jainikdroid-bit/loopa

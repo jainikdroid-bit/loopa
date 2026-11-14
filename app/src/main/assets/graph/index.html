@@ -3,12 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Loopa</title>
+<title>Adult Space</title>
 <style>
   :root { --bg:#0f0f1a; --panel:#1a1a2e; --line:#2a2a4e; --text:#e0e0e0; --dim:#8a8aa8; --accent:#4E79A7; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--text); overflow:hidden; touch-action:none;
     font:14px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #stars { position:fixed; inset:0; display:none; background:radial-gradient(ellipse at 28% 18%, #1d1547 0, #0f0f1a 58%, #0a0a14 100%); }
+  #stars.on { display:block; }
+  #stars i { position:absolute; left:0; top:0; width:1px; height:1px; background:transparent; }
   #graph { position:fixed; inset:0; }
   #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
   .lb { position:absolute; left:0; top:0; white-space:nowrap; color:#fff; text-shadow:0 0 3px #000, 0 0 3px #000, 0 1px 2px #000; will-change:transform; }
@@ -57,6 +60,7 @@
 </style>
 </head>
 <body>
+<div id="stars"><i></i></div>
 <div id="graph"></div>
 <div id="labels"></div>
 <div id="top"><input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false"><span id="stat"></span></div>

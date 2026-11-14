@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="docs/img/icon.svg" width="96" alt="Loopa">
+  <img src="docs/img/icon.svg" width="96" alt="Adult Space">
 </p>
 
-<h1 align="center">Loopa</h1>
+<h1 align="center">Adult Space</h1>
+<p align="center"><i>(formerly Loopa — same app, updates install over it)</i></p>
 
 <p align="center">
   A free, lightweight open-source Android app for short videos from RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap in one ad-free
@@ -13,12 +14,19 @@
   <a href="README.md">Русский</a>
 </p>
 
+<p align="center">
+  <img src="docs/img/graph.gif" width="360" alt="3D interest graph: your taste as a starry sky">
+  <br><sub><i>3D interest graph: your taste as a starry sky</i></sub>
+</p>
+
 > [!WARNING]
 > **Adults only (18+).** The app shows content from RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap, some of which is sexually explicit. Install it only if
 > you are 18 or older and viewing such content is legal where you live.
 
 > [!NOTE]
-> **Unofficial app.** Loopa is not affiliated with or endorsed by RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster or FikFap. Their names are
+> **Space.** Adult Space is your own universe of short videos: interests look like stars, the links between them like constellations. The 3D graph shows your taste as a night sky.
+
+> **Unofficial app.** Adult Space is not affiliated with or endorsed by RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster or FikFap. Their names are
 > trademarks of their owners.
 > The app hosts and redistributes nothing: it only displays what the service already serves to any web browser.
 
@@ -76,7 +84,7 @@
   and user posts; hot, new, rising and top of hour / day / week / month / year / all time. Videos are taken from posts:
   Reddit-hosted videos (with sound), RedGIFs links, Imgur and GIFs. Sign-in happens on reddit.com in an embedded window,
   just like RedGIFs; 18+ content appears if it's enabled in your Reddit account settings.
-- **Auto-update from GitHub.** On every launch (and every 6 hours) Loopa checks the latest release, downloads the APK
+- **Auto-update from GitHub.** On every launch (and every 6 hours) Adult Space checks the latest release, downloads the APK
   and verifies its SHA-256 against the release file; mode is manual / ask / automatic (⧩ menu → “Updates…”).
 - **Taste network and 3D interest graph** (⧩ menu → “Interest graph…”). Tags, creators, subreddits, words, searches and
   sites are nodes of one network linked by the clips you like; it grows as you use the app. In the 3D graph sphere size
@@ -123,7 +131,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.18**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.19**.
 
 | Version | What's new |
 |---|---|
@@ -143,6 +151,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.17 | Updates are checked on every app launch (at most once per 10 minutes), not only every 6 hours: a new version is found right away |
 | 1.17.1 | 3D graph: after picking a tag (by search or from neighbours) and changing its weight, the graph rotates around its own centre rather than that tag — the sphere no longer sticks to the middle of the screen |
 | 1.18 | Site intros are skipped: first 3.4 s on Pornhub and RedTube, 5 s on xHamster (measured); live previews start after it and the player starts after it, you can seek back to it, downloads stay complete. Interests are counted by total watch time of a clip (including replays and returns), not by watching to the end, so long videos count too. Shorter “For you” header without the list of sources |
+| 1.19 | The app is renamed Adult Space (formerly Loopa): new constellation icon, a starry background for the 3D graph (off on weak phones), a space-themed line on the welcome screen; fixed: live previews in the grid no longer freeze — background loads were limited to 5 requests per server, and a stuck preview now has a watchdog that restarts it |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |
@@ -173,7 +182,7 @@ is fine for personal use. APKs in Releases are signed with the project key; cert
 
 ## Be gentle with the service
 
-Loopa uses the same API as the website and behaves like a regular viewer: the guest token is fetched once and reused for
+Adult Space uses the same API as the website and behaves like a regular viewer: the guest token is fetched once and reused for
 up to 12 hours, videos load only as you watch, there is no bulk downloading. Please don't turn it into a scraper.
 
 ## Rights holders
