@@ -23,7 +23,10 @@
 > The app hosts and redistributes nothing: it only displays what the service already serves to any web browser.
 
 <p align="center">
-  <img src="docs/img/screens.svg" width="820" alt="Video grid, player and tag search">
+  <img src="docs/img/shot-welcome.jpg" width="260" alt="Welcome screen: choosing sources">
+  <img src="docs/img/shot-grid.jpg" width="260" alt="Video grid with tags">
+  <img src="docs/img/shot-player.jpg" width="260" alt="Player with clip tags">
+  <br><sub>Clips in the screenshots are blurred.</sub>
 </p>
 
 ## Features
@@ -110,7 +113,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.12.1**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.12.2**.
 
 | Version | What's new |
 |---|---|

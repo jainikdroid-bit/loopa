@@ -31,7 +31,10 @@
 > Приложение ничего не хранит и не распространяет: оно лишь показывает то, что сервис сам отдаёт в браузер.
 
 <p align="center">
-  <img src="docs/img/screens.svg" width="820" alt="Сетка роликов, плеер и поиск по тегам">
+  <img src="docs/img/shot-welcome.jpg" width="260" alt="Экран приветствия: выбор источников">
+  <img src="docs/img/shot-grid.jpg" width="260" alt="Сетка роликов с тегами">
+  <img src="docs/img/shot-player.jpg" width="260" alt="Плеер с тегами ролика">
+  <br><sub>Ролики на скриншотах размыты.</sub>
 </p>
 
 ## Возможности
@@ -117,7 +120,7 @@
 
 ## Версии
 
-Последний APK в [Releases](https://github.com/jainikdroid-bit/loopa/releases) — **1.12.1**.
+Последний APK в [Releases](https://github.com/jainikdroid-bit/loopa/releases) — **1.12.2**.
 
 | Версия | Что нового |
 |---|---|
