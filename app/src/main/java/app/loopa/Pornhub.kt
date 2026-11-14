@@ -13,6 +13,9 @@ object Pornhub : Source {
     override val title = "Pornhub"
     override val badge = "PH"
     override val about = "любительское и verified amateurs"
+    override val introSec = INTRO_SEC
+    /** Заставка сайта в начале ролика, с (по замерам 14.11). */
+    private const val INTRO_SEC = 3.4   // замер 14.11: заставка 3,1 с у 9 из 10 роликов (+0,3 с запас)
     const val SITE = "https://www.pornhub.com"
     /** Сколько роликов отдаёт одна страница API. */
     private const val PER_PAGE = 30

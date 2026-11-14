@@ -48,12 +48,17 @@ class GridPreview(private val ctx: Context) {
         }
     }
 
-    /** Куски: 0 %, ~33 %, ~66 % и концовка; длина — 8 % ролика, но 1,5–2,5 с. */
-    private fun plan(p: ExoPlayer, durSec: Double) {
+    /** Куски: начало (после заставки сайта), ~33 %, ~66 % и концовка; длина — 8 % ролика, но 1,5–2,5 с. */
+    private fun plan(p: ExoPlayer, durSec: Double, introMs: Long) {
         if (durSec < CUTS_MIN || cuts.containsKey(p)) return
         val d = (durSec * 1000).toLong()
         val len = (d * 0.08).toLong().coerceIn(1500, 2500)
-        cuts[p] = Cuts(longArrayOf(0, d * 33 / 100, d * 66 / 100, (d - len - 200).coerceAtLeast(0)), len)
+        // заставку сайта пропускаем: первый кусок — сразу за ней, остальные — в пределах [intro, конец]
+        val end = (d - len - 200).coerceAtLeast(0)
+        val lo = introMs.coerceAtMost(end)
+        val span = d - lo
+        if (lo > 0) p.seekTo(lo)
+        cuts[p] = Cuts(longArrayOf(lo, lo + span * 33 / 100, lo + span * 66 / 100, end.coerceAtLeast(lo)), len)
         ui.removeCallbacks(tick); ui.post(tick)
     }
     var enabled = true
@@ -104,12 +109,14 @@ class GridPreview(private val ctx: Context) {
             override fun onVideoSizeChanged(v: VideoSize) { if (s.player === p) crop(s.tex, v.width, v.height) }
             override fun onPlayerError(e: androidx.media3.common.PlaybackException) { if (s.player === p) stop(s) }
             // длительность из API бывает пустой (Imgur) — тогда берём у плеера, когда он её узнал
-            override fun onPlaybackStateChanged(st: Int) { if (st == Player.STATE_READY && s.player === p && p.duration > 0) plan(p, p.duration / 1000.0) }
+            override fun onPlaybackStateChanged(st: Int) { if (st == Player.STATE_READY && s.player === p && p.duration > 0) plan(p, p.duration / 1000.0, Sources.intro(g)) }
         }.also { listeners[p] = it })
         val u = g.sd
         p.setMediaItem(MediaItem.Builder().setUri(u).setMediaId(u).apply { if (g.hls) setMimeType(MimeTypes.APPLICATION_M3U8) }.build())
         p.prepare(); p.play()
-        if (g.duration > 0) plan(p, g.duration)
+        val intro = Sources.intro(g)
+        if (g.duration > 0) plan(p, g.duration, intro)
+        else if (intro > 0) p.seekTo(intro)   // длительность неизвестна — хотя бы первый кусок уже за заставкой
     }
     private val listeners = HashMap<ExoPlayer, Player.Listener>()
 

@@ -665,7 +665,7 @@ class MainActivity : Activity() {
         filterBtn.background = pill(if (Feed.filtered || Hide.active) ACCENT else CHIP)
         status.text = buildString {
             when {
-                Feed.mode == "foryou" -> append(tr("Для вас") + " — " + ForYou.sources.ifEmpty { listOf(tr("источники выключены")) }.joinToString(" + ") +
+                Feed.mode == "foryou" -> append(tr("Для вас") + (if (ForYou.sources.isEmpty()) " · " + tr("источники выключены") else "") +
                     " · " + (if (Interests.empty) tr("лайкайте и досматривайте — подстроится") else tr("по вашим интересам")) +
                     ForYou.redditNote?.let { " · $it" }.orEmpty())
                 Feed.mode == "liked" -> append(tr("Ваши лайки"))

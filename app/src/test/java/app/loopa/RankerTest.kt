@@ -56,4 +56,32 @@ class RankerTest {
         val min = Ranker.searchBonus(-1e6, 5, 0, 0)
         assertTrue(max <= 1.5); assertTrue(min >= -1.0)
     }
+
+    @Test fun `вес просмотра растёт с временем и ограничен`() {
+        assertEquals(0.0, Ranker.watchWeight(0.0), 1e-9)
+        assertEquals(0.0, Ranker.watchWeight(2.9), 1e-9)
+        assertEquals(0.0, Ranker.watchWeight(3.0), 1e-9)
+        assertEquals(0.75, Ranker.watchWeight(10.0), 0.02)
+        assertEquals(1.8, Ranker.watchWeight(30.0), 0.1)
+        assertEquals(3.3, Ranker.watchWeight(120.0), 0.2)
+        assertEquals(Ranker.WATCH_MAX, Ranker.watchWeight(1e7), 1e-9)
+        var prev = 0.0
+        for (t in 3..2000 step 7) { val w = Ranker.watchWeight(t.toDouble()); assertTrue(w >= prev); prev = w }
+    }
+
+    @Test fun `прирост за заходы в сумме равен весу всего времени`() {
+        val parts = listOf(4.0, 6.0, 20.0, 90.0)
+        var total = 0.0; var sum = 0.0
+        for (p in parts) { sum += Ranker.watchWeight(total + p) - Ranker.watchWeight(total); total += p }
+        assertEquals(Ranker.watchWeight(total), sum, 1e-9)
+    }
+
+    @Test fun `заставка сайта - пропуск не больше трети ролика, у остальных ноль`() {
+        fun g(site: String, dur: Double) = Gif("x", "", "", "", 0, 0, dur, "", emptyList(), false, 0, 0, site = site)
+        assertEquals(3400L, Sources.intro(g("pornhub", 600.0)))
+        assertEquals(3000L, Sources.intro(g("redtube", 9.0)))
+        assertEquals(5000L, Sources.intro(g("xhamster", 0.0)))
+        assertEquals(0L, Sources.intro(g("", 600.0)))
+        assertEquals(0L, Sources.intro(g("eporner", 600.0)))
+    }
 }

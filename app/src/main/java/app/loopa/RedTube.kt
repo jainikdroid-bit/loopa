@@ -12,6 +12,9 @@ object RedTube : Source {
     override val title = "RedTube"
     override val badge = "RT"
     override val about = "та же сеть, что Pornhub"
+    override val introSec = INTRO_SEC
+    /** Заставка сайта в начале ролика, с (по замерам 14.11). */
+    private const val INTRO_SEC = 3.4   // замер 14.11: заставка 3,1 с у 7 из 10 роликов (+0,3 с запас)
     const val SITE = "https://www.redtube.com"
     private const val API = "https://api.redtube.com/"
     /** Сколько роликов отдаёт одна страница API. */

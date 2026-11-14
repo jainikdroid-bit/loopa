@@ -36,6 +36,19 @@ object Ranker {
         return pop + ratio
     }
 
+    /** Меньше стольких секунд суммарного просмотра сигнала нет. */
+    const val WATCH_MIN = 3.0
+    /** Потолок веса просмотра. */
+    const val WATCH_MAX = 6.0
+
+    /**
+     * Вес сигнала от суммарного времени просмотра ролика (с, с повторами и возвратами): 0 до [WATCH_MIN] секунд, дальше
+     * плавно растёт логарифмом, потолок [WATCH_MAX]. 10 с ≈ 0,75, 30 с ≈ 1,8, 2 минуты ≈ 3,3, 10 минут ≈ 5.
+     * Интересы копят разницу f(новое) − f(старое), так что сумма за все заходы равна f(всего).
+     */
+    fun watchWeight(totalSec: Double): Double =
+        if (totalSec < WATCH_MIN) 0.0 else (1.2 * ln(1.0 + (totalSec - WATCH_MIN) / 8.0)).coerceAtMost(WATCH_MAX)
+
     /** Итоговая оценка для ленты: сглаженный вкус + качество + шум [noise] (0…1) для разведки. */
     fun value(taste: Double, tags: Int, likes: Long, views: Long, noise: Double): Double =
         Interests.damp(taste * norm(tags)) + quality(likes, views) + noise * 0.5

@@ -107,12 +107,13 @@ class PlayerActivity : Activity() {
         @Volatile var flinging = false
         override fun getTargetPreloadStatus(rank: Int): DefaultPreloadManager.PreloadStatus? {
             // текущий занят плеером — его не трогаем
-            if (rank == cur) return DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(1000L)
+            // (заставка сайта пропущена: грузим с той же позиции, с какой ролик потом стартует — [introAt])
+            if (rank == cur) return DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(introAt(rank), 1000L)
             if (!open) return null
             return when (val p = PreloadPolicy.plan(rank - cur, dir, net, flinging)) {
                 Plan.None -> null
                 Plan.Prepare -> DefaultPreloadManager.PreloadStatus.SOURCE_PREPARED
-                is Plan.Range -> DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(p.ms)
+                is Plan.Range -> DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(introAt(rank), p.ms)
             }
         }
     }
@@ -178,6 +179,10 @@ class PlayerActivity : Activity() {
                 // замер: от выбора страницы до начала воспроизведения (в журнал)
                 override fun onIsPlayingChanged(p: Boolean) { if (p && startAt > 0) { android.util.Log.i("Loopa", "старт: ${System.currentTimeMillis() - startAt} мс"); startAt = 0 } }
                 override fun onVideoSizeChanged(s: VideoSize) { holder?.fit(s.width, s.height) }
+                // повтор по кругу: ролик сайта с заставкой начинается заново уже после неё
+                override fun onPositionDiscontinuity(old: Player.PositionInfo, new: Player.PositionInfo, reason: Int) {
+                    if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) introAt(current).takeIf { it > 0 }?.let { player.seekTo(it) }
+                }
                 override fun onPlaybackStateChanged(st: Int) {
                     holder?.spin?.visibility = if (st == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
                     bufferingSince = if (st == Player.STATE_BUFFERING) bufferingSince.takeIf { it > 0 } ?: System.currentTimeMillis() else 0L
@@ -249,8 +254,7 @@ class PlayerActivity : Activity() {
         val g = list.getOrNull(current) ?: return
         if (shownAt == 0L) return
         val sec = (System.currentTimeMillis() - shownAt) / 1000.0
-        val dur = if (g.duration > 0) g.duration else player.duration.takeIf { it > 0 }?.div(1000.0) ?: 0.0
-        Interests.watched(g, if (dur > 0) sec / dur else 0.0, sec)
+        Interests.watched(g, sec)
         shownAt = 0L
     }
 
@@ -273,13 +277,18 @@ class PlayerActivity : Activity() {
         // превью пряталось, и до первого кадра нового стоял застывший кадр чужого видео
         val m = managed.getValue(pos)
         android.util.Log.i("Loopa", "ролик ${pos + 1}/${list.size}: ${list[pos].id}, предзагружен: ${preload.getMediaSource(m) != null}")
-        player.setMediaSource(source(m))
+        // заставка сайта пропускается стартовой позицией (не обрезкой): перемоткой назад её можно досмотреть.
+        // Повтор (REPEAT_MODE_ONE) начинает с 0, то есть вся заставка проигрывается заново — так проще и не ломает перемотку
+        player.setMediaSource(source(m), introAt(pos))
         player.setVideoTextureView(h.video)
         player.prepare(); player.play()
         // следующая страница — заранее: запрос по долгому каналу идёт секунды
         if (pos > list.size - 10 && Feed.error == null) Feed.more()
         Net.warm(list.subList(pos, minOf(list.size, pos + 3)).map { url(it) })
     }
+
+    /** Стартовая позиция ролика № i, мс: после заставки сайта ([Sources.intro]). Зовётся и с потока плеера — только чтение. */
+    private fun introAt(i: Int): Long = list.getOrNull(i)?.let { Sources.intro(it) } ?: 0L
 
     /** Источник из PreloadManager (с уже загруженным началом); нет там — обычный, без предзагрузки. */
     private fun source(m: MediaItem) = preload.getMediaSource(m) ?: factory.createMediaSource(m)

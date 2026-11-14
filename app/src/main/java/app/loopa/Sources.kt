@@ -26,6 +26,8 @@ interface Source {
     val default: Boolean get() = false
     /** Ленивые адреса сайта — HLS-плейлисты: их не кэшировать (подпись в адресах сегментов истекает), см. [Sources.uncached]. */
     val hlsOnly: Boolean get() = false
+    /** Сколько секунд в начале ролика идёт заставка/лого сайта; плеер и превью начинают после неё ([Sources.intro]). */
+    val introSec: Double get() = 0.0
 
     /** Страница ленты: q пусто — популярное сайта, иначе поиск; fresh — сначала новые; p — номер страницы с 1. */
     fun page(q: String, fresh: Boolean, p: Int): Page
@@ -45,6 +47,17 @@ object Sources {
     /** Все сайты по порядку вкладок. Заполняется в одном месте — здесь. */
     val ALL: List<Source> by lazy { listOf(Erome, Eporner, XVideos, Xnxx, Pornhub, RedTube, XHamster, FikFap) }
     fun byId(id: String?): Source? = ALL.firstOrNull { it.id == id }
+
+    /**
+     * Где начинать ролик, мс: после заставки сайта ([Source.introSec]); 0 — у RedGIFs, Reddit и сайтов без заставки.
+     * Не больше трети длительности, если она известна (в коротком ролике заставка — тоже часть сюжета).
+     */
+    fun intro(g: Gif): Long {
+        val s = byId(g.site)?.introSec ?: return 0
+        if (s <= 0) return 0
+        val ms = (s * 1000).toLong()
+        return if (g.duration > 0) minOf(ms, (g.duration * 1000 / 3).toLong()) else ms
+    }
 
     /** Ленивый адрес ролика: loopa://{site}/{ключ}/{hd|sd}. */
     fun lazy(site: String, key: String, hd: Boolean) = "$SCHEME://$site/" + URLEncoder.encode(key, "UTF-8") + if (hd) "/hd" else "/sd"

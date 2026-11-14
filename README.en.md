@@ -82,7 +82,7 @@
   sites are nodes of one network linked by the clips you like; it grows as you use the app. In the 3D graph sphere size
   is weight and colour is community, with type filters, search, zoom, a weight slider on any node and “Open in feed”.
   Rendering adapts to the phone hardware: low-end phones draw less, the logic stays the same.
-- **“For you” with its own algorithm.** An interest profile learns from likes, full watches and rewatches, skips,
+- **“For you” with its own algorithm.** An interest profile learns from likes, total watch time (including replays), skips,
   searches and downloads — by tags, words in titles and descriptions, subreddits and creators; old tastes fade on their
   own. Tags work as a small “taste network”: tags you like, download and search often weigh more, tags that keep
   showing up together get linked, and a tag never liked by itself but always next to your favourites gets weight
@@ -123,7 +123,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.17.1**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.18**.
 
 | Version | What's new |
 |---|---|
@@ -142,6 +142,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.16 | The 3D graph adapts to the hardware: memory, CPU cores and 64-bit support give the phone a level (low, mid, high); on low-end phones fewer nodes, links and labels are drawn with simpler spheres and lines, and if the frame rate drops below 24 fps the graph simplifies itself. The taste network logic, search and sliders stay the same on every phone |
 | 1.17 | Updates are checked on every app launch (at most once per 10 minutes), not only every 6 hours: a new version is found right away |
 | 1.17.1 | 3D graph: after picking a tag (by search or from neighbours) and changing its weight, the graph rotates around its own centre rather than that tag — the sphere no longer sticks to the middle of the screen |
+| 1.18 | Site intros are skipped: first 3.4 s on Pornhub and RedTube, 5 s on xHamster (measured); live previews start after it and the player starts after it, you can seek back to it, downloads stay complete. Interests are counted by total watch time of a clip (including replays and returns), not by watching to the end, so long videos count too. Shorter “For you” header without the list of sources |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |

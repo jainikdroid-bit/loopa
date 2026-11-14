@@ -25,6 +25,9 @@ object XHamster : Source {
     override val title = "xHamster"
     override val badge = "XH"
     override val hlsOnly = true
+    override val introSec = INTRO_SEC
+    /** Заставка сайта в начале ролика, с (по замерам 14.11). */
+    private const val INTRO_SEC = 5.0   // замер 14.11: заставка 4,6–4,7 с у 8 из 10 роликов (+0,3 с запас)
     override val about = "любительское и короткие Moments"
 
     const val SITE = "https://xhamster.com"

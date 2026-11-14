@@ -12,8 +12,11 @@ import kotlin.math.pow
 /**
  * Профиль интересов — только на телефоне (files/interests.json). Веса по осям: теги роликов, слова из названий и
  * описаний, сабреддиты, авторы, запросы целиком («q») и сайты роликов («site»: redgifs, reddit, erome…). Учится на действиях:
- *  - лайк +5 (снят — −5), скачивание +4, досмотр (≥80 %) +1,5 и пересмотр по кругу ещё +1,5, мельком +0,3;
- *  - пропуск (< 2,5 с у ролика длиннее 6 с) −0,4;
+ *  - лайк +5 (снят — −5), скачивание +4;
+ *  - просмотр — по суммарному времени на экране (с повторами и возвратами; «wt»: id → секунды, до 3000 роликов):
+ *    при каждом уходе добавляется прирост [Ranker.watchWeight] (0 до 3 с, дальше логарифм 1,2·ln(1+(t−3)/8), потолок 6:
+ *    10 с ≈ 0,75, 30 с ≈ 1,8, 2 мин ≈ 3,3), поэтому 20-минутный ролик получает очки за реальное время, а не за досмотр;
+ *  - пропуск (первый просмотр < 2,5 с у ролика длиннее 6 с) −0,4;
  *  - поиск, открытый тег или сабреддит +3; сам запрос целиком тоже запоминается (ось «q») — «Для вас» ищет по нему.
  * Сочетания тегов (ось «pair», «a,b» по алфавиту, без слишком общих тегов) учатся на тех же сигналах с весом 0,5 — так
  * видно, что нравится не «Riding» и не «Little People» по отдельности, а именно вместе.
@@ -40,6 +43,8 @@ object Interests {
     /** Сколько терминов держим по осям: сеть растёт, пока пользуешься, но не бесконечно. */
     private val MAX_TERMS = mapOf("tag" to 1500, "kw" to 800, "user" to 600, "sub" to 300, "q" to 200, "site" to 20, "pair" to 4000, "link" to 6000)
     private const val MAX_SEEN = 5000
+    /** Сколько роликов помним по времени просмотра. */
+    private const val MAX_WATCH = 3000
     private const val DAY = 86_400_000L
     private val AXES = listOf("tag", "kw", "sub", "user", "pair", "q", "site", "link")
     /** Оси-узлы сети (pair и link — связи). */
@@ -73,6 +78,8 @@ object Interests {
     private var lastQueryAt = 0L
     private val io by lazy { Handler(HandlerThread("interests").apply { start() }.looper) }
     private val seen = LinkedHashSet<String>()
+    /** Суммарное время просмотра роликов, с: id → секунды (порядок — по давности, старые вытесняются). Хранится как «wt». */
+    private val watchSec = LinkedHashMap<String, Double>()
 
     @Synchronized fun init(ctx: Context) {
         if (::file.isInitialized) return
@@ -85,6 +92,7 @@ object Interests {
         if (!data.has("map")) data.put("map", JSONObject())
         if (!data.has("man")) data.put("man", JSONObject())
         migrateMan()
+        data.optJSONObject("wt")?.let { o -> o.keys().forEach { k -> watchSec[k] = o.optDouble(k, 0.0) } }
         data.optJSONArray("seen")?.let { a -> for (i in 0 until a.length()) seen += a.getString(i) }
         if (!data.has("at")) data.put("at", System.currentTimeMillis())
         decay()
@@ -191,19 +199,30 @@ object Interests {
     /** Лайк, поставленный на Reddit раньше (импорт): слабее свежего — вкус мог измениться. */
     fun imported(g: Gif) = bump(g, 2.5)
 
-    /** Сколько смотрели: fraction — доля длительности (больше 1 — пошёл по кругу), sec — секунды на экране. */
-    fun watched(g: Gif, fraction: Double, sec: Double) {
-        if (sec >= 2) synchronized(this) {
-            // встречаемость тегов и слов среди просмотренного — для веса по редкости (один раз на ролик)
-            if (seen.add(g.id)) features(g).forEach { (axis, terms) -> if (axis == "tag" || axis == "kw") terms.forEach { count("df", "$axis|$it", 1.0) } }
-            trimSeen()
+    /**
+     * Сколько смотрели: sec — секунды на экране за этот заход. Они копятся по ролику ([watchSec]); при каждом уходе
+     * к интересам добавляется прирост [Ranker.watchWeight] (новое всего) − (старое всего), так что повторы и возвраты
+     * к ролику считаются, а длинный ролик получает очки за реальное время, а не за досмотр до конца.
+     */
+    fun watched(g: Gif, sec: Double) {
+        val before: Double
+        val after: Double
+        synchronized(this) {
+            if (sec >= 2) {
+                // встречаемость тегов и слов среди просмотренного — для веса по редкости (один раз на ролик)
+                if (seen.add(g.id)) features(g).forEach { (axis, terms) -> if (axis == "tag" || axis == "kw") terms.forEach { count("df", "$axis|$it", 1.0) } }
+                trimSeen()
+            }
+            before = watchSec.remove(g.id) ?: 0.0
+            after = before + sec
+            watchSec[g.id] = after   // в конец очереди: свежее вытесняется последним
+            while (watchSec.size > MAX_WATCH) watchSec.remove(watchSec.keys.first())
         }
+        val gain = Ranker.watchWeight(after) - Ranker.watchWeight(before)
         when {
-            // пропуск того, что сеть считала «во вкусе», — её ошибка: штраф до двух раз сильнее
-            sec < 2.5 && g.duration > 6 -> bump(g, -0.4 * TagNet.surprise(score(g) * Ranker.norm(g.tags.size)))
-            fraction >= 1.8 -> bump(g, 3.0)
-            fraction >= 0.8 -> bump(g, 1.5)
-            sec >= 3 -> bump(g, 0.3)
+            // пропуск того, что сеть считала «во вкусе», — её ошибка: штраф до двух раз сильнее (только первый просмотр)
+            before == 0.0 && sec < 2.5 && g.duration > 6 -> bump(g, -0.4 * TagNet.surprise(score(g) * Ranker.norm(g.tags.size)))
+            gain > 0.0 -> bump(g, gain)
             else -> if (sec >= 2) save()
         }
     }
@@ -223,7 +242,7 @@ object Interests {
     fun openSub(s: String) = synchronized(this) { s.split("+").filter { it.isNotBlank() && !it.startsWith("u/") }.forEach { add("sub", it.lowercase(), 3.0) }; save() }
 
     fun reset() = synchronized(this) {
-        AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); data.put("man", JSONObject()); seen.clear(); net = null; lastQuery = emptyList(); lastQueryFull = null; save()
+        AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); data.put("man", JSONObject()); seen.clear(); watchSec.clear(); net = null; lastQuery = emptyList(); lastQueryFull = null; save()
     }
 
     // ---- использование ----
@@ -389,7 +408,7 @@ object Interests {
     private fun save() {
         io.removeCallbacksAndMessages(null)
         io.postDelayed({
-            val text = synchronized(this) { decay(); data.put("seen", JSONArray(seen.toList())); data.toString() }
+            val text = synchronized(this) { decay(); data.put("seen", JSONArray(seen.toList())); data.put("wt", JSONObject().also { o -> watchSec.forEach { (k, v) -> o.put(k, v) } }); data.toString() }
             runCatching { File(file.path + ".tmp").apply { writeText(text) }.renameTo(file) }
         }, 2000)
     }
