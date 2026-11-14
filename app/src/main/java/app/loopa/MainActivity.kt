@@ -65,8 +65,9 @@ class MainActivity : Activity() {
             Feed.desc = prefs.getBoolean("desc", true); Feed.searchReddit = prefs.getBoolean("search_reddit", true)
             prefs.getString("order", null)?.let { Feed.restore(it) }
             // лайки Reddit, поставленные раньше, — один раз сами (когда лента уже грузится)
-            // обновление из релизов GitHub: проверка и скачивание сами, потом — вопрос «Установить?»
-            window.decorView.postDelayed({ checkUpdate(false) }, 12_000)
+            // обновление из релизов GitHub — при каждом запуске: проверка и скачивание сами, потом — вопрос «Установить?»
+            // (через 5 с — не отнимать канал у первой ленты)
+            window.decorView.postDelayed({ checkUpdate(false, launch = true) }, 5_000)
             // открыли поиск, автора или тег из «Поделиться» (приложение было закрыто): показать после запуска
             if (intent.getBooleanExtra("shared", false)) window.decorView.post { onNewIntent(intent) }
             if (Reddit.hadUser && !prefs.getBoolean("rd_likes_done", false)) window.decorView.postDelayed({ importRedditLikes(false) }, 25_000)
@@ -549,11 +550,11 @@ class MainActivity : Activity() {
             .setPositiveButton(tr("Сохранить")) { _, _ -> Hide.custom = e.text.toString().trim(); reload() }.setNegativeButton(tr("Отмена"), null).show()
     }
 
-    /** Обновление Loopa: [manual] — по кнопке (с сообщением); сам — раз в 6 часов, спрашивает один раз на версию. */
-    private fun checkUpdate(manual: Boolean) {
+    /** Обновление Loopa: [manual] — по кнопке (с сообщением); [launch] — при запуске; спрашивает один раз на версию. */
+    private fun checkUpdate(manual: Boolean, launch: Boolean = false) {
         val app = applicationContext
         Thread {
-            val r = Updater.check(app, manual)
+            val r = Updater.check(app, manual, launch)
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 val v = r.ready

@@ -12,7 +12,7 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * Обновление из релизов GitHub: раз в [EVERY_MS] (и вручную) спрашивает последний релиз, а если он новее — сам скачивает
+ * Обновление из релизов GitHub: при каждом запуске приложения (не чаще раза в [LAUNCH_GAP_MS]), раз в [EVERY_MS] (и вручную) спрашивает последний релиз, а если он новее — сам скачивает
  * APK, сверяет SHA-256 с файлом SHA256SUMS из того же релиза и предлагает поставить ([install]). Подлинность проверяет
  * Android: чужую подпись установщик не примет. Тихой установки нет — система просит подтвердить (на Android 12+ при
  * разрешённой установке из этого приложения обновление может пройти без вопроса).
@@ -21,6 +21,8 @@ object Updater {
     private const val API = "https://api.github.com/repos/jainikdroid-bit/loopa/releases/latest"
     private const val ASSETS = "https://github.com/jainikdroid-bit/loopa/releases/download/"
     private const val EVERY_MS = 6 * 3600_000L
+    /** Запуск за запуском (свернули-развернули, перезапуск) — GitHub не дёргаем чаще: у API без ключа 60 запросов в час. */
+    private const val LAUNCH_GAP_MS = 10 * 60_000L
     const val ACTION = "app.loopa.INSTALL_RESULT"
 
     class Release(val version: String, val notes: String, val apkUrl: String, val apkName: String, val sumsUrl: String)
@@ -70,10 +72,14 @@ object Updater {
     /** Итог проверки: версия, готовая к установке (или null), и текст сообщения. */
     class Result(val ready: String?, val message: String, val notes: String = "")
 
-    /** Проверить и при необходимости скачать (в вызывающем потоке — только фоновом). [force] — вручную: без интервала. */
-    fun check(ctx: Context, force: Boolean): Result {
+    /**
+     * Проверить и при необходимости скачать (в вызывающем потоке — только фоновом). [force] — вручную: без интервала;
+     * [launch] — запуск приложения: проверяем сразу (если с прошлой проверки прошло больше [LAUNCH_GAP_MS]).
+     */
+    fun check(ctx: Context, force: Boolean, launch: Boolean = false): Result {
         val sp = p(ctx)
-        if (!force && (mode(ctx) == MANUAL || System.currentTimeMillis() - sp.getLong("upd_checked", 0) < EVERY_MS)) return Result(ready(ctx), "")
+        val gap = if (launch) LAUNCH_GAP_MS else EVERY_MS
+        if (!force && (mode(ctx) == MANUAL || System.currentTimeMillis() - sp.getLong("upd_checked", 0) < gap)) return Result(ready(ctx), "")
         val rel = try { latest() } catch (e: Exception) {
             android.util.Log.w("Loopa", "обновление: проверка не удалась", e)
             return Result(ready(ctx), tr("Не удалось проверить обновления: %s", e.message ?: e.javaClass.simpleName))
