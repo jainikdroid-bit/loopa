@@ -76,6 +76,10 @@
   and user posts; hot, new, rising and top of hour / day / week / month / year / all time. Videos are taken from posts:
   Reddit-hosted videos (with sound), RedGIFs links, Imgur and GIFs. Sign-in happens on reddit.com in an embedded window,
   just like RedGIFs; 18+ content appears if it's enabled in your Reddit account settings.
+- **Taste network and 3D interest graph** (⧩ menu → “Interest graph…”). Tags, creators, subreddits, words, searches and
+  sites are nodes of one network linked by the clips you like; it grows as you use the app. In the 3D graph sphere size
+  is weight and colour is community, with type filters, search, zoom, a weight slider on any node and “Open in feed”.
+  Rendering adapts to the phone hardware: low-end phones draw less, the logic stays the same.
 - **“For you” with its own algorithm.** An interest profile learns from likes, full watches and rewatches, skips,
   searches and downloads — by tags, words in titles and descriptions, subreddits and creators; old tastes fade on their
   own. Tags work as a small “taste network”: tags you like, download and search often weigh more, tags that keep

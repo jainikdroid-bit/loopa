@@ -39,3 +39,4 @@
 
 - RedGIFs app for Android: https://jainikdroid-bit.github.io/loopa/guides/redgifs-app-android/
 - Download Reddit videos with sound on Android: https://jainikdroid-bit.github.io/loopa/guides/download-reddit-videos-with-sound-android/
+- 3D interest graph (⧩ → “Interest graph…”): a taste network of tags, creators, subreddits, words, searches and sites that grows with use; weight slider on any node; rendering adapts to phone hardware.
