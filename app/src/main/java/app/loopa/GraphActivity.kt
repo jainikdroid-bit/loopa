@@ -27,7 +27,7 @@ class GraphActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        I18n.init(this); Interests.init(this)
+        I18n.init(this); Theme.init(this); Interests.init(this)
         tier = DeviceTier.detect(this)
         android.util.Log.i("Loopa", "граф: уровень $tier (ОЗУ ${DeviceTier.ramMb(this)} МБ, ядер ${Runtime.getRuntime().availableProcessors()})")
         val bg = Color.parseColor("#0f0f1a")
@@ -87,6 +87,7 @@ class GraphActivity : Activity() {
             .put("weightHint", tr("Меньше — реже в «Для вас», больше — чаще"))
             .put("reset", tr("Сбросить"))
             .put("fit", tr("Весь граф"))
+            .put("accent", Theme.accentHex)
             .put("types", JSONObject().put("tag", tr("Теги")).put("user", tr("Авторы")).put("sub", tr("Сабреддиты"))
                 .put("kw", tr("Слова")).put("q", tr("Запросы")).put("site", tr("Сайты")))
             .put("type1", JSONObject().put("tag", tr("Тег")).put("user", tr("Автор")).put("sub", tr("Сабреддит"))

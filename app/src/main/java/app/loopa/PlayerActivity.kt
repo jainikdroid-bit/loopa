@@ -153,7 +153,7 @@ class PlayerActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        I18n.init(this)
+        I18n.init(this); Theme.init(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.statusBarColor = Color.BLACK; window.navigationBarColor = Color.BLACK
         Video.init(this); Interests.init(this); Likes.init(this)
@@ -335,7 +335,7 @@ class PlayerActivity : Activity() {
         val src = TextView(this@PlayerActivity).apply { setTextColor(Color.WHITE); textSize = 11f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(dp(7), dp(2), dp(7), dp(2)) }
         val info = TextView(this@PlayerActivity).apply { setTextColor(0xFFDDDDDD.toInt()); textSize = 12f; setShadowLayer(4f, 0f, 0f, Color.BLACK) }
         val tags = LinearLayout(this@PlayerActivity).apply { orientation = LinearLayout.HORIZONTAL }
-        val seek = SeekBar(this@PlayerActivity)
+        val seek = SeekBar(this@PlayerActivity).apply { progressTintList = Theme.tint(); thumbTintList = Theme.tint() }
         var dragging = false
         private var col: View? = null
         private var bottom: View? = null

@@ -46,6 +46,7 @@
     var sh = nodes.filter(function (n) { return drawn[n.id] && vis(n); }).length;
     return sh < vn && T.shown ? r + ' (' + T.shown.replace('%s', sh) + ')' : r;   // сцена урезана — рядом «показано N»
   }
+  if (T.accent) document.documentElement.style.setProperty('--accent', T.accent);   // акцент темы приложения
   $('q').placeholder = T.search || '';
   $('open').textContent = T.open || '';
   if (!nodes.length) { $('empty').textContent = T.empty || ''; $('empty').style.display = 'flex'; $('q').style.display = 'none'; return; }

@@ -44,11 +44,11 @@ class WelcomeActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        I18n.init(this); ForYou.init(this); Ext.init(this)
-        window.statusBarColor = MainActivity.BG; window.navigationBarColor = MainActivity.BG
+        I18n.init(this); Theme.init(this); ForYou.init(this); Ext.init(this)
+        Theme.bars(this)
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(28), dp(22), dp(22)) }
         box.addView(TextView(this).apply { text = tr("Добро пожаловать в Adult Space"); setTextColor(Color.WHITE); textSize = 24f; typeface = android.graphics.Typeface.DEFAULT_BOLD })
-        box.addView(TextView(this).apply { text = tr("Твоя вселенная коротких роликов: интересы — звёзды, связи — созвездия"); setTextColor(0xFFB9A7F5.toInt()); textSize = 14f; setPadding(0, dp(6), 0, 0) })
+        box.addView(TextView(this).apply { text = tr("Твоя вселенная коротких роликов: интересы — звёзды, связи — созвездия"); setTextColor(Theme.soft); textSize = 14f; setPadding(0, dp(6), 0, 0) })
         box.addView(TextView(this).apply {
             text = tr("Adult Space собирает короткие видео с нескольких сайтов в одну ленту. «Для вас» учится на ваших лайках, досмотрах и поисках: что нравится раз за разом — показывается чаще, что пролистываете — реже. Всё хранится только на телефоне.")
             setTextColor(0xFFC9CDD4.toInt()); textSize = 15f; setPadding(0, dp(12), 0, dp(18)); setLineSpacing(0f, 1.15f)
@@ -57,7 +57,7 @@ class WelcomeActivity : Activity() {
         src.forEach { s ->
             box.addView(CheckBox(this).apply {
                 text = s.title + " — " + tr(s.note); isChecked = s.on; setTextColor(Color.WHITE); textSize = 15f
-                buttonTintList = android.content.res.ColorStateList.valueOf(MainActivity.ACCENT); setPadding(dp(6), dp(8), 0, dp(8))
+                buttonTintList = Theme.tint(); setPadding(dp(6), dp(8), 0, dp(8))
                 setOnCheckedChangeListener { _, c -> s.on = c }
             })
         }
@@ -65,9 +65,9 @@ class WelcomeActivity : Activity() {
             text = tr("Дальше — вход в выбранные сайты, по очереди. Проще всего входить через Google. Любой вход можно пропустить и сделать потом в меню 👤.")
             setTextColor(0xFF9AA0AA.toInt()); textSize = 13f; setPadding(0, dp(14), 0, dp(20))
         })
-        box.addView(button(tr("Далее"), MainActivity.ACCENT) { next() })
-        box.addView(button(tr("Пропустить"), MainActivity.CHIP) { skip() }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
-        setContentView(ScrollView(this).apply { setBackgroundColor(MainActivity.BG); addView(box)
+        box.addView(button(tr("Далее"), Theme.accent) { next() })
+        box.addView(button(tr("Пропустить"), Theme.chip) { skip() }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+        setContentView(ScrollView(this).apply { setBackgroundColor(Theme.bg); addView(box)
             setOnApplyWindowInsetsListener { v, ins -> @Suppress("DEPRECATION") v.setPadding(0, ins.systemWindowInsetTop, 0, ins.systemWindowInsetBottom); ins } })
     }
 

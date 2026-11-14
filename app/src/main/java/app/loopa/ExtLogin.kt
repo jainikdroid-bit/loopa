@@ -68,9 +68,9 @@ class ExtLoginActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        I18n.init(this); Ext.init(this)
+        I18n.init(this); Theme.init(this); Ext.init(this)
         site = Ext.site(intent.getStringExtra("site")) ?: run { finish(); return }
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(MainActivity.BG) }
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Theme.bg) }
         root.setOnApplyWindowInsetsListener { v, ins ->
             @Suppress("DEPRECATION") v.setPadding(ins.systemWindowInsetLeft, ins.systemWindowInsetTop, ins.systemWindowInsetRight, ins.systemWindowInsetBottom); ins
         }
@@ -80,12 +80,12 @@ class ExtLoginActivity : Activity() {
         })
         root.addView(TextView(this).apply {
             text = tr("✓ Я вошёл"); setTextColor(Color.WHITE); textSize = 15f; setPadding(dp(16), dp(9), dp(16), dp(9))
-            background = GradientDrawable().apply { setColor(MainActivity.ACCENT); cornerRadius = dp(20).toFloat() }
+            background = GradientDrawable().apply { setColor(Theme.accent); cornerRadius = dp(20).toFloat() }
             setOnClickListener { check(manual = true) }
         }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(dp(14), dp(2), dp(14), dp(8)) })
         state = TextView(this).apply { setTextColor(0xFFB0B5BD.toInt()); textSize = 12f; setPadding(dp(14), 0, dp(14), dp(4)) }
         root.addView(state)
-        val bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
+        val bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progressTintList = Theme.tint() }
         root.addView(bar, LinearLayout.LayoutParams(-1, dp(3)))
         web = WebView(this).apply {
             settings.javaScriptEnabled = true; settings.domStorageEnabled = true

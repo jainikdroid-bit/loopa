@@ -42,14 +42,15 @@
 - **Ad-free feed** — boosted and promoted videos are filtered out.
 - **Live grid previews** — cut like big video sites do: snippets from the start, a third, two thirds and the end, on a
   loop, so you get the gist at once. Thumbnails load first, video fades in when ready. **RG** / **RD** badges show
-  RedGIFs or Reddit. Fewer previews on slow networks; can be turned off in the menu.
+  RedGIFs or Reddit. Fewer previews on slow networks; can be turned off in the settings.
 - **Fast start and smart preloading.** The grid loads ahead what is about to appear: from the fling velocity it
   works out where the feed will stop, so thumbnails there (and one screen beyond) are already in memory when you get
   there, and the first seconds of those videos are in the disk cache; the next feed page is requested three screens
   before the end. In the player, the start of the next 1–2 videos in the swipe direction is preloaded (Media3
   PreloadManager), but only once the video on screen has buffer: while it is loading, preloading pauses. Depth depends
   on the network: fast — more, mobile — one video, Data Saver — nothing; fast swiping skips the clips in between.
-- **Disk cache.** Videos — an LRU cache of 512 MB–1 GB depending on free space (or 512 MB / 1 GB / 2 GB in ⧩ → “Video
+- **Four colour themes:** black (default), pink, red and violet — the background stays dark, the accent colour and the tint of surfaces change. Choose in ⧩ → “Settings” → “Appearance”; applied at once on every screen, including the player and the 3D graph.
+- **Disk cache.** Videos — an LRU cache of 512 MB–1 GB depending on free space (or 512 MB / 1 GB / 2 GB in ⧩ → “Settings” → “Video
   cache”); the player, preloading and live previews all write to it, so rewatching plays from disk without network.
   Thumbnails — 128 MB on disk plus an in-memory LRU, decoded at cell size.
 - **Built for long links** (VPN, satellite, ~800 ms ping, ~5 Mbit/s): one HTTP client (OkHttp) with a connection pool
@@ -77,7 +78,7 @@
   them. These sites sign their video links and the links expire quickly, so a video's address is only resolved when
   it is opened; a removed video shows “can't be opened” right away.
 - **Welcome screen** on first launch: pick sources (including the new sites) and sign in to them one by one (every step can be skipped). Sources
-  can be changed later via 👤 → “Sources: For you and search”.
+  can be changed later via ⧩ → “Settings” → “Sources”.
 - **Optional sign-in** — “For you” feed, likes, “My likes”. Sign-in is remembered and silently renewed in the
   background, so you don't have to log in again.
 - **Reddit in the same client.** A Reddit tab with your subscriptions, any subreddits (several at once, space-separated)
@@ -85,7 +86,7 @@
   Reddit-hosted videos (with sound), RedGIFs links, Imgur and GIFs. Sign-in happens on reddit.com in an embedded window,
   just like RedGIFs; 18+ content appears if it's enabled in your Reddit account settings.
 - **Auto-update from GitHub.** On every launch (and every 6 hours) Adult Space checks the latest release, downloads the APK
-  and verifies its SHA-256 against the release file; mode is manual / ask / automatic (⧩ menu → “Updates…”).
+  and verifies its SHA-256 against the release file; mode is manual / ask / automatic (⧩ → “Settings” → “Updates”).
 - **Taste network and 3D interest graph** (⧩ menu → “Interest graph…”). Tags, creators, subreddits, words, searches and
   sites are nodes of one network linked by the clips you like; it grows as you use the app. In the 3D graph sphere size
   is weight and colour is community, with type filters, search, zoom, a weight slider on any node and “Open in feed”.
@@ -106,7 +107,7 @@
   without re-encoding. xHamster and FikFap videos (HLS only) can't be downloaded yet.
 - Small, with no trackers, analytics or ad SDKs.
 
-The interface is available in 10 languages (system language by default; change it via 👤 → “Language”); tags on the service are in English. Translations live in `i18n/strings.json` — improvements welcome.
+The interface is available in 10 languages (system language by default; change it via ⧩ → “Settings” → “Appearance”); tags on the service are in English. Translations live in `i18n/strings.json` — improvements welcome.
 
 ## Install
 
@@ -131,7 +132,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.19**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.20**.
 
 | Version | What's new |
 |---|---|
@@ -152,6 +153,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.17.1 | 3D graph: after picking a tag (by search or from neighbours) and changing its weight, the graph rotates around its own centre rather than that tag — the sphere no longer sticks to the middle of the screen |
 | 1.18 | Site intros are skipped: first 3.4 s on Pornhub and RedTube, 5 s on xHamster (measured); live previews start after it and the player starts after it, you can seek back to it, downloads stay complete. Interests are counted by total watch time of a clip (including replays and returns), not by watching to the end, so long videos count too. Shorter “For you” header without the list of sources |
 | 1.19 | The app is renamed Adult Space (formerly Loopa): new constellation icon, a starry background for the 3D graph (off on weak phones), a space-themed line on the welcome screen; fixed: live previews in the grid no longer freeze — background loads were limited to 5 requests per server, and a stuck preview now has a watchdog that restarts it |
+| 1.20 | Menu and theme design: the ⧩ menu is short now (sorting, duration, sound, interest graph, “Settings…”); everything else moved to a Settings screen with sections: Feed, Sources, Interests, Video and cache, Accounts, Appearance, Updates, About; the 👤 menu keeps quick sign-in/sign-out. Four themes: black (as before), pink, red, violet — the accent colour and the tint of surfaces change on every screen, including the player and the 3D graph; applied at once |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |

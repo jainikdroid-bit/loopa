@@ -51,13 +51,15 @@ class MainActivity : Activity() {
     /** Что сейчас показано в сетке (id по порядку) — чтобы не перерисовывать без нужды. */
     private var shownIds: List<String> = emptyList()
     private var suggestGen = 0
+    /** Тема и язык, с которыми построен экран: изменились — пересоздать. */
+    private var themeKey = ""
     private val onFeed: () -> Unit = { refresh() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // первый запуск — приветствие (до того, как что-то запишется в настройки: по их пустоте узнаём новую установку)
         val welcome = savedInstanceState == null && WelcomeActivity.needed(prefs)
-        I18n.init(this); Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); Video.init(this); Hide.init(this)
+        I18n.init(this); Theme.init(this); themeKey = Theme.id + I18n.code; Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); Video.init(this); Hide.init(this)
         @Suppress("DEPRECATION") if (welcome) startActivityForResult(Intent(this, WelcomeActivity::class.java), 4)
         preview.enabled = prefs.getBoolean("live", true)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
@@ -67,14 +69,14 @@ class MainActivity : Activity() {
             // лайки Reddit, поставленные раньше, — один раз сами (когда лента уже грузится)
             // обновление из релизов GitHub — при каждом запуске: проверка и скачивание сами, потом — вопрос «Установить?»
             // (через 5 с — не отнимать канал у первой ленты)
-            window.decorView.postDelayed({ checkUpdate(false, launch = true) }, 5_000)
+            window.decorView.postDelayed({ checkUpdate() }, 5_000)
             // открыли поиск, автора или тег из «Поделиться» (приложение было закрыто): показать после запуска
             if (intent.getBooleanExtra("shared", false)) window.decorView.post { onNewIntent(intent) }
             if (Reddit.hadUser && !prefs.getBoolean("rd_likes_done", false)) window.decorView.postDelayed({ importRedditLikes(false) }, 25_000)
             Feed.rorder = prefs.getString("rorder", "hot")!!
         }
-        window.statusBarColor = BG; window.navigationBarColor = BG
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BG) }
+        Theme.bars(this)
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Theme.bg) }
         root.setOnApplyWindowInsetsListener { v, ins ->
             @Suppress("DEPRECATION") v.setPadding(ins.systemWindowInsetLeft, ins.systemWindowInsetTop, ins.systemWindowInsetRight, ins.systemWindowInsetBottom); ins
         }
@@ -83,7 +85,7 @@ class MainActivity : Activity() {
         search = EditText(this).apply {
             hint = tr("Поиск по тегам: blonde, POV, car…"); setHintTextColor(0xFF8A8F98.toInt()); setTextColor(Color.WHITE); textSize = 16f
             isSingleLine = true; imeOptions = EditorInfo.IME_ACTION_SEARCH
-            background = pill(0xFF1F232B.toInt()); setPadding(dp(14), dp(10), dp(14), dp(10))
+            background = pill(Theme.field); setPadding(dp(14), dp(10), dp(14), dp(10))
             setOnEditorActionListener { _, a, e -> if (a == EditorInfo.IME_ACTION_SEARCH || e?.keyCode == KeyEvent.KEYCODE_ENTER) { go(text.toString()); true } else false }
             addTextChangedListener(object : TextWatcher {
                 override fun afterTextChanged(s: Editable?) { suggestLater(s.toString()) }
@@ -92,11 +94,11 @@ class MainActivity : Activity() {
             })
         }
         bar.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
-        sortBtn = chip("⇅ " + tr("Популярное"), ACCENT) { sortMenu(it) }
+        sortBtn = chip("⇅ " + tr("Популярное"), Theme.accent) { sortMenu(it) }
         bar.addView(sortBtn, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
-        filterBtn = chip("⧩", CHIP) { filterMenu(it) }
+        filterBtn = chip("⧩", Theme.chip) { filterMenu(it) }
         bar.addView(filterBtn, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(6) })
-        userBtn = chip("👤", CHIP) { account() }
+        userBtn = chip("👤", Theme.chip) { account() }
         bar.addView(userBtn, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(6) })
         root.addView(bar)
         // вкладки: рекомендации по лайкам (нужен вход), популярное, лайкнутое
@@ -140,7 +142,7 @@ class MainActivity : Activity() {
         }
         // потянуть вниз — обновить выдачу
         swipe = SwipeRefreshLayout(this).apply {
-            setColorSchemeColors(ACCENT); setProgressBackgroundColorSchemeColor(0xFF1F232B.toInt())
+            setColorSchemeColors(Theme.accent); setProgressBackgroundColorSchemeColor(Theme.field)
             addView(grid)
             setOnRefreshListener { reload() }
         }
@@ -188,7 +190,7 @@ class MainActivity : Activity() {
     private fun buildTabs() {
         val l = tabList(); tabsKey = l.joinToString { it.second.orEmpty() }
         tabs.removeAllViews()
-        l.forEach { (t, m) -> tabs.addView(chip(tr(t), CHIP) { tab(m) }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) }) }
+        l.forEach { (t, m) -> tabs.addView(chip(tr(t), Theme.chip) { tab(m) }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) }) }
     }
 
     private fun tab(m: String?) {
@@ -220,51 +222,31 @@ class MainActivity : Activity() {
     private fun login(site: Site = RgSite) = @Suppress("DEPRECATION")
         startActivityForResult(Intent(this, LoginActivity::class.java).putExtra("site", if (site === Reddit.SITE) "reddit" else "rg"), if (site === Reddit.SITE) 2 else 1)
 
-    /** Аккаунты: вход и выход отдельно для RedGIFs и Reddit (выход стирает куки только этого сайта). */
+    /** Быстрый доступ к входам: вход и выход отдельно для RedGIFs, Reddit и сайтов (выход стирает куки только этого сайта). Остальное — в настройках. */
     private fun account() {
         val m = PopupMenu(this, userBtn)
         m.menu.add(0, 1, 0, if (Api.hadUser) tr("Выйти из RedGIFs") else tr("Войти в RedGIFs"))
         m.menu.add(0, 2, 1, if (Reddit.hadUser) tr("Выйти из Reddit") + Reddit.name.takeIf { it.isNotEmpty() }?.let { " (u/$it)" }.orEmpty() else tr("Войти в Reddit"))
         Ext.ALL.forEachIndexed { i, s -> m.menu.add(0, 4 + i, 1, if (Ext.loggedIn(s)) tr("Выйти из %s", s.title) else tr("Войти в %s", s.title)) }
-        // галочки: какие сайты подмешивать в «Для вас» — вход на сайт при этом не снимается
-        val fy = m.menu.addSubMenu(0, 9, 2, "♥ " + tr("Источники: «Для вас» и поиск"))
-        (listOf("RedGIFs" to ForYou.useRg, "Reddit" to ForYou.mixReddit) + Sources.ALL.map { it.title to ForYou.uses(it) })
-            .forEachIndexed { i, (t, on) -> fy.add(14, i, i, t).apply { isCheckable = true; isChecked = on } }
-        langMenu(m.menu)
+        m.menu.add(0, 3, 9, "⚙ " + tr("Настройки…"))
         m.setOnMenuItemClickListener {
-            if (it.groupId == 12) { I18n.choice = LANG_IDS[it.itemId]; recreate(); return@setOnMenuItemClickListener true }
-            if (it.groupId == 14) {
-                val on = !it.isChecked; it.isChecked = on
-                when (it.itemId) { 0 -> ForYou.useRg = on; 1 -> ForYou.mixReddit = on; else -> ForYou.setUses(Sources.ALL[it.itemId - 2], on) }
-                if (Feed.mode == "foryou") reload() else refresh()
-                return@setOnMenuItemClickListener true
-            }
-            if (it.groupId == 0 && it.itemId in 4..5) {
-                val s = Ext.ALL[it.itemId - 4]
-                if (Ext.loggedIn(s)) { Ext.logout(s); refresh() }
-                else @Suppress("DEPRECATION") startActivityForResult(Intent(this, ExtLoginActivity::class.java).putExtra("site", s.id), 3)
-                return@setOnMenuItemClickListener true
-            }
-            if (it.groupId != 0 || it.itemId == 3) return@setOnMenuItemClickListener false
             when (it.itemId) {
+                in 4..5 -> {
+                    val s = Ext.ALL[it.itemId - 4]
+                    if (Ext.loggedIn(s)) { Ext.logout(s); refresh() }
+                    else @Suppress("DEPRECATION") startActivityForResult(Intent(this, ExtLoginActivity::class.java).putExtra("site", s.id), 3)
+                }
                 1 -> if (Api.hadUser) { Api.logout(); TokenCatcher.clearCookies("https://www.redgifs.com", ".redgifs.com"); home() } else { pendingTab = "foryou"; login(RgSite) }
                 2 -> if (Reddit.hadUser) { Reddit.logout(); if (Feed.reddit) home() else refresh() } else login(Reddit.SITE)
+                3 -> settings()
             }
             true
         }
         m.show()
     }
 
-    /** Подменю «Язык»: авто (язык системы) или любой из поддерживаемых вручную. */
-    private fun langMenu(menu: android.view.Menu) {
-        val cur = I18n.choice
-        val sub = menu.addSubMenu(0, 3, 2, "🌐 " + tr("Язык") + ": " + if (cur == "auto") tr("авто") else I18n.LANGS[cur])
-        LANG_IDS.forEachIndexed { i, c ->
-            val t = if (c == "auto") tr("Авто — как в системе (%s)", I18n.LANGS[I18n.system]) else I18n.LANGS[c]!!
-            sub.add(12, i, i, t).isChecked = c == cur
-        }
-        sub.setGroupCheckable(12, true, true)
-    }
+    @Suppress("DEPRECATION")
+    private fun settings() = startActivityForResult(Intent(this, SettingsActivity::class.java), 5)
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(rq: Int, rs: Int, data: Intent?) {
@@ -274,6 +256,20 @@ class MainActivity : Activity() {
         if (rq == 2) tab("reddit")
         if (rq == 3) { if (Feed.mode == "foryou") reload() else refresh() }
         if (rq == 4) home()
+        if (rq == 5) data?.let { fromSettings(it) }
+    }
+
+    /**
+     * Вернулись из настроек: то, что там поменялось, — в ленту сразу. Доп. поля результата: «home» — на домашнюю ленту
+     * (вышли из RedGIFs), «tab» — открыть вкладку после входа, «reload» — перезагрузить ленту (фильтры, источники, интересы).
+     */
+    private fun fromSettings(r: Intent) {
+        when {
+            r.hasExtra("tab") -> tab(r.getStringExtra("tab"))
+            r.getBooleanExtra("home", false) -> home()
+            r.getBooleanExtra("reload", false) -> { reload(); grid.scrollToPosition(0) }
+            else -> refresh()
+        }
     }
 
     /** Reddit: сабреддит(ы) через «+», «u/имя» или пусто (главная с подписками); сабреддит запоминается в чипах. */
@@ -297,6 +293,10 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume(); shown = true; Prefetch.resume()
         if (!::grid.isInitialized) return
+        // тему или язык сменили в настройках — перестроить экран; живые превью включили или выключили — применить
+        Theme.init(this)
+        if (themeKey != Theme.id + I18n.code) { recreate(); return }
+        prefs.getBoolean("live", true).let { if (it != preview.enabled) { preview.enabled = it; if (!it) preview.stopAll() } }
         // из плеера: ролик, на котором закрыли, — на экране (листали дальше — сетка за ним)
         Feed.lastSeen.takeIf { it in Feed.items.indices }?.let { p ->
             val lm = grid.layoutManager as GridLayoutManager
@@ -414,14 +414,6 @@ class MainActivity : Activity() {
         else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
-    /** Размер для меню: «512 МБ», «1 ГБ», «1,5 ГБ». */
-    private fun size(b: Long): String {
-        val mb = b / PreloadPolicy.MB
-        if (mb < 1024) return tr("%s МБ", mb)
-        val gb = mb / 1024.0
-        return tr("%s ГБ", if (gb % 1.0 == 0.0) gb.toInt().toString() else String.format(java.util.Locale.getDefault(), "%.1f", gb))
-    }
-
     private fun cols() = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 4 else 2
 
     private fun go(q: String, tag: Boolean = false) {
@@ -481,59 +473,19 @@ class MainActivity : Activity() {
         m.show()
     }
 
-    /** Кнопка ⧩ — фильтры и настройки: «Для вас», длительность, звук, Reddit в поиске, превью, скрываемые темы. */
+    /** Кнопка ⧩ — коротко: длительность, звук, граф интересов («Для вас») и вход в настройки. */
     private fun filterMenu(v: View) {
         val m = PopupMenu(this, v)
-        if (Feed.mode == "foryou") {
-            // доли включённых источников (галочки — в меню 👤): мало / средне / много
-            FY_SRC.filter { it.third() }.forEachIndexed { n, (key, name, _) ->
-                val w = ForYou.weight(key)
-                val sh = m.menu.addSubMenu(6, 10 + n, n, tr("Доля %s: %s", name, I18n.lower(tr(ForYou.WEIGHTS.first { it.first == w }.second))))
-                ForYou.WEIGHTS.forEachIndexed { i, (v, t) -> sh.add(20 + FY_SRC.indexOfFirst { it.first == key }, v, i, tr(t)).isChecked = v == w }
-                sh.setGroupCheckable(20 + FY_SRC.indexOfFirst { it.first == key }, true, true)
-            }
-            m.menu.add(6, 2, 50, tr("Мои интересы…"))
-            m.menu.add(6, 5, 51, tr("Граф интересов…"))
-            m.menu.add(6, 3, 52, tr("Сбросить интересы"))
-            if (Reddit.hadUser) m.menu.add(6, 4, 53, tr("Взять лайки с Reddit"))
-        }
+        if (Feed.mode == "foryou") m.menu.add(6, 5, 50, tr("Граф интересов…"))
         val dur = m.menu.addSubMenu(2, 0, 100, tr("Длительность: %s", if (Feed.duration == "any") tr("любая") else tr(Feed.DURATIONS.first { it.first == Feed.duration }.second).let(I18n::lower)))
         Feed.DURATIONS.forEachIndexed { i, d -> dur.add(3, i, i, tr(d.second)).isChecked = d.first == Feed.duration }
         dur.setGroupCheckable(3, true, true)
         m.menu.add(4, 0, 101, tr("Только со звуком")).apply { isCheckable = true; isChecked = Feed.audioOnly }
-        m.menu.add(11, 0, 102, tr("Искать и на Reddit")).apply { isCheckable = true; isChecked = Feed.searchReddit; isEnabled = Reddit.hadUser }
-        m.menu.add(8, 0, 103, tr("Живые превью в сетке")).apply { isCheckable = true; isChecked = preview.enabled }
-        m.menu.add(12, 0, 106, tr("Обновления…"))
-        // кэш видео: авто по свободному месту или вручную; сейчас занято / предел
-        val vc = m.menu.addSubMenu(30, 0, 105, tr("Кэш видео: %s", size(Video.cacheLimit)))
-        vc.add(31, 99, 0, tr("Занято: %s", size(Video.cacheUsed + Net.imgCacheUsed))).isEnabled = false
-        PreloadPolicy.CACHE_CHOICES.forEachIndexed { i, mb ->
-            vc.add(31, i, i + 1, if (mb == 0) tr("Авто — по свободному месту") else size(mb * PreloadPolicy.MB)).isChecked = Video.cacheChoice == mb
-        }
-        vc.setGroupCheckable(31, true, true)
-        val hide = m.menu.addSubMenu(9, 0, 104, tr("Скрывать…") + if (Hide.active) " " + tr("(вкл.)") else "")
-        Hide.PRESETS.forEachIndexed { i, (id, t, _) -> hide.add(10, i, i, tr(t)).apply { isCheckable = true; isChecked = Hide.on(id) } }
-        hide.add(10, 99, 99, tr("Свои слова…") + Hide.custom.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty())
+        m.menu.add(13, 0, 110, "⚙ " + tr("Настройки…"))
         m.setOnMenuItemClickListener {
             when (it.groupId) {
-                6 -> when (it.itemId) {
-                        2 -> { android.app.AlertDialog.Builder(this).setTitle(tr("Мои интересы")).setMessage(Interests.summary()).setPositiveButton("OK", null)
-                            .setNeutralButton(tr("3D-граф")) { _, _ -> startActivity(Intent(this, GraphActivity::class.java)) }.show(); return@setOnMenuItemClickListener true }
-                    5 -> { startActivity(Intent(this, GraphActivity::class.java)); return@setOnMenuItemClickListener true }
-                    3 -> { android.app.AlertDialog.Builder(this).setMessage(tr("Забыть лайки, просмотры и поиски для «Для вас»?"))
-                        .setPositiveButton(tr("Сбросить")) { _, _ -> Interests.reset(); reload() }.setNegativeButton(tr("Отмена"), null).show(); return@setOnMenuItemClickListener true }
-                    4 -> { importRedditLikes(true); return@setOnMenuItemClickListener true }
-                    else -> return@setOnMenuItemClickListener false
-                }
-                10 -> {
-                    if (it.itemId == 99) { hideWords(); return@setOnMenuItemClickListener true }
-                    val id = Hide.PRESETS[it.itemId].first; Hide.set(id, !Hide.on(id)); reload()
-                }
-                12 -> { showUpdates(); return@setOnMenuItemClickListener true }
-                31 -> { if (it.itemId != 99) Video.cacheChoice = PreloadPolicy.CACHE_CHOICES[it.itemId]; return@setOnMenuItemClickListener true }
-                8 -> { preview.enabled = !preview.enabled; prefs.edit().putBoolean("live", preview.enabled).apply(); if (preview.enabled) live() else preview.stopAll(); return@setOnMenuItemClickListener true }
-                11 -> { Feed.searchReddit = !Feed.searchReddit; prefs.edit().putBoolean("search_reddit", Feed.searchReddit).apply(); reload() }
-                in 20..29 -> { ForYou.setWeight(FY_SRC[it.groupId - 20].first, it.itemId); reload() }
+                6 -> { startActivity(Intent(this, GraphActivity::class.java)); return@setOnMenuItemClickListener true }
+                13 -> { settings(); return@setOnMenuItemClickListener true }
                 3 -> { Feed.duration = Feed.DURATIONS[it.itemId].first; prefs.edit().putString("duration", Feed.duration).apply(); reload() }
                 4 -> { Feed.audioOnly = !Feed.audioOnly; prefs.edit().putBoolean("audio", Feed.audioOnly).apply(); reload() }
                 else -> return@setOnMenuItemClickListener false
@@ -543,47 +495,21 @@ class MainActivity : Activity() {
         m.show()
     }
 
-    /** Свои слова для скрытия — через запятую. */
-    private fun hideWords() {
-        val e = EditText(this).apply { setText(Hide.custom); hint = tr("например: cock, bbc"); setSingleLine() }
-        android.app.AlertDialog.Builder(this).setTitle(tr("Скрывать ролики со словами")).setView(e)
-            .setPositiveButton(tr("Сохранить")) { _, _ -> Hide.custom = e.text.toString().trim(); reload() }.setNegativeButton(tr("Отмена"), null).show()
-    }
-
-    /** Обновление Loopa: [manual] — по кнопке (с сообщением); [launch] — при запуске; спрашивает один раз на версию. */
-    private fun checkUpdate(manual: Boolean, launch: Boolean = false) {
+    /** Обновление Loopa при запуске: проверка и скачивание сами, потом вопрос (или установка — в режиме «автоматически»); один раз на версию. «Проверить сейчас» — в настройках. */
+    private fun checkUpdate() {
         val app = applicationContext
         Thread {
-            val r = Updater.check(app, manual, launch)
+            val r = Updater.check(app, false, true)
             runOnUiThread {
-                if (isFinishing) return@runOnUiThread
                 val v = r.ready
-                if (v == null) { if (manual && r.message.isNotEmpty()) android.widget.Toast.makeText(this, r.message, android.widget.Toast.LENGTH_LONG).show(); return@runOnUiThread }
-                val asked = prefs.getString("upd_asked", null)
-                if (!manual && asked == v) return@runOnUiThread
+                if (isFinishing || v == null || prefs.getString("upd_asked", null) == v) return@runOnUiThread
                 prefs.edit().putString("upd_asked", v).apply()
-                // «автоматически»: сразу на установку (Android может попросить подтвердить сам)
-                if (!manual && Updater.mode(app) == Updater.AUTO) { Updater.install(app)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() }; return@runOnUiThread }
+                if (Updater.mode(app) == Updater.AUTO) { Updater.install(app)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() }; return@runOnUiThread }
                 android.app.AlertDialog.Builder(this).setTitle(tr("Доступна версия %s", v)).setMessage(r.notes.take(700).ifBlank { r.message })
                     .setPositiveButton(tr("Установить")) { _, _ -> Updater.install(app)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() } }
                     .setNegativeButton(tr("Позже"), null).show()
             }
         }.start()
-    }
-
-    /** Окно «Обновления…» из меню: версия, проверка вручную, установка скачанного, автопроверка вкл./выкл. */
-    private fun showUpdates() {
-        val v = Updater.ready(this)
-        val modes = listOf(Updater.MANUAL, Updater.ASK, Updater.AUTO)
-        // список и сообщение в одном окне не уживаются (сообщение прячет список) — версия в заголовке
-        val b = android.app.AlertDialog.Builder(this)
-            .setTitle(tr("Установлена версия %s", Updater.current(this)) + (v?.let { " · " + tr("Доступна версия %s", it) } ?: ""))
-            .setSingleChoiceItems(arrayOf(tr("Вручную — только по кнопке"), tr("Предлагать — скачать и спросить"), tr("Автоматически — скачать и установить")),
-                modes.indexOf(Updater.mode(this))) { _, i -> Updater.setMode(this, modes[i]) }
-            .setNeutralButton(tr("Проверить сейчас")) { _, _ -> android.widget.Toast.makeText(this, tr("Проверяю…"), android.widget.Toast.LENGTH_SHORT).show(); checkUpdate(true) }
-            .setNegativeButton("OK", null)
-        if (v != null) b.setPositiveButton(tr("Установить")) { _, _ -> Updater.install(applicationContext)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() } }
-        b.show()
     }
 
     /** Лайки с Reddit → вкусы ([RedditImport]); вручную — с сообщением, сам при первом запуске после входа — молча. */
@@ -618,7 +544,7 @@ class MainActivity : Activity() {
     private fun showChips(list: List<Pair<String, Int>>) {
         chips.removeAllViews()
         list.take(30).forEach { (t, n) ->
-            chips.addView(chip(if (n > 0) "$t · ${count(n.toLong())}" else t, CHIP) { if (Feed.reddit) { nav(); search.setText(""); openSub(t) } else { search.setText(t); search.setSelection(t.length); go(t, tag = true) } },
+            chips.addView(chip(if (n > 0) "$t · ${count(n.toLong())}" else t, Theme.chip) { if (Feed.reddit) { nav(); search.setText(""); openSub(t) } else { search.setText(t); search.setSelection(t.length); go(t, tag = true) } },
                 LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
         }
     }
@@ -630,7 +556,7 @@ class MainActivity : Activity() {
         val all = listOf("") + savedSubs()
         all.forEach { s ->
             val on = s == Feed.sub
-            chips.addView(chip(if (s.isEmpty()) "🏠 " + tr("Подписки") else "r/$s", if (on) ACCENT else CHIP) { nav(); openSub(s) }.apply {
+            chips.addView(chip(if (s.isEmpty()) "🏠 " + tr("Подписки") else "r/$s", if (on) Theme.accent else Theme.chip) { nav(); openSub(s) }.apply {
                 if (s.isNotEmpty()) setOnLongClickListener {
                     prefs.edit().putString("subs", savedSubs().filter { it != s }.joinToString("\n")).apply()
                     android.widget.Toast.makeText(this@MainActivity, tr("r/%s убран из списка", s), android.widget.Toast.LENGTH_SHORT).show(); idleChips(); true
@@ -644,7 +570,7 @@ class MainActivity : Activity() {
         search.hint = when { Feed.reddit -> tr("Сабреддит: r/… (через пробел — несколько)"); Feed.ext -> tr("Поиск на %s", Sources.byId(Feed.mode)?.title.orEmpty()); else -> tr("Поиск по тегам: blonde, POV, car…") }
         if (tabsKey != tabList().joinToString { it.second.orEmpty() }) buildTabs()
         val tl = tabList()
-        for (i in 0 until tabs.childCount) tabs.getChildAt(i).background = pill(if (tl[i].second == Feed.mode && Feed.author == null && Feed.text.isEmpty()) ACCENT else CHIP)
+        for (i in 0 until tabs.childCount) tabs.getChildAt(i).background = pill(if (tl[i].second == Feed.mode && Feed.author == null && Feed.text.isEmpty()) Theme.accent else Theme.chip)
         sortBtn.visibility = if (Feed.mode == null || Feed.reddit || Feed.mode == "foryou") View.VISIBLE else View.GONE
         filterBtn.visibility = View.VISIBLE
         when (Feed.error) {
@@ -662,7 +588,7 @@ class MainActivity : Activity() {
             else -> "⇅ " + st.short
         }
         filterBtn.text = if (Feed.filtered || Hide.active) "⧩ •" else "⧩"
-        filterBtn.background = pill(if (Feed.filtered || Hide.active) ACCENT else CHIP)
+        filterBtn.background = pill(if (Feed.filtered || Hide.active) Theme.accent else Theme.chip)
         status.text = buildString {
             when {
                 Feed.mode == "foryou" -> append(tr("Для вас") + (if (ForYou.sources.isEmpty()) " · " + tr("источники выключены") else "") +
@@ -768,18 +694,11 @@ class MainActivity : Activity() {
     private fun dp(v: Int) = (v * resources.displayMetrics.density).roundToInt()
 
     companion object {
-        /** Источники «Для вас»: ключ доли, название, включён ли. */
-        private val FY_SRC: List<Triple<String, String, () -> Boolean>> = listOf(
-            Triple("rg", "RedGIFs") { ForYou.useRg }, Triple("rd", "Reddit") { ForYou.reddit }) +
-            Sources.ALL.map { s -> Triple(s.badge.lowercase(), s.title) { ForYou.uses(s) } }
         val TABS = listOf("♥ Для вас" to "foryou", "🔥 Популярное" to null, "Мои лайки" to "liked", "Reddit" to "reddit")
-        /** Пункты меню языка: «auto», затем коды. */
-        val LANG_IDS = listOf("auto") + I18n.LANGS.keys
         /** Как часто при прокрутке пересчитывать, какие превью играют, мс. */
         const val LIVE_SCROLL_MS = 350L
         /** Как часто пересчитывать прогноз на ходу, мс. */
         const val AHEAD_MS = 250L
-        val BG = 0xFF0E1015.toInt(); val ACCENT = 0xFF7C3AED.toInt(); val CHIP = 0xFF262B34.toInt()
         /** Метки источника: RedGIFs — малиновый, Reddit — фирменный оранжевый. */
         val RG_COLOR = 0xE0D6246E.toInt(); val RD_COLOR = 0xE0FF4500.toInt()
         private val SITE_COLORS = mapOf("erome" to 0xE01E88E5.toInt(), "eporner" to 0xE043A047.toInt())
