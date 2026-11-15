@@ -64,8 +64,11 @@ class GraphActivity : Activity() {
     private inner class Bridge {
         @JavascriptInterface fun data(): String = Interests.graphJson()
 
-        /** Ползунок веса узла: сохранить поправку и вернуть граф с новыми весами. id — «тип:термин». */
-        @JavascriptInterface fun setBoost(id: String, m: Double): String { Interests.setBoost(id, m); return Interests.graphJson() }
+        /** Ползунок «Мой вес»: закрепить абсолютный свой вес узла и вернуть граф с новыми весами. id — «тип:термин». */
+        @JavascriptInterface fun setWeight(id: String, w: Double): String { Interests.setWeight(id, w); return Interests.graphJson() }
+
+        /** «Сбросить»: снять закрепление (вес снова выученный) и вернуть граф. */
+        @JavascriptInterface fun resetWeight(id: String): String { Interests.resetWeight(id); return Interests.graphJson() }
 
         @JavascriptInterface fun texts(): String = JSONObject()
             .put("search", tr("Поиск по сети…"))
@@ -84,7 +87,7 @@ class GraphActivity : Activity() {
             .put("tier", tier.name).put("tiers", DeviceTier.paramsJson())
             .put("error", tr("Не удалось загрузить граф"))
             .put("weight", tr("Мой вес"))
-            .put("weightHint", tr("Меньше — реже в «Для вас», больше — чаще"))
+            .put("weightHint", tr("Закреплён: не меняется сам; Сбросить — вернуть выученный"))
             .put("reset", tr("Сбросить"))
             .put("fit", tr("Весь граф"))
             .put("accent", Theme.accentHex)
@@ -93,7 +96,6 @@ class GraphActivity : Activity() {
             .put("type1", JSONObject().put("tag", tr("Тег")).put("user", tr("Автор")).put("sub", tr("Сабреддит"))
                 .put("kw", tr("Слово")).put("q", tr("Запрос")).put("site", tr("Сайт")))
             .put("sites", JSONObject().apply { Sources.ALL.forEach { put(it.id, it.title) }; put("redgifs", "RedGIFs"); put("reddit", "Reddit") })
-            .put("min", Interests.BOOST_MIN).put("max", Interests.BOOST_MAX)
             .toString()
 
         /** «Открыть в ленте»: тип узла решает, что открыть — тег, автора, сабреддит, поиск по тексту или вкладку сайта. */

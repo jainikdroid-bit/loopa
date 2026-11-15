@@ -18,8 +18,9 @@ object InterestGraph {
     /** Палитра сообществ — COMMUNITY_COLORS из graphify, по кругу. */
     val COLORS = listOf("#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F", "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F", "#BAB0AC")
 
-    class Node(val id: String, val own: Double, val act: Double, val boost: Double = 1.0) {
-        val suggested get() = own <= MIN_ACT
+    /** [pinned] — свой вес закреплён ползунком (тогда [own] — заданный вес). */
+    class Node(val id: String, val own: Double, val act: Double, val pinned: Boolean = false) {
+        val suggested get() = own <= MIN_ACT && !pinned
         /** Тип узла: часть id до первого «:» (id без типа — тег). */
         val t get() = if (':' in id) id.substringBefore(':') else "tag"
         /** Термин без типа. */
@@ -27,18 +28,21 @@ object InterestGraph {
     }
     class Link(val a: String, val b: String, val w: Double)
 
-    /** Узлы: до [MAX_NODES] с наибольшей активацией (> [MIN_ACT]); порядок — по убыванию активации, затем по id. */
-    /** Узлы с ручной поправкой ([boost]) остаются в графе, даже если ползунком их почти выключили: иначе не вернуть. */
-    fun nodes(own: Map<String, Double>, act: Map<String, Double>, boost: Map<String, Double> = emptyMap()): List<Node> =
-        act.entries.filter { it.value > MIN_ACT || it.key in boost }
+    /**
+     * Узлы: до [MAX_NODES] с наибольшей активацией (> [MIN_ACT]); порядок — по убыванию активации, затем по id.
+     * Закреплённые ([pin]: id → заданный вес) остаются в графе, даже если ползунком их почти выключили: иначе не вернуть.
+     */
+    fun nodes(own: Map<String, Double>, act: Map<String, Double>, pin: Map<String, Double> = emptyMap()): List<Node> =
+        act.entries.filter { it.value > MIN_ACT || it.key in pin }
             .sortedWith(compareByDescending<Map.Entry<String, Double>> { it.value }.thenBy { it.key })
-            .take(MAX_NODES).map { Node(it.key, own[it.key] ?: 0.0, it.value, boost[it.key] ?: 1.0) }
+            .take(MAX_NODES).map { Node(it.key, own[it.key] ?: 0.0, it.value, it.key in pin) }
 
     /**
-     * Связи «idA|idB» между выбранными узлами: вес > 0, у узла не больше [TagNet.FANOUT] — берём сильнейшие, пока у обоих
-     * концов есть место.
+     * Связи «idA|idB» между выбранными узлами: все с весом > 0, сильнейшие первыми; не больше [limit] (по умолчанию без
+     * предела — рисовать столько, сколько тянет устройство, решает страница по уровню [DeviceTier]). Предел [TagNet.FANOUT]
+     * касается только расчёта активации, а не показа: граф показывает всё, что сеть знает о связях между его узлами.
      */
-    fun links(nodes: List<Node>, linkW: Map<String, Double>): List<Link> {
+    fun links(nodes: List<Node>, linkW: Map<String, Double>, limit: Int = Int.MAX_VALUE): List<Link> {
         val ids = nodes.mapTo(HashSet()) { it.id }
         val all = ArrayList<Link>()
         for ((k, w) in linkW) {
@@ -47,14 +51,7 @@ object InterestGraph {
             if (a in ids && b in ids) all += Link(a, b, w)
         }
         all.sortWith(compareByDescending<Link> { it.w }.thenBy { it.a }.thenBy { it.b })
-        val deg = HashMap<String, Int>()
-        val out = ArrayList<Link>()
-        for (l in all) {
-            if ((deg[l.a] ?: 0) >= TagNet.FANOUT || (deg[l.b] ?: 0) >= TagNet.FANOUT) continue
-            deg[l.a] = (deg[l.a] ?: 0) + 1; deg[l.b] = (deg[l.b] ?: 0) + 1
-            out += l
-        }
-        return out
+        return if (all.size > limit) all.subList(0, limit).toList() else all
     }
 
     /**
@@ -82,9 +79,9 @@ object InterestGraph {
         return label
     }
 
-    /** JSON {nodes:[{id,t,name,own,act,suggested,boost,c}], links:[{source,target,w}], communities:[{id,name,t,color,size}]}. */
-    fun build(own: Map<String, Double>, linkW: Map<String, Double>, act: Map<String, Double>, boost: Map<String, Double> = emptyMap()): String {
-        val ns = nodes(own, act, boost)
+    /** JSON {nodes:[{id,t,name,own,act,suggested,pinned,c}], links:[{source,target,w}], communities:[{id,name,t,color,size}]}. */
+    fun build(own: Map<String, Double>, linkW: Map<String, Double>, act: Map<String, Double>, pin: Map<String, Double> = emptyMap()): String {
+        val ns = nodes(own, act, pin)
         val ls = links(ns, linkW)
         val label = communities(ns, ls)
         // номера сообществ — по суммарной активации (убывание), при равенстве — по самой тяжёлой метке
@@ -98,7 +95,7 @@ object InterestGraph {
         }
         val nodesJson = JSONArray()
         ns.forEachIndexed { i, n ->
-            nodesJson.put(JSONObject().put("id", n.id).put("t", n.t).put("name", n.name).put("own", n.own).put("act", n.act).put("suggested", n.suggested && n.boost >= 1.0).put("boost", n.boost).put("c", cid[i]))
+            nodesJson.put(JSONObject().put("id", n.id).put("t", n.t).put("name", n.name).put("own", n.own).put("act", n.act).put("suggested", n.suggested).put("pinned", n.pinned).put("c", cid[i]))
         }
         val linksJson = JSONArray()
         ls.forEach { linksJson.put(JSONObject().put("source", it.a).put("target", it.b).put("w", it.w)) }

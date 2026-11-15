@@ -50,19 +50,25 @@ class InterestGraphTest {
         assertEquals("tag:t2200", nodes.first().id)
     }
 
-    @Test fun `связи только между выбранными узлами и не больше FANOUT на узел`() {
+    @Test fun `связи только между выбранными узлами, все положительные, сильнейшие первыми`() {
         val hub = (1..30).associate { "tag:n%02d".format(it) to 2.0 } + ("tag:hub" to 9.0)
         val pr = (1..30).associate { "tag:hub|tag:n%02d".format(it) to 1.0 + it } + ("tag:hub|tag:ghost" to 50.0) + ("tag:n01|tag:n02" to -1.0)
         val ns = InterestGraph.nodes(hub, hub)
         val ls = InterestGraph.links(ns, pr)
         assertTrue(ls.none { it.a == "tag:ghost" || it.b == "tag:ghost" })
         assertTrue(ls.none { it.w <= 0 })
-        val deg = HashMap<String, Int>()
-        ls.forEach { deg.merge(it.a, 1, Int::plus); deg.merge(it.b, 1, Int::plus) }
-        assertTrue(deg.values.all { it <= TagNet.FANOUT })
-        assertEquals(TagNet.FANOUT, deg["tag:hub"])
-        // у хаба остались сильнейшие
-        assertTrue(ls.any { it.b == "tag:n30" || it.a == "tag:n30" })
+        // у хаба показаны все 30 связей, а не только FANOUT сильнейших
+        assertEquals(30, ls.size)
+        assertTrue(30 > TagNet.FANOUT)
+        assertEquals(31.0, ls.first().w, 1e-9)
+        assertEquals(ls.sortedByDescending { it.w }.map { it.w }, ls.map { it.w })
+    }
+
+    @Test fun `предел числа связей оставляет сильнейшие`() {
+        val hub = (1..30).associate { "tag:n%02d".format(it) to 2.0 } + ("tag:hub" to 9.0)
+        val pr = (1..30).associate { "tag:hub|tag:n%02d".format(it) to it.toDouble() }
+        val ls = InterestGraph.links(InterestGraph.nodes(hub, hub), pr, limit = 5)
+        assertEquals(listOf(30.0, 29.0, 28.0, 27.0, 26.0), ls.map { it.w })
     }
 
     @Test fun `связь между типами попадает в граф, и узлы разных типов сливаются в сообщество`() {
@@ -110,12 +116,38 @@ class InterestGraphTest {
         assertEquals(0, g.getJSONArray("communities").length())
     }
 
-    @Test fun `узел с ручной поправкой остаётся в графе и несёт boost`() {
+    @Test fun `закреплённый узел остаётся в графе с заданным весом и помечен pinned`() {
         val weak = act + ("user:z" to 0.05)
-        val g = JSONObject(InterestGraph.build(own, pairs, weak, mapOf("user:z" to 0.1)))
+        val g = JSONObject(InterestGraph.build(own + ("user:z" to 0.0), pairs, weak, mapOf("user:z" to 0.0)))
         val z = g.nodeList().first { it.getString("id") == "user:z" }
-        assertEquals(0.1, z.getDouble("boost"), 1e-9)
+        assertTrue(z.getBoolean("pinned"))
+        assertEquals(0.0, z.getDouble("own"), 1e-9)
         assertEquals("user", z.getString("t"))
+        // закреплённый — не «рядом с любимыми»
         assertFalse(z.getBoolean("suggested"))
+        assertFalse(g.nodeList().first { it.getString("id") == "tag:a1" }.getBoolean("pinned"))
+    }
+
+    @Test fun `закреплённый вес заменяет выученный, остальное без изменений`() {
+        val pinned = Interests.applyPins(own, mapOf("tag:a1" to 2.0, "tag:new" to 7.0))
+        assertEquals(2.0, pinned.getValue("tag:a1"), 1e-9)
+        assertEquals(7.0, pinned.getValue("tag:new"), 1e-9)
+        assertEquals(own.getValue("tag:a2"), pinned.getValue("tag:a2"), 1e-9)
+        assertEquals(own, Interests.applyPins(own, emptyMap()))
+    }
+
+    @Test fun `закреплённый вес идёт по сети как обычный`() {
+        val base = TagNet.activate(own, pairs).getValue("tag:s")
+        val boosted = TagNet.activate(Interests.applyPins(own, mapOf("tag:a1" to 20.0)), pairs).getValue("tag:s")
+        assertTrue(boosted > base)
+    }
+
+    @Test fun `множители прежних версий становятся закреплёнными весами`() {
+        val man = mapOf("tag:a1" to 0.5, "blonde" to 2.0, "user:gone" to 3.0, "tag:a2" to 9999.0)
+        val pins = Interests.pinsFromBoosts(man, mapOf("tag:a1" to 8.0, "tag:blonde" to 3.0, "tag:a2" to 5.0))
+        assertEquals(4.0, pins.getValue("tag:a1"), 1e-9)
+        assertEquals(6.0, pins.getValue("tag:blonde"), 1e-9)          // голый тег стал «tag:blonde»
+        assertFalse("user:gone" in pins)                              // у узла нет веса — отбрасывается
+        assertEquals(Interests.PIN_MAX, pins.getValue("tag:a2"), 1e-9)
     }
 }

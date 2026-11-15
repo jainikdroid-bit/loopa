@@ -188,6 +188,7 @@
       if (boxes[k]) return;
       var d = document.createElement('div'); d.className = 'lb'; d.textContent = labOf(byId[k]);
       d.style.fontSize = fontSize(k);
+      d.onclick = function () { Loopa.open(k); };           // касание подписи — сразу в ленту (как «Открыть в ленте»)
       $('labels').appendChild(d); boxes[k] = d;
     });
   }
@@ -233,25 +234,29 @@
   function part(box, label, val) {
     var s = document.createElement('div'); s.appendChild(document.createTextNode(label + ': '));
     var b = document.createElement('b'); b.textContent = val; s.appendChild(b); box.appendChild(s);
+    return b;
   }
+  var ownB = null, netB = null;                              // строки «Свой вес» и «Вес в сети» панели: ползунок обновляет их на лету
   function select(id, noFly) {
     sel = id; comm = -1; found = null; $('q').value = '';
     ensure([id].concat(nb[id].map(function (x) { return x.id; })));   // выбранный и его соседи — на сцену, даже если вне предела
     var n = byId[id], c = comms[n.c], m = $('dm');
     $('dc').style.background = c.color; $('dn').textContent = labOf(n); m.textContent = '';
     var tw = document.createElement('div'); tw.textContent = T1[n.t] || n.t; m.appendChild(tw);
-    part(m, T.own || '', n.own.toFixed(1)); part(m, T.net || '', n.act.toFixed(1)); part(m, T.community || '', lab(c.t, c.name));
+    ownB = part(m, T.own || '', n.own.toFixed(1)); netB = part(m, T.net || '', n.act.toFixed(1)); part(m, T.community || '', lab(c.t, c.name));
     if (n.suggested && T.suggested) { var s = document.createElement('div'); s.textContent = T.suggested; m.appendChild(s); }
     weightUi(n);
     $('ds').textContent = T.neighbours || '';
     var dl = $('dl'); dl.textContent = '';
     if (!nb[id].length) dl.textContent = T.noLinks || '';
-    nb[id].filter(function (x) { return vis(byId[x.id]); }).forEach(function (x) {
+    nb[id].filter(function (x) { return vis(byId[x.id]); }).slice(0, 40).forEach(function (x) {
       var b = document.createElement('button'); b.type = 'button'; b.className = 'chip';
       var i = document.createElement('i'); i.style.background = comms[byId[x.id].c].color; b.appendChild(i);
       b.appendChild(document.createTextNode(labOf(byId[x.id])));
       var bar = document.createElement('span'); bar.style.width = (8 + 28 * x.w / maxW).toFixed(0) + 'px'; b.appendChild(bar);
-      b.onclick = function () { select(x.id); };
+      // «↗» у соседа — открыть его в ленте; остальное касание — перейти к соседу в графе
+      var go = document.createElement('span'); go.className = 'go'; go.textContent = '\u2197'; go.title = T.open || ''; b.appendChild(go);
+      b.onclick = function (e) { if (e.target === go) Loopa.open(x.id); else select(x.id); };
       dl.appendChild(b);
     });
     $('detail').style.display = 'block'; $('detail').scrollTop = 0;
@@ -259,30 +264,39 @@
     compute();
     if (!noFly) fly(id);
   }
-  // ---- ползунок «мой вес тега»: множитель к выученному весу; двигаешь — узел растёт сразу, отпустил — сохраняем ----
+  // ---- ползунок «Мой вес»: абсолютный свой вес узла (закрепляется, сам не меняется); двигаешь — узел растёт сразу, отпустил — сохраняем ----
   $('wl').textContent = T.weight || ''; $('wh').textContent = T.weightHint || ''; $('wr').textContent = T.reset || '';
-  $('w').min = T.min || 0.1; $('w').max = T.max || 3;
-  function fmt(m) { return '×' + Number(m).toFixed(1); }
-  function weightUi(n) { $('w').value = n.boost || 1; $('wv').textContent = fmt(n.boost || 1); }
-  function preview(m) {
-    var n = byId[sel], b = n.boost || 1;
-    [n, live[sel]].forEach(function (x) { if (x) { x.act = x.act / b * m; x.own = x.own / b * m; x.boost = m; } });
-    G.nodeVal(nodeVal); if (boxes[sel]) boxes[sel].style.fontSize = fontSize(sel);
-    $('wv').textContent = fmt(m);
+  $('w').min = 0;
+  function fmt(w) { return Number(w).toFixed(1); }
+  /** Верх шкалы: не меньше 20 и в полтора раза выше самого тяжёлого узла — есть куда поднять. */
+  function sliderMax() { var m = 0; nodes.forEach(function (n) { if (n.own > m) m = n.own; }); return Math.ceil(Math.max(20, 1.5 * m) * 10) / 10; }
+  function weightUi(n) {
+    $('w').max = sliderMax(); $('w').value = n.own; $('wv').textContent = fmt(n.own);
+    $('wr').disabled = !n.pinned;                            // сбрасывать нечего: вес и так выученный
   }
-  function commit(m) {
-    var tag = sel, R;
-    try { R = JSON.parse(Loopa.setBoost(tag, m)); } catch (e) { return; }
-    // новые веса — в те же объекты (раскладка не сбрасывается); соседи тоже меняются: вес идёт по связям
-    R.nodes.forEach(function (r) { [byId[r.id], live[r.id]].forEach(function (x) { if (x) { x.act = r.act; x.own = r.own; x.boost = r.boost; x.suggested = r.suggested; } }); });
+  function preview(w) {
+    var n = byId[sel];
+    // свой вес — заданный, вес в сети сдвигается на ту же разницу (добавка от соседей не меняется)
+    [n, live[sel]].forEach(function (x) { if (x) { x.act += w - x.own; x.own = w; x.pinned = true; x.suggested = false; } });
+    G.nodeVal(nodeVal); if (boxes[sel]) boxes[sel].style.fontSize = fontSize(sel);
+    $('wv').textContent = fmt(w);
+    if (ownB) ownB.textContent = fmt(w);
+    if (netB) netB.textContent = fmt(n.act);
+    $('wr').disabled = false;
+  }
+  /** Новые веса из ответа Kotlin — в те же объекты (раскладка не сбрасывается); соседи тоже меняются: вес идёт по связям. */
+  function applyGraph(json, id) {
+    var R;
+    try { R = JSON.parse(json); } catch (e) { return; }
+    R.nodes.forEach(function (r) { [byId[r.id], live[r.id]].forEach(function (x) { if (x) { x.act = r.act; x.own = r.own; x.pinned = r.pinned; x.suggested = r.suggested; } }); });
     calcRef();
     G.nodeVal(nodeVal).nodeColor(nodeColor);
     Object.keys(boxes).forEach(function (k) { boxes[k].style.fontSize = fontSize(k); });
-    if (sel === tag) select(tag, true);
+    if (sel === id) select(id, true);
   }
   $('w').addEventListener('input', function () { if (sel) preview(parseFloat(this.value)); });
-  $('w').addEventListener('change', function () { if (sel) commit(parseFloat(this.value)); });
-  $('wr').onclick = function () { if (sel) { $('w').value = 1; preview(1); commit(1); } };
+  $('w').addEventListener('change', function () { if (sel) applyGraph(Loopa.setWeight(sel, parseFloat(this.value)), sel); });
+  $('wr').onclick = function () { if (sel && byId[sel].pinned) applyGraph(Loopa.resetWeight(sel), sel); };
 
   // ---- масштаб: кнопки + / − (двумя пальцами — тоже) и «весь граф» ----
   function zoom(k) {

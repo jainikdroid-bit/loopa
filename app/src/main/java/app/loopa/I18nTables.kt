@@ -263,6 +263,7 @@ object I18nTables {
         "Розовая" to "Pink",
         "Красная" to "Red",
         "Фиолетовая" to "Violet",
+        "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Pinned: stays as set; Reset returns the learned weight",
     ) }
     private val ES by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Ya descargado: Descargas/Loopa/%s",
@@ -524,6 +525,7 @@ object I18nTables {
         "Розовая" to "Rosa",
         "Красная" to "Rojo",
         "Фиолетовая" to "Violeta",
+        "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Fijado: no cambia solo; Restablecer devuelve el peso aprendido",
     ) }
     private val PT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Já baixado: Downloads/Loopa/%s",
@@ -785,6 +787,7 @@ object I18nTables {
         "Розовая" to "Rosa",
         "Красная" to "Vermelho",
         "Фиолетовая" to "Violeta",
+        "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Fixado: não muda sozinho; Redefinir devolve o peso aprendido",
     ) }
     private val DE by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Bereits geladen: Downloads/Loopa/%s",
@@ -1046,6 +1049,7 @@ object I18nTables {
         "Розовая" to "Pink",
         "Красная" to "Rot",
         "Фиолетовая" to "Violett",
+        "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Fixiert: ändert sich nicht von selbst; Zurücksetzen bringt das gelernte Gewicht zurück",
     ) }
     private val FR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1307,6 +1311,7 @@ object I18nTables {
         "Розовая" to "Rose",
         "Красная" to "Rouge",
         "Фиолетовая" to "Violet",
+        "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Épinglé : ne change pas tout seul ; Réinitialiser rétablit le poids appris",
     ) }
     private val IT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Già scaricato: Download/Loopa/%s",
@@ -1568,6 +1573,7 @@ object I18nTables {
         "Розовая" to "Rosa",
         "Красная" to "Rosso",
         "Фиолетовая" to "Viola",
+        "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Bloccato: non cambia da solo; Ripristina riporta il peso appreso",
     ) }
     private val TR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -1829,6 +1835,7 @@ object I18nTables {
         "Розовая" to "Pembe",
         "Красная" to "Kırmızı",
         "Фиолетовая" to "Mor",
+        "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Sabitlendi: kendiliğinden değişmez; Sıfırla öğrenilen ağırlığı geri getirir",
     ) }
     private val PL by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Już pobrano: Pobrane/Loopa/%s",
@@ -2090,6 +2097,7 @@ object I18nTables {
         "Розовая" to "Różowy",
         "Красная" to "Czerwony",
         "Фиолетовая" to "Fioletowy",
+        "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Przypięty: nie zmienia się sam; Reset przywraca wyuczoną wagę",
     ) }
     private val UK by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Уже завантажено: Завантаження/Loopa/%s",
@@ -2351,6 +2359,7 @@ object I18nTables {
         "Розовая" to "Рожева",
         "Красная" to "Червона",
         "Фиолетовая" to "Фіолетова",
+        "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Закріплено: сам не змінюється; Скинути — повернути вивчену вагу",
     ) }
 
     fun of(code: String): Map<String, String> = when (code) {

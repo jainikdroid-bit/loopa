@@ -146,7 +146,20 @@ class MainActivity : Activity() {
             addView(grid)
             setOnRefreshListener { reload() }
         }
-        root.addView(swipe, LinearLayout.LayoutParams(-1, 0, 1f))
+        // плавающая кнопка графа интересов: в правом нижнем углу над сеткой; корень уже отступает от строки жестов
+        // (insets выше), так что кнопка не заезжает под панель навигации; касания мимо кнопки идут в сетку как обычно
+        val graphBtn = TextView(this).apply {
+            text = "🕸️"; textSize = 24f; gravity = Gravity.CENTER
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor((Theme.accent and 0xFFFFFF) or (GRAPH_FAB_ALPHA shl 24)) }
+            elevation = dp(6).toFloat()
+            contentDescription = tr("Граф интересов…").trimEnd('…')
+            setOnClickListener { startActivity(Intent(this@MainActivity, GraphActivity::class.java)) }
+        }
+        val gridBox = FrameLayout(this).apply {
+            addView(swipe, FrameLayout.LayoutParams(-1, -1))
+            addView(graphBtn, FrameLayout.LayoutParams(dp(56), dp(56), Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, dp(16), dp(16)) })
+        }
+        root.addView(gridBox, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
         Feed.listeners += onFeed
         root0 = root
@@ -695,6 +708,8 @@ class MainActivity : Activity() {
 
     companion object {
         val TABS = listOf("♥ Для вас" to "foryou", "🔥 Популярное" to null, "Мои лайки" to "liked", "Reddit" to "reddit")
+        /** Прозрачность кнопки графа: 0,55 от 255. */
+        const val GRAPH_FAB_ALPHA = 0x8C
         /** Как часто при прокрутке пересчитывать, какие превью играют, мс. */
         const val LIVE_SCROLL_MS = 350L
         /** Как часто пересчитывать прогноз на ходу, мс. */

@@ -259,7 +259,8 @@
   "Чёрная",
   "Розовая",
   "Красная",
-  "Фиолетовая"
+  "Фиолетовая",
+  "Закреплён: не меняется сам; Сбросить — вернуть выученный"
  ],
  "en": [
   "Already downloaded: Downloads/Loopa/%s",
@@ -520,7 +521,8 @@
   "Black",
   "Pink",
   "Red",
-  "Violet"
+  "Violet",
+  "Pinned: stays as set; Reset returns the learned weight"
  ],
  "es": [
   "Ya descargado: Descargas/Loopa/%s",
@@ -781,7 +783,8 @@
   "Negro",
   "Rosa",
   "Rojo",
-  "Violeta"
+  "Violeta",
+  "Fijado: no cambia solo; Restablecer devuelve el peso aprendido"
  ],
  "pt": [
   "Já baixado: Downloads/Loopa/%s",
@@ -1042,7 +1045,8 @@
   "Preto",
   "Rosa",
   "Vermelho",
-  "Violeta"
+  "Violeta",
+  "Fixado: não muda sozinho; Redefinir devolve o peso aprendido"
  ],
  "de": [
   "Bereits geladen: Downloads/Loopa/%s",
@@ -1303,7 +1307,8 @@
   "Schwarz",
   "Pink",
   "Rot",
-  "Violett"
+  "Violett",
+  "Fixiert: ändert sich nicht von selbst; Zurücksetzen bringt das gelernte Gewicht zurück"
  ],
  "fr": [
   "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1564,7 +1569,8 @@
   "Noir",
   "Rose",
   "Rouge",
-  "Violet"
+  "Violet",
+  "Épinglé : ne change pas tout seul ; Réinitialiser rétablit le poids appris"
  ],
  "it": [
   "Già scaricato: Download/Loopa/%s",
@@ -1825,7 +1831,8 @@
   "Nero",
   "Rosa",
   "Rosso",
-  "Viola"
+  "Viola",
+  "Bloccato: non cambia da solo; Ripristina riporta il peso appreso"
  ],
  "tr": [
   "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -2086,7 +2093,8 @@
   "Siyah",
   "Pembe",
   "Kırmızı",
-  "Mor"
+  "Mor",
+  "Sabitlendi: kendiliğinden değişmez; Sıfırla öğrenilen ağırlığı geri getirir"
  ],
  "pl": [
   "Już pobrano: Pobrane/Loopa/%s",
@@ -2347,7 +2355,8 @@
   "Czarny",
   "Różowy",
   "Czerwony",
-  "Fioletowy"
+  "Fioletowy",
+  "Przypięty: nie zmienia się sam; Reset przywraca wyuczoną wagę"
  ],
  "uk": [
   "Уже завантажено: Завантаження/Loopa/%s",
@@ -2608,6 +2617,7 @@
   "Чорна",
   "Рожева",
   "Червона",
-  "Фіолетова"
+  "Фіолетова",
+  "Закріплено: сам не змінюється; Скинути — повернути вивчену вагу"
  ]
 }

@@ -89,7 +89,10 @@
   and verifies its SHA-256 against the release file; mode is manual / ask / automatic (⧩ → “Settings” → “Updates”).
 - **Taste network and 3D interest graph** (⧩ menu → “Interest graph…”). Tags, creators, subreddits, words, searches and
   sites are nodes of one network linked by the clips you like; it grows as you use the app. In the 3D graph sphere size
-  is weight and colour is community, with type filters, search, zoom, a weight slider on any node and “Open in feed”.
+  is weight and colour is community, with type filters, search, zoom and “Open in feed”. Open the graph with the round
+  🕸️ button in the bottom-right corner of the tile screen. Node labels are tappable — a tap opens the node in the feed
+  (for neighbours in the panel there is a “↗” icon). The “My weight” slider sets a node's own weight as a number (0 to 20 and
+  more); it is pinned and never changes by itself, “Reset” brings the learned weight back; the graph shows every link between its nodes.
   Rendering adapts to the phone hardware: low-end phones draw less, the logic stays the same.
 - **“For you” with its own algorithm.** An interest profile learns from likes, total watch time (including replays), skips,
   searches and downloads — by tags, words in titles and descriptions, subreddits and creators; old tastes fade on their
@@ -98,7 +101,7 @@
   from them; words of a search are linked to the tags of clips you like right after it, and skipping a clip the
   network expected you to like counts double. It picks RedGIFs videos and mixes in Reddit posts from matching subreddits (18+ included, which Reddit's own
   recommendations leave out), plus Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap if enabled. Each source's share is “low / medium / high”; the
-  profile is shown in “My interests” and in the 3D interest graph (⧩ menu → “Interest graph…”: sphere size is the tag weight, a slider raises or lowers any tag) and stays on the phone. While interests are still few, the feed is topped up
+  profile is shown in “My interests” and in the 3D interest graph (⧩ menu → “Interest graph…”: sphere size is the tag weight, a slider sets the weight of any node as a number) and stays on the phone. While interests are still few, the feed is topped up
   with popular videos so it never runs dry.
 - **Hide topics:** gay content, sissy/femboy/trans (lesbian stays) and your own words. Duplicate videos and reuploads
   are removed from the feed.
@@ -132,7 +135,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.20**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.21**.
 
 | Version | What's new |
 |---|---|
@@ -154,6 +157,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.18 | Site intros are skipped: first 3.4 s on Pornhub and RedTube, 5 s on xHamster (measured); live previews start after it and the player starts after it, you can seek back to it, downloads stay complete. Interests are counted by total watch time of a clip (including replays and returns), not by watching to the end, so long videos count too. Shorter “For you” header without the list of sources |
 | 1.19 | The app is renamed Adult Space (formerly Loopa): new constellation icon, a starry background for the 3D graph (off on weak phones), a space-themed line on the welcome screen; fixed: live previews in the grid no longer freeze — background loads were limited to 5 requests per server, and a stuck preview now has a watchdog that restarts it |
 | 1.20 | Menu and theme design: the ⧩ menu is short now (sorting, duration, sound, interest graph, “Settings…”); everything else moved to a Settings screen with sections: Feed, Sources, Interests, Video and cache, Accounts, Appearance, Updates, About; the 👤 menu keeps quick sign-in/sign-out. Four themes: black (as before), pink, red, violet — the accent colour and the tint of surfaces change on every screen, including the player and the 3D graph; applied at once |
+| 1.21 | Interest graph: a round 🕸️ button on the tile screen; node labels are tappable (a tap opens the feed, neighbours in the panel have a “↗” icon); more links: the graph shows every link between its nodes, the network learns combinations from 12 tags per clip (generic tags are linked with specific ones too, but weaker), title words with 6 tags; the “My weight” slider now sets an absolute node weight (pinned, does not decay; “Reset” returns the learned one), old multipliers are converted automatically |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |
