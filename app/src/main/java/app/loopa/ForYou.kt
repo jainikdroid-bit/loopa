@@ -39,7 +39,20 @@ object ForYou {
     private val shown = HashSet<String>()
 
 
-    fun init(ctx: Context) { if (prefs == null) prefs = ctx.applicationContext.getSharedPreferences("loopa", Context.MODE_PRIVATE) }
+    fun init(ctx: Context) {
+        if (prefs != null) return
+        prefs = ctx.applicationContext.getSharedPreferences("loopa", Context.MODE_PRIVATE)
+        allOnOnce()
+    }
+
+    /** 1.22: все источники по умолчанию включены — у тех, кто ставил раньше, включить их один раз (потом — как выберут). */
+    private fun allOnOnce() {
+        val p = prefs ?: return
+        if (p.getBoolean(ALL_ON_KEY, false)) return
+        p.edit().putBoolean("fy_rg", true).putBoolean("fy_reddit", true)
+            .apply { Sources.ALL.forEach { putBoolean(useKey(it), true) } }.putBoolean(ALL_ON_KEY, true).apply()
+    }
+    private const val ALL_ON_KEY = "sources_all_on_v122"
     var mixReddit: Boolean
         get() = prefs?.getBoolean("fy_reddit", true) ?: true
         set(v) { prefs?.edit()?.putBoolean("fy_reddit", v)?.apply() }
@@ -51,7 +64,7 @@ object ForYou {
     /** Ключи галочек Erome и Eporner остались прежними (у пользователей не слетают); у остальных сайтов — use_{id}. */
     private fun useKey(s: Source) = when (s.id) { "erome" -> "fy_erome"; "eporner" -> "fy_eporner"; else -> "use_${s.id}" }
     /** Включён ли сторонний сайт (галочка в меню 👤): ключ старый — по умолчанию включён, как было до реестра. */
-    fun uses(s: Source): Boolean = prefs?.getBoolean(useKey(s), if (s.id == "erome" || s.id == "eporner") true else s.default) ?: s.default
+    fun uses(s: Source): Boolean = prefs?.getBoolean(useKey(s), s.default) ?: s.default
     fun setUses(s: Source, on: Boolean) { prefs?.edit()?.putBoolean(useKey(s), on)?.apply() }
     /** Включённые сторонние сайты по порядку вкладок. */
     val onSources get() = Sources.ALL.filter { uses(it) }

@@ -32,7 +32,6 @@ object FikFap : Source {
     override val badge = "FF"
     override val hlsOnly = true
     override val about = "короткие вертикальные любительские ролики"
-    override val default = false
 
     const val API = "https://api.fikfap.com"
     const val REFERER = "https://fikfap.com/"
