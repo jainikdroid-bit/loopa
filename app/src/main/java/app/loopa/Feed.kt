@@ -63,6 +63,19 @@ object Feed {
     /** Лента стороннего сайта ([Sources.ALL]): свой поиск, сортировка — сайта. */
     val ext get() = Sources.byId(mode) != null
     val items = ArrayList<Gif>()
+    /** Запас за последним видимым роликом плеера, который тоже считается показанным (следующие 1–2 уже предзагружены). */
+    const val SEEN_AHEAD = 2
+    /** Сколько верхних роликов уже показаны (до последней видимой в сетке и текущего в плеере + запас) — их место не меняется. */
+    private var seenTo = 0
+
+    /** Экран сообщает: ролики до номера [n] (не включая) показаны. Только растёт — назад листали, но дальше уже видели. */
+    fun markSeen(n: Int) { if (n > seenTo) seenTo = n }
+
+    /** Сколько роликов сверху нельзя двигать: новые встают только ниже, подгрузка не сдвигает показанное. */
+    private fun frozen() = minOf(items.size, seenTo)
+
+    /** Заменить хвост выдачи (всё после показанного [keep] первых) — показанное не трогаем. */
+    private fun replaceTail(keep: Int, tail: List<Gif>) { items.subList(keep, items.size).clear(); items += tail }
     var tags: List<String> = emptyList(); private set
     var error: String? = null; private set
     /** Через сколько секунд следующий автоповтор (0 — не ждём). */
@@ -104,7 +117,7 @@ object Feed {
 
     fun reset(text: String, order: String, author: String? = null, mode: String? = null, tag: Boolean = false) {
         this.text = text; this.order = order; this.author = author; this.mode = mode; query = ""; tagOnly = tag; byTag = tag; exact = 0
-        scoreOf.clear()
+        scoreOf.clear(); seenTo = 0
         items.clear(); page = 0; pages = 1; after = null; loading = false; error = null; fails = 0; chain = 0; stopRetry(); gen++
         if (mode == "foryou") ForYou.reset()
         // первый показ ленты после запуска — сразу прошлая лента с диска (без уже просмотренного), свежее допишется
@@ -254,15 +267,18 @@ object Feed {
             .filter { duration == "any" || it.duration in range }.filter { !audioOnly || it.hasAudio }.filter { !Hide.hidden(it) }
         val cmp = if (mode == null || mode == "foryou") localCmp() else null
         if (cmp != null) {
-            // досортировка: первые POOL роликов — целиком, дальше — каждая страница в себе (сетка выше не прыгает)
-            if (items.size < POOL) { items += fresh; items.sortWith(cmp) } else items += fresh.sortedWith(cmp)
+            // досортировка: первые POOL роликов — целиком, дальше — каждая страница в себе; показанное (до [frozen]) не трогаем
+            val keep = frozen()
+            val tail = ArrayList(items.subList(keep, items.size))
+            if (items.size < POOL) { tail += fresh; tail.sortWith(cmp) } else tail += fresh.sortedWith(cmp)
+            replaceTail(keep, tail)
         } else {
             // поиск текстом: ролики со всеми словами запроса — первыми (сайт добивает выдачу похожим)
             val w = if (!bt && q.isNotEmpty()) Api.words(q) else emptyList()
             fun hit(g: Gif) = w.isNotEmpty() && (g.description + " " + g.tags.joinToString(" ") + " " + g.user).lowercase().let { t -> w.all { it in t } }
             val hits = fresh.filter(::hit)
             exact += hits.size
-            val at = items.indexOfFirst { !hit(it) }.let { if (it < 0) items.size else it }
+            val at = items.indexOfFirst { !hit(it) }.let { if (it < 0) items.size else maxOf(it, frozen()) }
             items.addAll(at, hits); items += fresh.filterNot(::hit)
         }
         // запомнить ленту к следующему запуску: свежее — первым, за ним остаток прошлой
@@ -275,10 +291,13 @@ object Feed {
     }
     private var chain = 0
 
-    /** Оценка релевантности уже показанных роликов поиска — новые встают на своё место. */
-    private val scoreOf = HashMap<String, Double>()
+    /** Оценка роликов поиска: новые встают на своё место в хвосте (ниже показанного). */
+    private val scoreOf = HashMap<String, Relevance.Rank>()
 
-    /** Часть живого поиска: без дублей и скрытого, по фильтрам; по релевантности — на место, иначе — по выбранной сортировке. */
+    /**
+     * Часть живого поиска: без дублей и скрытого, по фильтрам. Показанное (до [frozen]) не двигается; хвост после него
+     * по релевантности — уровни, внутри уровня источники вперемешку ([Relevance.order]) — или по выбранной сортировке.
+     */
     private fun addLive(part: List<Pair<Gif, Double>>) {
         val seen = HashSet<String>(); items.forEach { seen += it.id; seen += it.hd }
         val same = items.mapNotNullTo(HashSet()) { twin(it) }
@@ -287,14 +306,17 @@ object Feed {
             .filter { (x, _) -> (duration == "any" || x.duration in range) && (!audioOnly || x.hasAudio) && !Hide.hidden(x) }
         if (fresh.isEmpty()) return
         val cmp = localCmp()
-        // по релевантности: из одинаково подходящих выше тот, что во вкусе и качественнее ([Ranker.searchBonus])
-        val ranked = if (cmp != null) fresh else fresh.map { (x, sc) -> x to sc + Ranker.searchBonus(Interests.score(x), x.tags.size, x.likes, x.views) }
-        ranked.forEach { scoreOf[it.first.id] = it.second }
-        if (cmp != null) { items += fresh.map { it.first }; items.sortWith(cmp) }
-        else ranked.sortedByDescending { it.second }.forEach { (x, sc) ->
-            val at = items.indexOfFirst { (scoreOf[it.id] ?: 0.0) < sc }.let { if (it < 0) items.size else it }
-            items.add(at, x)
+        val keep = frozen()
+        val tail = ArrayList(items.subList(keep, items.size)); tail += fresh.map { it.first }
+        if (cmp != null) tail.sortWith(cmp)
+        else {
+            // по релевантности: из одинаково подходящих выше тот, что во вкусе и качественнее ([Ranker.searchBonus])
+            fresh.forEach { (x, sc) -> scoreOf[x.id] = Relevance.Rank(sc, Ranker.searchBonus(Interests.score(x), x.tags.size, x.likes, x.views)) }
+            replaceTail(keep, Relevance.order(tail) { scoreOf[it.id] })
+            exact = Search.exact
+            return
         }
+        replaceTail(keep, tail)
         exact = Search.exact
     }
 
@@ -320,7 +342,9 @@ object Feed {
     /** Ролик из «Похожих» — сразу за pos; уже есть в ленте — его место. */
     fun insertAfter(pos: Int, g: Gif): Int {
         items.indexOfFirst { it.id == g.id }.takeIf { it >= 0 }?.let { return it }
-        val at = (pos + 1).coerceAtMost(items.size); items.add(at, g); changed(); return at
+        val at = (pos + 1).coerceAtMost(items.size); items.add(at, g)
+        items.getOrNull(pos)?.let { scoreOf[it.id] }?.let { scoreOf[g.id] = it }       // чтобы при пересортировке хвоста остался рядом
+        changed(); return at
     }
 
     /** Номер ролика, на котором закрыли плеер, — сетка прокручивается к нему; -1 — нет. */
@@ -330,7 +354,7 @@ object Feed {
     class Snap(
         val text: String, val query: String, val byTag: Boolean, val tagOnly: Boolean, val exact: Int, val order: String, val desc: Boolean,
         val author: String?, val mode: String?, val sub: String, val rorder: String, val after: String?, val items: List<Gif>,
-        val tags: List<String>, val page: Int, val pages: Int, val scoreOf: Map<String, Double>, val search: Search.Snap?, val pos: Int,
+        val tags: List<String>, val page: Int, val pages: Int, val scoreOf: Map<String, Relevance.Rank>, val search: Search.Snap?, val pos: Int,
     )
 
     /** Предыдущие страницы (последняя — сверху); не больше [HISTORY]. */
@@ -356,7 +380,7 @@ object Feed {
         text = s.text; query = s.query; byTag = s.byTag; tagOnly = s.tagOnly; exact = s.exact; order = s.order; desc = s.desc
         author = s.author; mode = s.mode; sub = s.sub; rorder = s.rorder; after = s.after; tags = s.tags
         items.clear(); items += s.items; page = s.page; pages = maxOf(s.pages, s.page); loading = false; error = null; fails = 0; chain = 0
-        scoreOf.clear(); scoreOf += s.scoreOf
+        scoreOf.clear(); scoreOf += s.scoreOf; seenTo = s.pos.coerceIn(0, items.size)
         s.search?.let(Search::load)
         // пусто (ушли, пока грузилось) — загрузить заново
         if (items.isEmpty()) { page = 0; pages = 1; if (mode == "foryou") ForYou.reset() }

@@ -120,6 +120,7 @@ class MainActivity : Activity() {
                     if (st == RecyclerView.SCROLL_STATE_IDLE) { live(); ahead(0f, 0); blanksReport() }
                 }
                 override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
+                    markSeen()
                     val now = android.os.SystemClock.uptimeMillis()
                     if (now - liveAt > LIVE_SCROLL_MS) { liveAt = now; live() }
                     // прогноз по скорости (без броска — палец ведёт ленту), не чаще раза в [AHEAD_MS]
@@ -633,17 +634,30 @@ class MainActivity : Activity() {
         if (!Feed.busy) swipe.isRefreshing = false
         if (search.text.isBlank()) idleChips()
         // перерисовывать только то, что изменилось: не изменилось — ничего, дописали в конец — только новые
+        // Feed двигает только то, что ниже показанного ([Feed.markSeen]); точечные уведомления (DiffUtil) не сбивают прокрутку
         val ids = Feed.items.map { it.id }
-        when {
-            ids == shownIds -> {}
-            ids.size > shownIds.size && ids.subList(0, shownIds.size) == shownIds -> adapter.notifyItemRangeInserted(shownIds.size, ids.size - shownIds.size)
-            else -> adapter.notifyDataSetChanged()
+        if (ids != shownIds) {
+            val old = shownIds
+            val diff = androidx.recyclerview.widget.DiffUtil.calculateDiff(object : androidx.recyclerview.widget.DiffUtil.Callback() {
+                override fun getOldListSize() = old.size
+                override fun getNewListSize() = ids.size
+                override fun areItemsTheSame(o: Int, n: Int) = old[o] == ids[n]
+                override fun areContentsTheSame(o: Int, n: Int) = true
+            }, false)
+            shownIds = ids
+            diff.dispatchUpdatesTo(adapter)
         }
-        shownIds = ids
+        grid.post { markSeen() }
         // соединения к серверам картинок и видео — заранее; прогноз — с нового содержимого
         Net.warm(Feed.items.take(12).flatMap { listOf(it.thumb, it.sd) })
         grid.post { ahead(0f, 0) }
         grid.post { live() }
+    }
+
+    /** Сообщить ленте, до какого ролика сетка уже показана: новое встаёт только ниже ([Feed.markSeen]). */
+    private fun markSeen() {
+        if (!::grid.isInitialized) return
+        (grid.layoutManager as? GridLayoutManager)?.findLastVisibleItemPosition()?.let { if (it >= 0) Feed.markSeen(it + 1) }
     }
 
     private inner class GridAdapter : RecyclerView.Adapter<GridAdapter.H>() {

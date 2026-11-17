@@ -270,6 +270,7 @@ class PlayerActivity : Activity() {
         control.dir = if (current >= 0 && pos < current) -1 else 1
         control.flinging = PreloadPolicy.flinging(dwells.toList())
         current = pos
+        feedIndex().let { if (it >= 0) Feed.markSeen(it + 1 + Feed.SEEN_AHEAD) }       // подгрузка не вставляет выше текущего ролика
         control.cur = pos; preload.setCurrentPlayingIndex(pos)
         settledAt = now; startAt = now; cache0 = Video.fromCache.get(); net0 = Video.fromNet.get()
         sync()

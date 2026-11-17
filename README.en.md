@@ -135,7 +135,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.22**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.23**.
 
 | Version | What's new |
 |---|---|
@@ -159,6 +159,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.20 | Menu and theme design: the ⧩ menu is short now (sorting, duration, sound, interest graph, “Settings…”); everything else moved to a Settings screen with sections: Feed, Sources, Interests, Video and cache, Accounts, Appearance, Updates, About; the 👤 menu keeps quick sign-in/sign-out. Four themes: black (as before), pink, red, violet — the accent colour and the tint of surfaces change on every screen, including the player and the 3D graph; applied at once |
 | 1.21 | Interest graph: a round 🕸️ button on the tile screen; node labels are tappable (a tap opens the feed, neighbours in the panel have a “↗” icon); more links: the graph shows every link between its nodes, the network learns combinations from 12 tags per clip (generic tags are linked with specific ones too, but weaker), title words with 6 tags; the “My weight” slider now sets an absolute node weight (pinned, does not decay; “Reset” returns the learned one), old multipliers are converted automatically |
 | 1.22 | All sources are on by default (including the welcome screen); for existing installs they are switched on once on update — turn any off in Settings → Sources |
+| 1.23 | Stricter search with all sites mixed together: one score for every source, a single word must match as a whole word, several words must all match, synonym-only matches appear only while exact ones are few; the feed no longer jumps while loading: new items go only below what is already shown |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |

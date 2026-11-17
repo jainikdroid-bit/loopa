@@ -17,9 +17,8 @@ import kotlin.math.ln
  *  - Reddit: сабреддиты по запросу и синонимам (нишевые темы там есть), не дольше 6 с — опоздавшее в следующую порцию.
  * Дальше — следующие страницы основного запроса и по очереди источников.
  *
- * Оценка ролика ([score]): вся фраза — 8, каждое слово запроса в тегах — 4, в названии/описании/сабреддите — 3, все
- * слова многословного запроса вместе — ещё 5, синоним — 2 (не больше 4). Порядок — по оценке, при равной — популярнее;
- * совсем мимо (0) — в конце.
+ * Оценка ролика ([score], уровни — в [Relevance.score]) одна для всех источников. Порядок в ленте — по уровням,
+ * внутри уровня источники чередуются ([Relevance.order]); совсем мимо (0) в выдачу не идёт.
  */
 object Search {
     private val pool = Executors.newFixedThreadPool(6)
@@ -35,25 +34,22 @@ object Search {
     /** Сколько роликов прямо по теме (оценка ≥ 3) — для строки статуса. */
     @Volatile var exact = 0; private set
     @Volatile private var synReady = false
-    /** Сколько роликов со всеми словами запроса — после 20 частичные совпадения уже не показываем. */
-    @Volatile private var full = 0
+    /** Сколько роликов с точным совпадением (уровень ≥ 3) — после 20 совпадения только по синониму не показываем. */
+    @Volatile private var strong = 0
 
     /** Полные фразы, если запрос — сокращение (atp → ass to pussy). */
     @Volatile private var alias: List<String> = emptyList()
 
     /** Состояние поиска для «Назад» ([Feed.back]): чтобы следующие порции той страницы шли с того же места. */
     class Snap(val text: String, val alias: List<String>, val synonyms: List<String>, val tags: List<String>, val srcPage: Map<String, Int>,
-               val turn: Int, val rdNext: String?, val rdSubs: List<String>?, val exact: Int, val full: Int)
-    @Synchronized fun save() = Snap(text, alias, synonyms, tags, HashMap(srcPage), turn, rdNext, rdSubs, exact, full)
+               val turn: Int, val rdNext: String?, val rdSubs: List<String>?, val exact: Int, val strong: Int)
+    @Synchronized fun save() = Snap(text, alias, synonyms, tags, HashMap(srcPage), turn, rdNext, rdSubs, exact, strong)
     @Synchronized fun load(s: Snap) {
         text = s.text; alias = s.alias; synonyms = s.synonyms; tags = s.tags; srcPage.clear(); srcPage += s.srcPage; turn = s.turn
-        rdPending = null; rdNext = s.rdNext; rdSubs = s.rdSubs; exact = s.exact; full = s.full; synReady = true
+        rdPending = null; rdNext = s.rdNext; rdSubs = s.rdSubs; exact = s.exact; strong = s.strong; synReady = true
     }
 
     @Synchronized fun reset(q: String) { text = q; alias = Thesaurus.expandAbbr(q); synonyms = emptyList(); tags = emptyList(); srcPage.clear(); turn = 0; rdPending = null; rdNext = null; rdSubs = null; exact = 0 }
-
-    /** Окончания, с которыми слово ещё «то же самое». */
-    private val ENDINGS = setOf("s", "es", "ed", "er", "ers", "ing", "ings", "y", "ies", "d")
 
     /** Тег RedGIFs, совпадающий с фразой (без учёта регистра и пробелов), если он есть и не слишком общий. */
     private val tagCache = java.util.concurrent.ConcurrentHashMap<String, String>()
@@ -61,7 +57,7 @@ object Search {
         runCatching { Api.suggest(phrase) }.getOrNull()?.firstOrNull { norm(it.first) == norm(phrase) && it.second < GENERIC_COUNT * 5 }?.first.orEmpty()
     }.takeIf { it.isNotEmpty() }
 
-    private fun norm(s: String) = s.lowercase().replace(Regex("[^\\p{L}0-9]"), "")
+    private fun norm(s: String) = Relevance.norm(s)
     private fun stem(w: String) = if (w.length > 4 && w.endsWith("s")) w.dropLast(1) else w
 
     /**
@@ -69,8 +65,6 @@ object Search {
      * по ходу, не дожидаясь медленных. p = 1 — широкий сбор; дальше — следующие страницы. order — порядок RedGIFs.
      * Возвращает, сколько роликов пришло всего.
      */
-    private const val EXT_SCORE = 7.0
-
     fun run(p: Int, order: String, reddit: Boolean, part: (List<Pair<Gif, Double>>) -> Unit): Int {
         val q = text
         val cs = java.util.concurrent.ExecutorCompletionService<List<Gif>>(pool)
@@ -95,7 +89,7 @@ object Search {
         for (s in ForYou.onSources) { cs.submit { runCatching { s.page(q, false, p).gifs }.getOrDefault(emptyList()) }; n++ }
         var total = 0
         var synDone = p != 1
-        if (p == 1) full = 0
+        if (p == 1) strong = 0
         val relCnt = HashMap<String, Int>()
         var relDone = false
         var i = 0
@@ -109,12 +103,11 @@ object Search {
             }
             if (got.isEmpty()) continue
             total += got.size
-            // сторонние сайты: ролики из поиска самого сайта по этому запросу — по теме; оценка не ниже синонима (7),
-            // иначе за сотнями роликов RedGIFs их не видно
-            val scored = got.map { it to if (it.ext) maxOf(score(it), EXT_SCORE) else score(it) }
+            // оценка одна для всех источников (и сторонних сайтов тоже): по тегам, названию и сабреддиту
+            val scored = got.map { it to score(it) }
             // теги, частые у роликов прямо по теме (оценка ≥ 8), — тоже искать (у «midget» — «Little People»)
             if (p == 1 && !relDone) {
-                scored.filter { it.second >= 8 }.forEach { (g, _) -> g.tags.forEach { t -> relCnt[t] = (relCnt[t] ?: 0) + 1 } }
+                scored.filter { Relevance.level(it.second) >= 3 }.forEach { (g, _) -> g.tags.forEach { t -> relCnt[t] = (relCnt[t] ?: 0) + 1 } }
                 val rel = relCnt.filter { (t, c) -> c >= 2 && t !in tags && !Api.isGeneric(t) && !Hide.hidden(Gif("", "", "", "", 0, 0, 0.0, "", listOf(t), false, 0, 0)) }
                     .entries.sortedByDescending { it.value }.map { it.key }.take(3)
                 if (rel.size >= 2 || i >= 3 && rel.isNotEmpty()) {
@@ -124,76 +117,17 @@ object Search {
                     android.util.Log.i("Loopa", "поиск «$q»: теги из найденного по теме $rel")
                 }
             }
-            exact += scored.count { it.second >= 6 || Api.words(q).size < 2 && it.second >= 3 }
-            // мимо — не показываем; у запроса из 2–3 слов, когда со всеми словами набралось 20+, частичные — тоже нет
-            val multi = Api.words(q).size >= 2
-            full += scored.count { it.second >= 6 }
-            // у запроса из 2+ слов ролик RedGIFs с одним совпавшим словом — мимо («gear» из «bondage gear» на «gear knob»);
-            // синоним (≥ 7) и все слова (≥ 6) — по теме; посты Reddit (сабреддит найден по запросу) — ниже, но остаются
-            part(scored.filter { it.second > 0 && (!multi || it.second >= 6 || it.first.reddit) })
+            exact += scored.count { it.second >= 6 }
+            strong += scored.count { Relevance.level(it.second) >= 3 }
+            // мимо (0) не показываем; совпавшие только по синониму — пока точных меньше [Relevance.SYNONYM_UNTIL]
+            part(scored.filter { Relevance.visible(it.second, strong) })
         }
         android.util.Log.i("Loopa", "поиск «$q» p$p: $total роликов, по теме $exact, синонимы $synonyms, теги $tags")
         return total
     }
 
-    /**
-     * Оценка релевантности, строгая — по уровням:
-     *  - фраза целиком, слова подряд («standing dildo» в названии или теге) — 20 (без окончания — 16);
-     *  - все слова в одном теге — 12;
-     *  - все слова, но в разных тегах/местах («Standing Doggy» + «Dildo» — уже другое) — 6;
-     *  - часть слов: в теге 3, в тексте 2, по корню 1;
-     *  - синоним — +1 (не больше 2). 0 — мимо, в выдачу не идёт.
-     */
-    fun score(g: Gif): Double {
-        val q = text
-        val words = Api.words(q).map(::stem).filter { it.length >= 2 }
-        val tagsN = g.tags.map { norm(it) }
-        val textN = norm(g.description + " " + g.sub)
-        val all = tagsN.joinToString(" ") + " " + textN
-        // короткие слова («dp», «atp») — только целым словом: иначе ловят что попало внутри других слов
-        val split = Regex("[^\\p{L}0-9]+")
-        val tagTok = g.tags.map { t -> t.lowercase().split(split).filter { it.isNotEmpty() } }
-        val textTok = (g.description + " " + g.sub).lowercase().split(split).filter { it.isNotEmpty() }
-        // слово совпадает целым словом с обычным окончанием (twin, twins, twinned) или как начало слитного имени
-        // (TwinGirls, 69er) — но не как кусок другого слова («twin» в «twink»)
-        fun tokMatch(tok: String, w: String): Boolean {
-            if (tok == w) return true
-            if (!tok.startsWith(w)) return false
-            val rest = tok.substring(w.length)
-            return rest in ENDINGS || rest.length >= 4
-        }
-        fun inTags(w: String) = tagTok.any { ts -> ts.any { tokMatch(it, w) } }
-        fun inText(w: String) = textTok.any { tokMatch(it, w) }
-        // запрос — сокращение: его полная фраза равна точному совпадению
-        if (alias.any { a -> norm(a).let { it.length >= 4 && all.contains(it) } }) return 20.0 + minOf(2.0, synonyms.count { norm(it).length >= 4 && all.contains(norm(it)) }.toDouble())
-        val phrase = norm(q)
-        val stemP = phrase.replace(Regex("(ers|er|ing|es|s)$"), "")
-        var s = 0.0
-        var found = 0
-        var part = 0.0
-        words.forEach { w ->
-            val root = w.replace(Regex("(ers|er|ing|es)$"), "").takeIf { it.length >= 4 } ?: w
-            when {
-                inTags(w) -> { part += 3; found++ }
-                inText(w) -> { part += 2; found++ }
-                root != w && (inTags(root) || inText(root)) -> { part += 1; found++ }
-            }
-        }
-        s += when {
-            phrase.length >= 4 && all.contains(phrase) -> 20.0
-            phrase.length in 2..3 && words.size == 1 && found == 1 -> 20.0         // сокращение целым словом
-            stemP.length >= 5 && all.contains(stemP) -> 16.0
-            words.size >= 2 && tagTok.any { ts -> words.all { w -> ts.any { tokMatch(it, w) } } } -> 12.0
-            words.size >= 2 && found == words.size -> 6.0
-            else -> 0.0
-        }
-        s += part
-        val synHits = synonyms.count { syn -> norm(syn).let { it.length >= 4 && all.contains(it) } }
-        // совпал только синоним («doorknob» на запрос «knob») — тоже по теме, но ниже точных
-        if (s == 0.0 && synHits > 0) s = 7.0 + minOf(2, synHits - 1)
-        else if (s > 0) s += minOf(2.0, synHits * 1.0)
-        return s
-    }
+    /** Оценка ролика запросу — уровни в [Relevance.score]. */
+    fun score(g: Gif) = Relevance.score(g, text, alias, synonyms)
 
     /**
      * Синонимы (фразы для текстового поиска) и близкие теги RedGIFs: из связей Pornhub и подсказок; общие (у тега на

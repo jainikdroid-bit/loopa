@@ -1,0 +1,124 @@
+package app.loopa
+
+/**
+ * Чистая часть поиска (без сети и Android): оценка релевантности ролика и порядок выдачи. Вынесена из [Search] и [Feed],
+ * чтобы проверяться юнит-тестами.
+ */
+object Relevance {
+    /** Окончания, с которыми слово ещё «то же самое». */
+    private val ENDINGS = setOf("s", "es", "ed", "er", "ers", "ing", "ings", "y", "ies", "d")
+    private val SPLIT = Regex("[^\\p{L}0-9]+")
+
+    /** Синонимы показываем, пока точных (уровень ≥ 3) набралось меньше этого числа. */
+    const val SYNONYM_UNTIL = 20
+
+    fun norm(s: String) = s.lowercase().replace(Regex("[^\\p{L}0-9]"), "")
+    private fun stem(w: String) = if (w.length > 4 && w.endsWith("s")) w.dropLast(1) else w
+
+    /**
+     * Оценка релевантности ролика запросу [q], одинаковая для всех источников (RedGIFs, Reddit, сторонние сайты): по
+     * тегам, названию/описанию и сабреддиту. У роликов без тегов (xVideos, Pornhub) — по названию. Уровни:
+     *  - 20+ — фраза целиком, слова подряд («standing dildo» в названии или теге); однословный запрос — слово в теге
+     *    целым словом или с обычным окончанием (twin, twins, twinning);
+     *  - 16+ — фраза без окончания; однословный запрос — слово в названии/описании/сабреддите (так же, целым словом);
+     *  - 12+ — многословный: все слова в одном теге;
+     *  - 7…9 — совпал только синоним («doorknob» на «knob»): [level] 2, показывается, лишь пока точных мало
+     *    ([SYNONYM_UNTIL]);
+     *  - 6+ — многословный: все слова, но в разных тегах/местах («Standing Doggy» + «Dildo» — уже другое);
+     *  - дробная часть (до 0,9) — тай-брейк внутри уровня: сколько слов в тегах/тексте и сколько синонимов.
+     *  0 — мимо, в выдачу не идёт: однословный — совпадение только по корню (+1), не целым словом; многословный — не все
+     *  слова (для любого источника; пост Reddit с частью слов остаётся ниже всех, 0,1…0,9).
+     */
+    fun score(g: Gif, q: String, alias: List<String>, synonyms: List<String>): Double {
+        val words = Api.words(q).map(::stem).filter { it.length >= 2 }
+        val tagsN = g.tags.map { norm(it) }
+        val textN = norm(g.description + " " + g.sub)
+        val all = tagsN.joinToString(" ") + " " + textN
+        // короткие слова («dp», «atp») — только целым словом: иначе ловят что попало внутри других слов
+        val tagTok = g.tags.map { t -> t.lowercase().split(SPLIT).filter { it.isNotEmpty() } }
+        val textTok = (g.description + " " + g.sub).lowercase().split(SPLIT).filter { it.isNotEmpty() }
+        // слово совпадает целым словом с обычным окончанием (twin, twins, twinned) или как начало слитного имени
+        // (TwinGirls, 69er) — но не как кусок другого слова («twin» в «twink»)
+        fun tokMatch(tok: String, w: String): Boolean {
+            if (tok == w) return true
+            if (!tok.startsWith(w)) return false
+            val rest = tok.substring(w.length)
+            return rest in ENDINGS || rest.length >= 4
+        }
+        fun inTags(w: String) = tagTok.any { ts -> ts.any { tokMatch(it, w) } }
+        fun inText(w: String) = textTok.any { tokMatch(it, w) }
+        val synHits = synonyms.count { syn -> norm(syn).let { it.length >= 4 && all.contains(it) } }
+        // запрос — сокращение: его полная фраза равна точному совпадению
+        if (alias.any { a -> norm(a).let { it.length >= 4 && all.contains(it) } }) return 20.0 + minOf(0.9, synHits * 0.1)
+        val phrase = norm(q)
+        var base = 0.0
+        var part = 0.0
+        var found = 0
+        when {
+            // запрос не латиницей — по подстроке
+            words.isEmpty() -> if (phrase.length >= 4 && all.contains(phrase)) base = 20.0
+            words.size == 1 -> {
+                val w = words[0]
+                // целым словом или с обычным окончанием; по корню и внутри другого слова — мимо
+                when { inTags(w) -> { base = 20.0; part = 3.0 }; inText(w) -> { base = 16.0; part = 2.0 } }
+            }
+            else -> {
+                val stemP = phrase.replace(Regex("(ers|er|ing|es|s)$"), "")
+                words.forEach { w ->
+                    val root = w.replace(Regex("(ers|er|ing|es)$"), "").takeIf { it.length >= 4 } ?: w
+                    when {
+                        inTags(w) -> { part += 3; found++ }
+                        inText(w) -> { part += 2; found++ }
+                        root != w && (inTags(root) || inText(root)) -> { part += 1; found++ }
+                    }
+                }
+                base = when {
+                    phrase.length >= 4 && all.contains(phrase) -> 20.0
+                    stemP.length >= 5 && all.contains(stemP) -> 16.0
+                    tagTok.any { ts -> words.all { w -> ts.any { tokMatch(it, w) } } } -> 12.0
+                    found == words.size -> 6.0
+                    else -> 0.0
+                }
+            }
+        }
+        if (base > 0) return base + minOf(0.9, part * 0.1 + minOf(0.3, synHits * 0.1))
+        // совпал только синоним («doorknob» на запрос «knob») — тоже по теме, но ниже точных
+        if (synHits > 0) return 7.0 + minOf(2, synHits - 1)
+        // пост Reddit (сабреддит найден по запросу), часть слов многословного запроса — ниже всех, но остаётся
+        if (g.reddit && words.size >= 2 && part > 0) return minOf(0.9, part * 0.1)
+        return 0.0
+    }
+
+    /** Уровень оценки (для [order]): 4 — фраза/слово в теге, 3 — все слова в одном теге, 2 — синоним, 1 — все слова врозь, 0 — прочее. */
+    fun level(s: Double) = when { s >= 16 -> 4; s >= 12 -> 3; s >= 7 -> 2; s >= 6 -> 1; else -> 0 }
+
+    /** Показывать ролик: оценка > 0; совпадение только по синониму — пока точных (уровень ≥ 3) набралось меньше [SYNONYM_UNTIL]. */
+    fun visible(s: Double, strong: Int) = s > 0 && (level(s) != 2 || strong < SYNONYM_UNTIL)
+
+    /** Источник ролика для чередования: сторонний сайт, Reddit или RedGIFs. */
+    fun source(g: Gif) = if (g.ext) g.site else if (g.reddit) "reddit" else "redgifs"
+
+    /** Оценка ролика в выдаче: основа [score] и добавка за вкус/качество ([bonus]) — только внутри уровня. */
+    class Rank(val score: Double, val bonus: Double = 0.0) {
+        val level get() = level(score)
+        val total get() = score + bonus
+    }
+
+    /**
+     * Порядок выдачи: уровни — от высшего; внутри уровня ролики разных источников чередуются по кругу (RedGIFs, xVideos,
+     * Pornhub, … — источники по лучшему ролику уровня), а не «все RedGIFs, потом остальные»; внутри источника при
+     * равной оценке — популярнее выше. Ролик без оценки ([rank] = null) — самый низкий уровень.
+     */
+    fun order(items: List<Gif>, rank: (Gif) -> Rank?): List<Gif> {
+        val none = Rank(0.0)
+        val byLevel = items.groupBy { (rank(it) ?: none).level }
+        val out = ArrayList<Gif>(items.size)
+        val cmp = compareByDescending<Gif> { (rank(it) ?: none).total }.thenByDescending { it.likes }.thenByDescending { it.views }
+        for (lv in byLevel.keys.sortedDescending()) {
+            val queues = byLevel.getValue(lv).groupBy(::source).mapValues { (_, l) -> ArrayDeque(l.sortedWith(cmp)) }
+            val names = queues.keys.sortedWith(compareByDescending<String> { (rank(queues.getValue(it).first()) ?: none).total }.thenBy { it })
+            while (queues.values.any { it.isNotEmpty() }) for (n in names) queues.getValue(n).removeFirstOrNull()?.let { out += it }
+        }
+        return out
+    }
+}
