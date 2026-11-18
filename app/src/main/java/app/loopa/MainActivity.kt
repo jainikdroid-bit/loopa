@@ -23,6 +23,7 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupMenu
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -41,6 +42,7 @@ class MainActivity : Activity() {
     private lateinit var search: EditText
     private lateinit var chips: LinearLayout
     private lateinit var status: TextView
+    private lateinit var statusSpin: ProgressBar
     private lateinit var sortBtn: TextView
     private lateinit var filterBtn: TextView
     private lateinit var grid: RecyclerView
@@ -59,7 +61,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         // первый запуск — приветствие (до того, как что-то запишется в настройки: по их пустоте узнаём новую установку)
         val welcome = savedInstanceState == null && WelcomeActivity.needed(prefs)
-        I18n.init(this); Theme.init(this); themeKey = Theme.id + I18n.code; Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); Video.init(this); Hide.init(this)
+        I18n.init(this); Theme.init(this); themeKey = Theme.id + I18n.code; Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); Video.init(this); Hide.init(this); DeviceTier.warmAvc()
         @Suppress("DEPRECATION") if (welcome) startActivityForResult(Intent(this, WelcomeActivity::class.java), 4)
         preview.enabled = prefs.getBoolean("live", true)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
@@ -108,8 +110,14 @@ class MainActivity : Activity() {
         root.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(tabs) })
         chips = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(4), dp(10), dp(4)) }
         root.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(chips) })
+        // строка статуса: слева маленькая крутилка (пока лента или поиск грузятся), справа текст
         status = TextView(this).apply { setTextColor(0xFFB0B5BD.toInt()); textSize = 13f; setPadding(dp(14), dp(2), dp(14), dp(6)) }
-        root.addView(status)
+        statusSpin = ProgressBar(this, null, android.R.attr.progressBarStyleSmall).apply { isIndeterminate = true; indeterminateTintList = Theme.tint(); visibility = View.GONE }
+        root.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            addView(statusSpin, LinearLayout.LayoutParams(dp(14), dp(14)).apply { marginStart = dp(14); topMargin = dp(2); bottomMargin = dp(4) })
+            addView(status, LinearLayout.LayoutParams(0, -2, 1f))
+        })
         grid = RecyclerView(this).apply {
             layoutManager = GridLayoutManager(this@MainActivity, cols())
             adapter = this@MainActivity.adapter
@@ -303,7 +311,7 @@ class MainActivity : Activity() {
     // превью — только пока главный экран на виду: иначе (лента догрузилась, пока открыт плеер) они запускались в фоне
     // и отбирали видеодекодеры у плеера — картинка вставала, а звук шёл дальше
     private var shown = false
-    override fun onPause() { super.onPause(); shown = false; preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch() }
+    override fun onPause() { super.onPause(); shown = false; impressions.clear(); preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch() }
     override fun onResume() {
         super.onResume(); shown = true; Prefetch.resume()
         if (!::grid.isInitialized) return
@@ -322,7 +330,8 @@ class MainActivity : Activity() {
         grid.postDelayed({ live() }, 300)
     }
 
-    private val preview by lazy { GridPreview(this) }
+    // превью показало первый кадр — запустить следующее (на медленной сети они запускаются по очереди)
+    private val preview by lazy { GridPreview(this).apply { onWarm = { if (!isFinishing) live() } } }
     private var aheadAt = 0L
     private var scrolled = 0
     /** Куда долетит текущий бросок, px от места броска (0 — броска нет). */
@@ -366,9 +375,42 @@ class MainActivity : Activity() {
     private val liveLater = Runnable { live() }
     private var liveAt = 0L
 
+    /** Ячейка сетки «Для вас», видимая целиком: ролик, когда впервые и когда в последний раз видели целиком, и была ли сетка неподвижна. */
+    private class Imp(val g: Gif, val first: Long, var last: Long, var still: Boolean)
+    private val impressions = HashMap<String, Imp>()
+
+    /**
+     * Показы для модели вкуса: ролик «Для вас» был на экране целиком не меньше [IMPRESSION_MS] и ушёл с экрана, а в плеере
+     * не открывался — слабый отрицательный пример ([Interests.impression]). Время — от первой встречи целиком до последней
+     * (если сетка стояла — до ухода: на первом же шаге прокрутки ячейка уже не целиком). Пауза приложения показов не даёт.
+     */
+    private fun trackImpressions() {
+        if (Feed.mode != "foryou" || !shown) { impressions.clear(); return }
+        val now = android.os.SystemClock.uptimeMillis()
+        val lm = grid.layoutManager as GridLayoutManager
+        val a = lm.findFirstVisibleItemPosition(); val b = lm.findLastVisibleItemPosition()
+        val still = grid.scrollState == RecyclerView.SCROLL_STATE_IDLE
+        val full = HashSet<String>()
+        if (a >= 0) for (p in a..b) {
+            val v = lm.findViewByPosition(p) ?: continue
+            if (v.top < 0 || v.bottom > grid.height) continue
+            val g = Feed.items.getOrNull(p) ?: continue
+            full += g.id
+            impressions.getOrPut(g.id) { Imp(g, now, now, still) }.also { it.last = now; it.still = still }
+        }
+        val iter = impressions.entries.iterator()
+        while (iter.hasNext()) {
+            val (id, imp) = iter.next()
+            if (id in full) continue
+            iter.remove()
+            if ((if (imp.still) now else imp.last) - imp.first >= IMPRESSION_MS) Interests.impression(imp.g)
+        }
+    }
+
     /** Обновить живые превью: ячейки, видимые целиком. */
     private fun live() {
         if (!::grid.isInitialized || isFinishing || !shown) return
+        trackImpressions()
         val lm = grid.layoutManager as GridLayoutManager
         val a = lm.findFirstVisibleItemPosition(); val b = lm.findLastVisibleItemPosition()
         // порядок важности: видимые целиком, затем частично (чем больше видно — тем раньше), ближе к центру — раньше;
@@ -400,9 +442,10 @@ class MainActivity : Activity() {
     /** Из плеера: нажали тег или автора. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        intent.getStringExtra("query")?.let { nav(); search.setText(it); go(it) }
+        // (go сам запоминает страницу — второй nav() клал бы одну и ту же страницу в историю дважды)
+        intent.getStringExtra("query")?.let { search.setText(it); go(it) }
         intent.getStringExtra("tag")?.let { search.setText(it); go(it, tag = true) }
-        intent.getStringExtra("author")?.let { nav(); search.setText(""); Feed.reset("", Feed.order, it); grid.scrollToPosition(0) }
+        intent.getStringExtra("author")?.let { nav(); search.setText(""); Interests.openAuthor(it, "redgifs"); Feed.reset("", Feed.order, it); grid.scrollToPosition(0) }
         intent.getStringExtra("sub")?.let { nav(); search.setText(""); openSub(it) }
         // автор или тег ролика стороннего сайта — поиск по тому же сайту (extra — id сайта)
         for (m in Sources.ALL.map { it.id }) intent.getStringExtra(m)?.let { nav(); search.setText(it); Feed.reset(it, Feed.order, mode = m); grid.scrollToPosition(0) }
@@ -443,7 +486,8 @@ class MainActivity : Activity() {
         nav()
         if (Feed.reddit) { openSub(q); return }
         // сторонний сайт: поиск по тому же сайту (пусто — его лента)
-        if (Feed.ext) { Feed.reset(q.trim(), Feed.order, mode = Feed.mode); grid.scrollToPosition(0); return }
+        // пустой ввод на вкладке сайта — его лента; текст — всегда глобальный поиск по всем источникам (ниже), а не только по сайту
+        if (Feed.ext && q.isBlank()) { Feed.reset("", Feed.order, mode = Feed.mode); grid.scrollToPosition(0); return }
         if (q.isBlank()) { home(); return }
         if (tag) Interests.openTag(q.trim()) else Interests.search(q)
         Feed.reset(q.trim(), Feed.order, tag = tag)
@@ -581,7 +625,7 @@ class MainActivity : Activity() {
 
     private fun refresh() {
         userBtn.text = when { Api.loggedIn || Reddit.loggedIn || Ext.ALL.any(Ext::loggedIn) -> "👤✓"; Api.hadUser || Reddit.hadUser -> "👤!"; else -> "👤" }
-        search.hint = when { Feed.reddit -> tr("Сабреддит: r/… (через пробел — несколько)"); Feed.ext -> tr("Поиск на %s", Sources.byId(Feed.mode)?.title.orEmpty()); else -> tr("Поиск по тегам: blonde, POV, car…") }
+        search.hint = when { Feed.reddit -> tr("Сабреддит: r/… (через пробел — несколько)"); else -> tr("Поиск по тегам: blonde, POV, car…") }
         if (tabsKey != tabList().joinToString { it.second.orEmpty() }) buildTabs()
         val tl = tabList()
         for (i in 0 until tabs.childCount) tabs.getChildAt(i).background = pill(if (tl[i].second == Feed.mode && Feed.author == null && Feed.text.isEmpty()) Theme.accent else Theme.chip)
@@ -616,7 +660,7 @@ class MainActivity : Activity() {
                     else -> Feed.sub.split("+").joinToString(" + ") { "r/$it" }
                 } + " · " + Reddit.sort(Feed.rorder).label)
                 Feed.author != null -> append(tr("Автор: %s  (назад — к ленте)", Feed.author))
-                Feed.text.isNotEmpty() && !Feed.byTag -> append(tr("Поиск: «%s»", Feed.text) + (if (Feed.busy) " · " + tr("идёт поиск…") else "") + " · " + tr("по теме %s", Search.exact) +
+                Feed.text.isNotEmpty() && !Feed.byTag -> append(tr("Поиск: «%s»", Feed.text) + " · " + tr("по теме %s", Search.exact) +
                     Search.synonyms.takeIf { it.isNotEmpty() }?.let { " · " + tr("+ похожее:") + " " + it.take(4).joinToString(", ") }.orEmpty())
                 Feed.text.isNotEmpty() && !Feed.byTag -> append(tr("Поиск: «%s»", Feed.query.ifEmpty { Feed.text }) + (if (Feed.query.isNotEmpty() && !Feed.query.equals(Feed.text, true)) " («${Feed.text}»)" else "") +
                     (if (Feed.query.isNotEmpty()) " · " + tr("точных совпадений: %s", Feed.exact) + (if (Feed.exact > 0) " " + tr("(они первыми)") else "") else ""))
@@ -625,12 +669,15 @@ class MainActivity : Activity() {
             }
             if (Feed.filtered) append(" · " + tr("фильтр:") + " " + listOfNotNull(tr(Feed.DURATIONS.first { it.first == Feed.duration }.second).takeIf { Feed.duration != "any" }?.let(I18n::lower), tr("со звуком").takeIf { Feed.audioOnly }).joinToString(", "))
             if (Feed.items.isNotEmpty()) append(" · ${Feed.items.size}")
-            if (Feed.busy && !(Feed.text.isNotEmpty() && !Feed.byTag)) append(" · " + tr("загружаю…"))
+            // пока источники отвечают — «Ищу…» (поиск) или «Загружаю…» (лента); число найденного растёт по ходу
+            if (Feed.busy) append(" · " + if (Feed.text.isNotEmpty() && Feed.author == null && Feed.mode == null) tr("Ищу…") else tr("Загружаю…"))
             Feed.error?.let { append(" · " + tr(it)) }
             if (Feed.retryIn > 0) append(" · " + tr("повтор через %s с (нажмите — сейчас)", Feed.retryIn))
             if (!Feed.busy && Feed.error == null && Feed.items.isEmpty() && (Feed.text.isNotEmpty() || Feed.reddit || Feed.ext || Feed.mode == "foryou"))
                 append(" · " + if (Feed.reddit) tr("видео не нашлось — попробуйте другой сабреддит") else tr("ничего не нашлось"))
         }
+        statusSpin.visibility = if (Feed.busy) View.VISIBLE else View.GONE
+        status.setPadding(if (Feed.busy) dp(6) else dp(14), dp(2), dp(14), dp(6))
         if (!Feed.busy) swipe.isRefreshing = false
         if (search.text.isBlank()) idleChips()
         // перерисовывать только то, что изменилось: не изменилось — ничего, дописали в конец — только новые
@@ -707,7 +754,7 @@ class MainActivity : Activity() {
             h.src.text = mark(g); h.src.background = pill(markColor(g))
             // касание — приоритет загрузки превью этой ячейки
             h.box.setOnTouchListener { _, e -> if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) { preview.touched = h.slot; grid.post { live() } }; false }
-            h.box.setOnClickListener { preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch(); Net.dropBackground(); startActivity(Intent(this@MainActivity, PlayerActivity::class.java).putExtra("pos", h.bindingAdapterPosition)) }
+            h.box.setOnClickListener { impressions.remove(g.id); preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch(); Net.dropBackground(); startActivity(Intent(this@MainActivity, PlayerActivity::class.java).putExtra("pos", h.bindingAdapterPosition)) }
             h.box.setOnLongClickListener { Downloads.get(this@MainActivity, g); Interests.download(g); true }
         }
     }
@@ -726,6 +773,8 @@ class MainActivity : Activity() {
         const val GRAPH_FAB_ALPHA = 0x8C
         /** Как часто при прокрутке пересчитывать, какие превью играют, мс. */
         const val LIVE_SCROLL_MS = 350L
+        /** Сколько ролик должен быть на экране сетки целиком, чтобы «не открыл» стало слабым отрицательным примером. */
+        const val IMPRESSION_MS = 1_500L
         /** Как часто пересчитывать прогноз на ходу, мс. */
         const val AHEAD_MS = 250L
         /** Метки источника: RedGIFs — малиновый, Reddit — фирменный оранжевый. */

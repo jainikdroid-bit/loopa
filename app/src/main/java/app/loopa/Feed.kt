@@ -90,7 +90,9 @@ object Feed {
     val listeners = LinkedHashSet<() -> Unit>()
 
     val canMore get() = !loading && page < pages
-    val busy get() = loading
+    /** Идёт загрузка или она вот-вот продолжится (следующая порция уже заказана) — «ничего не нашлось» ещё рано. */
+    val busy get() = loading || chaining
+    private var chaining = false
     val sort get() = SORTS.firstOrNull { it.id == order } ?: SORTS[1]
     val filtered get() = duration != "any" || audioOnly
     private val range get() = DURATIONS.first { it.first == duration }.third
@@ -117,7 +119,7 @@ object Feed {
 
     fun reset(text: String, order: String, author: String? = null, mode: String? = null, tag: Boolean = false) {
         this.text = text; this.order = order; this.author = author; this.mode = mode; query = ""; tagOnly = tag; byTag = tag; exact = 0
-        scoreOf.clear(); seenTo = 0
+        scoreOf.clear(); seenTo = 0; chaining = false
         items.clear(); page = 0; pages = 1; after = null; loading = false; error = null; fails = 0; chain = 0; stopRetry(); gen++
         if (mode == "foryou") ForYou.reset()
         // первый показ ленты после запуска — сразу прошлая лента с диска (без уже просмотренного), свежее допишется
@@ -228,9 +230,9 @@ object Feed {
                     if (g != gen) return@post
                     loading = false
                     r.onSuccess { query = t; byTag = false; page = p; pages = if (it > 0) p + 1 else p; error = null; fails = 0 }.onFailure { fail(it) }
-                    changed()
-                    // мало прошло фильтры — сразу следующая порция
+                    // мало прошло фильтры — сразу следующая порция (до уведомления, чтобы не мигало «ничего не нашлось»)
                     if (r.isSuccess && items.size < 20 && page < pages && p < 4) more()
+                    changed()
                 }
             }
             return
@@ -287,7 +289,7 @@ object Feed {
         val need = fresh.size < 8 && (pg.gifs.isEmpty() || filtered || Hide.active) || cmp != null && items.size < POOL
         // предел подряд: фильтр может отсеивать почти всё — не выкачивать сотни страниц
         chain = if (need) chain + 1 else 0
-        if (need && page < pages && chain <= if (items.size < 20) 8 else 3) ui.post { more() }
+        if (need && page < pages && chain <= if (items.size < 20) 8 else 3) { chaining = true; ui.post { chaining = false; more(); changed() } }
     }
     private var chain = 0
 
@@ -366,6 +368,9 @@ object Feed {
     fun push(pos: Int) {
         if (items.isEmpty() && !loading) return
         val textSearch = text.isNotBlank() && author == null && mode == null && !tagOnly
+        // та же страница уже сверху истории (повторили тот же поиск) — одним шагом, а не двумя
+        history.lastOrNull()?.takeIf { it.text == text && it.author == author && it.mode == mode && it.sub == sub && it.tagOnly == tagOnly &&
+            it.order == order && it.rorder == rorder && it.desc == desc }?.let { history.removeLast() }
         history.addLast(Snap(text, query, byTag, tagOnly, exact, order, desc, author, mode, sub, rorder, after, ArrayList(items), tags,
             // первая порция ещё грузилась, но что-то уже показано — считать её загруженной (дальше — следующие)
             // (порцию, что грузилась, — потом догрузить)
@@ -379,7 +384,7 @@ object Feed {
         stopRetry(); gen++
         text = s.text; query = s.query; byTag = s.byTag; tagOnly = s.tagOnly; exact = s.exact; order = s.order; desc = s.desc
         author = s.author; mode = s.mode; sub = s.sub; rorder = s.rorder; after = s.after; tags = s.tags
-        items.clear(); items += s.items; page = s.page; pages = maxOf(s.pages, s.page); loading = false; error = null; fails = 0; chain = 0
+        chaining = false; items.clear(); items += s.items; page = s.page; pages = maxOf(s.pages, s.page); loading = false; error = null; fails = 0; chain = 0
         scoreOf.clear(); scoreOf += s.scoreOf; seenTo = s.pos.coerceIn(0, items.size)
         s.search?.let(Search::load)
         // пусто (ушли, пока грузилось) — загрузить заново

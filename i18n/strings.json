@@ -260,7 +260,11 @@
   "Розовая",
   "Красная",
   "Фиолетовая",
-  "Закреплён: не меняется сам; Сбросить — вернуть выученный"
+  "Закреплён: не меняется сам; Сбросить — вернуть выученный",
+  "Модель вкуса, примеров: %s",
+  "Сильные сочетания модели",
+  "Ищу…",
+  "Загружаю…"
  ],
  "en": [
   "Already downloaded: Downloads/Loopa/%s",
@@ -522,7 +526,11 @@
   "Pink",
   "Red",
   "Violet",
-  "Pinned: stays as set; Reset returns the learned weight"
+  "Pinned: stays as set; Reset returns the learned weight",
+  "Taste model, examples: %s",
+  "Strongest combinations",
+  "Searching…",
+  "Loading…"
  ],
  "es": [
   "Ya descargado: Descargas/Loopa/%s",
@@ -784,7 +792,11 @@
   "Rosa",
   "Rojo",
   "Violeta",
-  "Fijado: no cambia solo; Restablecer devuelve el peso aprendido"
+  "Fijado: no cambia solo; Restablecer devuelve el peso aprendido",
+  "Modelo de gusto, ejemplos: %s",
+  "Combinaciones más fuertes",
+  "Buscando…",
+  "Cargando…"
  ],
  "pt": [
   "Já baixado: Downloads/Loopa/%s",
@@ -1046,7 +1058,11 @@
   "Rosa",
   "Vermelho",
   "Violeta",
-  "Fixado: não muda sozinho; Redefinir devolve o peso aprendido"
+  "Fixado: não muda sozinho; Redefinir devolve o peso aprendido",
+  "Modelo de gosto, exemplos: %s",
+  "Combinações mais fortes",
+  "Buscando…",
+  "Carregando…"
  ],
  "de": [
   "Bereits geladen: Downloads/Loopa/%s",
@@ -1308,7 +1324,11 @@
   "Pink",
   "Rot",
   "Violett",
-  "Fixiert: ändert sich nicht von selbst; Zurücksetzen bringt das gelernte Gewicht zurück"
+  "Fixiert: ändert sich nicht von selbst; Zurücksetzen bringt das gelernte Gewicht zurück",
+  "Geschmacksmodell, Beispiele: %s",
+  "Stärkste Kombinationen",
+  "Suche läuft…",
+  "Lade…"
  ],
  "fr": [
   "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1570,7 +1590,11 @@
   "Rose",
   "Rouge",
   "Violet",
-  "Épinglé : ne change pas tout seul ; Réinitialiser rétablit le poids appris"
+  "Épinglé : ne change pas tout seul ; Réinitialiser rétablit le poids appris",
+  "Modèle de goût, exemples : %s",
+  "Combinaisons les plus fortes",
+  "Recherche…",
+  "Chargement…"
  ],
  "it": [
   "Già scaricato: Download/Loopa/%s",
@@ -1832,7 +1856,11 @@
   "Rosa",
   "Rosso",
   "Viola",
-  "Bloccato: non cambia da solo; Ripristina riporta il peso appreso"
+  "Bloccato: non cambia da solo; Ripristina riporta il peso appreso",
+  "Modello di gusto, esempi: %s",
+  "Combinazioni più forti",
+  "Ricerca…",
+  "Caricamento…"
  ],
  "tr": [
   "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -2094,7 +2122,11 @@
   "Pembe",
   "Kırmızı",
   "Mor",
-  "Sabitlendi: kendiliğinden değişmez; Sıfırla öğrenilen ağırlığı geri getirir"
+  "Sabitlendi: kendiliğinden değişmez; Sıfırla öğrenilen ağırlığı geri getirir",
+  "Zevk modeli, örnek: %s",
+  "En güçlü kombinasyonlar",
+  "Aranıyor…",
+  "Yükleniyor…"
  ],
  "pl": [
   "Już pobrano: Pobrane/Loopa/%s",
@@ -2356,7 +2388,11 @@
   "Różowy",
   "Czerwony",
   "Fioletowy",
-  "Przypięty: nie zmienia się sam; Reset przywraca wyuczoną wagę"
+  "Przypięty: nie zmienia się sam; Reset przywraca wyuczoną wagę",
+  "Model gustu, przykładów: %s",
+  "Najsilniejsze kombinacje",
+  "Szukam…",
+  "Ładuję…"
  ],
  "uk": [
   "Уже завантажено: Завантаження/Loopa/%s",
@@ -2618,6 +2654,10 @@
   "Рожева",
   "Червона",
   "Фіолетова",
-  "Закріплено: сам не змінюється; Скинути — повернути вивчену вагу"
+  "Закріплено: сам не змінюється; Скинути — повернути вивчену вагу",
+  "Модель смаку, прикладів: %s",
+  "Найсильніші поєднання",
+  "Шукаю…",
+  "Завантажую…"
  ]
 }

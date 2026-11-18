@@ -50,6 +50,36 @@ class PlayerActivity : Activity() {
     private lateinit var screen: FrameLayout
     /** Панель «Похожие» поверх плеера (null — закрыта). */
     private var similar: View? = null
+    /**
+     * Шаги «Похожих»: откуда открыли похожие (origin), что там нашлось (found) и какой ролик из них открыли (opened).
+     * «Назад» без панели возвращает к панели похожих последнего шага (на ролике, откуда её открывали), потом — к
+     * предыдущему шагу, и только когда шагов нет — выходит в сетку. Листание в сторону от шага обнуляет стек ([settle]).
+     */
+    private class SimStep(val origin: Gif, val found: List<Gif>, val opened: Gif)
+    private val simSteps = ArrayList<SimStep>()
+    /** Ролик и список панели «Похожие», что открыта сейчас (для шага при открытии ролика из неё). */
+    private var simOrigin: Gif? = null
+    private var simFound: List<Gif> = emptyList()
+    /** Тихо подобрать похожие для текущего ролика заранее — панель откроется сразу ([Similar] кэширует). */
+    private val warmSimilar = Runnable {
+        val g = list.getOrNull(current) ?: return@Runnable
+        if (!control.open || Video.slow) return@Runnable
+        // уже в кэше или уже ищется — не запускать (листание быстрое: без этого очередь забилась бы поиском для пролистанных)
+        if (Similar.isCached(g.id) || !simInFlight.add(g.id)) return@Runnable
+        warmId = g.id
+        warmTask = simPool.submit { runCatching { Similar.find(g) }; ui.post { simInFlight.remove(g.id) } }
+    }
+    /** Фоновая подборка: один поток на все ролики (запросы встают в очередь), id в работе и последняя задача — её снимаем при смене ролика. */
+    private val simPool = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val simInFlight = HashSet<String>()
+    private var warmTask: java.util.concurrent.Future<*>? = null
+    private var warmId: String? = null
+    /** Смена ролика: ждущую в очереди подборку прежнего снять (уже идущую не трогаем — результат ляжет в кэш). */
+    private fun cancelWarm() {
+        ui.removeCallbacks(warmSimilar)
+        if (warmTask?.cancel(false) == true) warmId?.let { simInFlight.remove(it) }
+        warmTask = null; warmId = null
+    }
     private val rv get() = pager.getChildAt(0) as RecyclerView
     private var current = -1
     private var holder: PageHolder? = null
@@ -229,7 +259,7 @@ class PlayerActivity : Activity() {
     override fun onPause() { super.onPause(); if (!::player.isInitialized) return; player.pause(); report(); if (current >= 0) Feed.lastSeen = feedIndex() }
     override fun onResume() { super.onResume(); if (::player.isInitialized && current >= 0) { player.play(); shownAt = System.currentTimeMillis() } }
     override fun onDestroy() {
-        Feed.listeners -= onFeed; Net.online -= onOnline; ui.removeCallbacksAndMessages(null)
+        Feed.listeners -= onFeed; Net.online -= onOnline; ui.removeCallbacksAndMessages(null); warmTask?.cancel(false); simPool.shutdown()
         if (::player.isInitialized) { player.release(); preload.release() }
         super.onDestroy()
     }
@@ -270,6 +300,9 @@ class PlayerActivity : Activity() {
         control.dir = if (current >= 0 && pos < current) -1 else 1
         control.flinging = PreloadPolicy.flinging(dwells.toList())
         current = pos
+        // ушли листать в сторону от шагов «Похожих» — это уже не их продолжение: назад выйдет в сетку
+        simSteps.lastOrNull()?.let { st -> val id = list[pos].id; if (id != st.opened.id && id != st.origin.id) simSteps.clear() }
+        cancelWarm(); ui.postDelayed(warmSimilar, 3_000)
         feedIndex().let { if (it >= 0) Feed.markSeen(it + 1 + Feed.SEEN_AHEAD) }       // подгрузка не вставляет выше текущего ролика
         control.cur = pos; preload.setCurrentPlayingIndex(pos)
         settledAt = now; startAt = now; cache0 = Video.fromCache.get(); net0 = Video.fromNet.get()
@@ -402,7 +435,7 @@ class PlayerActivity : Activity() {
             // пост Reddit: автор — его посты на Reddit, вместо просмотров — рейтинг и комментарии, ниже — заголовок
             user.text = if (g.reddit) "u/${g.user}" else "@${g.user}"
             user.visibility = if (g.user.isBlank()) View.GONE else View.VISIBLE
-            user.setOnClickListener { if (g.user.isNotBlank()) { when { g.reddit -> back("sub", "u/${g.user}"); g.ext -> back(g.site, g.user); else -> back("author", g.user) } } }
+            user.setOnClickListener { if (g.user.isNotBlank()) { when { g.reddit -> back("sub", "u/${g.user}"); g.ext -> { Interests.openAuthor(g.user, g.site); back(g.site, g.user) }; else -> back("author", g.user) } } }
             info.maxLines = 3
             info.text = if (g.reddit) "${MainActivity.time(g.duration)} · ↑ ${MainActivity.count(g.likes)} · 💬 ${MainActivity.count(g.views)}" +
                 (if (!g.hasAudio) " · " + tr("без звука") else "") + (if (g.description.isNotBlank()) "\n" + g.description else "")
@@ -460,11 +493,12 @@ class PlayerActivity : Activity() {
      * «Похожие» ([Similar]): снизу панель на 2/3 экрана с сеткой роликов, прокручивается. Тап — ролик встаёт сразу за
      * текущим и открывается (назад — свайп вниз). Закрыть — ✕, тап выше панели или «Назад».
      */
-    private fun showSimilar(g: Gif) {
+    private fun showSimilar(g: Gif, preset: List<Gif>? = null) {
         closeSimilar()
+        simOrigin = g; simFound = preset.orEmpty()
         val h = resources.displayMetrics.heightPixels
-        val list = ArrayList<Gif>()
-        val status = TextView(this).apply { text = tr("Подбираю похожие…"); setTextColor(0xFFB0B5BD.toInt()); textSize = 13f; setPadding(dp(14), 0, dp(14), dp(6)) }
+        val list = ArrayList<Gif>(preset.orEmpty())
+        val status = TextView(this).apply { text = if (preset != null) tr("Похожих: %s — по тегам, названию и автору", preset.size) else tr("Подбираю похожие…"); setTextColor(0xFFB0B5BD.toInt()); textSize = 13f; setPadding(dp(14), 0, dp(14), dp(6)) }
         val grid = RecyclerView(this).apply {
             layoutManager = androidx.recyclerview.widget.GridLayoutManager(this@PlayerActivity, 3)
             setPadding(dp(4), 0, dp(4), dp(8) + navBottom); clipToPadding = false
@@ -503,11 +537,12 @@ class PlayerActivity : Activity() {
             addView(sheet, FrameLayout.LayoutParams(-1, h * 2 / 3, Gravity.BOTTOM))
         }
         screen.addView(overlay, FrameLayout.LayoutParams(-1, -1)); similar = overlay
+        if (preset != null) return
         kotlin.concurrent.thread {
             val r = runCatching { Similar.find(g) }
             ui.post {
                 if (similar !== overlay) return@post
-                list.clear(); list += r.getOrDefault(emptyList()); grid.adapter?.notifyDataSetChanged()
+                list.clear(); list += r.getOrDefault(emptyList()); grid.adapter?.notifyDataSetChanged(); simFound = list.toList()
                 status.text = when { r.isFailure -> tr(NO_NET); list.isEmpty() -> tr("Похожих не нашлось"); else -> tr("Похожих: %s — по тегам, названию и автору", list.size) }
             }
         }
@@ -517,6 +552,13 @@ class PlayerActivity : Activity() {
 
     /** Похожий ролик — сразу за текущим и открыть его (предзагрузку пересобрать: номера сдвинулись). */
     private fun openSimilar(c: Gif) {
+        // новый шаг истории: из этого списка похожих открыли ролик c — «назад» вернёт к списку
+        simOrigin?.let { o ->
+            // не больше [MAX_SIM_STEPS] шагов (старые отбрасываем) и без повтора верхнего
+            val top = simSteps.lastOrNull()
+            if (top == null || top.origin.id != o.id || top.opened.id != c.id) simSteps += SimStep(o, simFound, c)
+            while (simSteps.size > MAX_SIM_STEPS) simSteps.removeAt(0)
+        }
         closeSimilar()
         val have = list.indexOfFirst { it.id == c.id }
         if (have >= 0) { pager.setCurrentItem(have, true); return }
@@ -531,7 +573,21 @@ class PlayerActivity : Activity() {
     }
 
     @Deprecated("Deprecated in Java")
-    override fun onBackPressed() { if (similar != null) closeSimilar() else @Suppress("DEPRECATION") super.onBackPressed() }
+    override fun onBackPressed() {
+        when {
+            // панель открыта — закрыть (ролик под ней играет)
+            similar != null -> closeSimilar()
+            // ролик открыт из «Похожих» — вернуться к тому ролику и его списку похожих
+            simSteps.isNotEmpty() -> {
+                val st = simSteps.removeAt(simSteps.lastIndex)
+                val at = list.indexOfFirst { it.id == st.origin.id }
+                if (at < 0) { @Suppress("DEPRECATION") super.onBackPressed(); return }
+                if (at != current) pager.setCurrentItem(at, true)
+                showSimilar(st.origin, st.found)
+            }
+            else -> @Suppress("DEPRECATION") super.onBackPressed()
+        }
+    }
 
     private inner class PageAdapter : RecyclerView.Adapter<PageHolder>() {
         override fun getItemCount() = list.size
@@ -548,6 +604,8 @@ class PlayerActivity : Activity() {
 
     companion object {
         /** Сколько буфера у текущего ролика, прежде чем грузить соседей. */
+        /** Глубина стека «Назад» по «Похожим». */
+        const val MAX_SIM_STEPS = 15
         const val PRELOAD_AFTER_MS = 2_500L
         /** Буферизация дольше этого — пауза предзагрузки соседей. */
         const val BUFFERING_PAUSE_MS = 400L

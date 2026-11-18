@@ -39,6 +39,9 @@ object Similar {
     /** Самые конкретные теги ролика (без общих), по порядку сайта. */
     private fun specific(g: Gif) = g.tags.filter { !it.startsWith("r/") && !Api.isGeneric(it) && it.length > 1 }.distinct().take(6)
 
+    /** Есть ли уже готовый результат для ролика. */
+    fun isCached(id: String) = cache.get(id) != null
+
     /** Похожие (в фоне; результат кэшируется на ролик). */
     fun find(g: Gif): List<Gif> {
         cache.get(g.id)?.let { return it }

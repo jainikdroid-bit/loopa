@@ -42,4 +42,12 @@ class DeviceTierTest {
         assertEquals(listOf(30, 50, 60), listOf(l.warmupTicks, m.warmupTicks, h.warmupTicks))
         assertTrue(l.thinLinks && !m.thinLinks && !h.thinLinks)
     }
+
+    @Test fun `превью всего - больше аппаратных, кроме слабого телефона`() {
+        assertEquals(3, DeviceTier.previewTotal(Tier.LOW))
+        assertEquals(6, DeviceTier.previewTotal(Tier.MID))
+        assertEquals(8, DeviceTier.previewTotal(Tier.HIGH))
+        // аппаратных декодеров 4 — аппаратных превью 2, остальные 6 — программные
+        assertEquals(2, DeviceTier.previewLimit(Tier.HIGH, 4))
+    }
 }

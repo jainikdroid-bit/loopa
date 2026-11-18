@@ -99,6 +99,7 @@ object Interests {
 
     @Synchronized fun init(ctx: Context) {
         if (::file.isInitialized) return
+        TasteModel.init(ctx)
         file = File(ctx.filesDir, "interests.json")
         data = runCatching { JSONObject(file.readText()) }.getOrDefault(JSONObject())
         net = null
@@ -130,7 +131,7 @@ object Interests {
         .map { it.trim('\'') }.filter { it.length in 3..20 && it !in STOP }.toSet()
 
     /** Сайт ролика как узел сети: сторонние — свой id, остальные — «reddit» или «redgifs». */
-    private fun siteOf(g: Gif) = g.site.ifEmpty { if (g.reddit) "reddit" else "redgifs" }
+    internal fun siteOf(g: Gif) = g.site.ifEmpty { if (g.reddit) "reddit" else "redgifs" }
 
     private fun features(g: Gif): Map<String, Collection<String>> = mapOf(
         "tag" to g.tags.filter { !it.startsWith("r/") }.map(::key).distinct(),
@@ -222,10 +223,26 @@ object Interests {
         }
     }
 
-    fun like(g: Gif, on: Boolean) = bump(g, if (on) 5.0 else -5.0)
-    fun download(g: Gif) = bump(g, 4.0)
+    /** Ролики, показанные в сетке «Для вас» и учтённые как «не открыл» (раз на ролик, пока приложение живо). */
+    private val impressed = LinkedHashSet<String>()
+
+    /**
+     * Ролик долго был на экране сетки «Для вас» целиком и не открыт — слабый отрицательный пример для модели вкуса
+     * ([TasteModel.IMPRESSION_WEIGHT]), чтобы она училась не только на плюсах. Не чаще раза на ролик; открытые и
+     * просмотренные (есть в watchSec/seen) не считаем.
+     */
+    fun impression(g: Gif) {
+        val fresh = synchronized(this) {
+            if (g.id in watchSec || g.id in seen || !impressed.add(g.id)) false
+            else { while (impressed.size > 3000) impressed.remove(impressed.first()); true }
+        }
+        if (fresh) TasteModel.learnImpression(g)
+    }
+
+    fun like(g: Gif, on: Boolean) { bump(g, if (on) 5.0 else -5.0); TasteModel.learn(g, if (on) 1f else 0f, if (on) 3.0 else 2.0) }
+    fun download(g: Gif) { bump(g, 4.0); TasteModel.learn(g, 1f, 3.0) }
     /** Лайк, поставленный на Reddit раньше (импорт): слабее свежего — вкус мог измениться. */
-    fun imported(g: Gif) = bump(g, 2.5)
+    fun imported(g: Gif) { bump(g, 2.5); TasteModel.learn(g, 1f, 1.5) }
 
     /**
      * Сколько смотрели: sec — секунды на экране за этот заход. Они копятся по ролику ([watchSec]); при каждом уходе
@@ -249,8 +266,11 @@ object Interests {
         val gain = Ranker.watchWeight(after) - Ranker.watchWeight(before)
         when {
             // пропуск того, что сеть считала «во вкусе», — её ошибка: штраф до двух раз сильнее (только первый просмотр)
-            before == 0.0 && sec < 2.5 && g.duration > 6 -> bump(g, -0.4 * TagNet.surprise(score(g) * Ranker.norm(g.tags.size)))
-            gain > 0.0 -> bump(g, gain)
+            before == 0.0 && sec < 2.5 && g.duration > 6 -> {
+                val surprise = TagNet.surprise(score(g) * Ranker.norm(g.tags.size))
+                bump(g, -0.4 * surprise); TasteModel.learn(g, 0f, surprise)
+            }
+            gain > 0.0 -> { bump(g, gain); TasteModel.learn(g, 1f, gain) }
             else -> if (sec >= 2) save()
         }
     }
@@ -264,13 +284,27 @@ object Interests {
         lastQuery = ws.filter { !Api.isGeneric(it) }.take(4); lastQueryAt = System.currentTimeMillis()
         lastQueryFull = q.trim().lowercase().takeIf { it.length >= 3 }
         lastQueryFull?.let { add("q", it, 3.0) }
+        ws.take(4).forEach { TasteModel.learnFeature("tag:$it") }
         save()
     }
-    fun openTag(t: String) = synchronized(this) { add("tag", key(t), 3.0); lastQuery = listOf(key(t)).filter { it.isNotEmpty() }; lastQueryFull = null; lastQueryAt = System.currentTimeMillis(); save() }
-    fun openSub(s: String) = synchronized(this) { s.split("+").filter { it.isNotBlank() && !it.startsWith("u/") }.forEach { add("sub", it.lowercase(), 3.0) }; save() }
+    fun openTag(t: String) = synchronized(this) { add("tag", key(t), 3.0); TasteModel.learnFeature("tag:" + key(t)); lastQuery = listOf(key(t)).filter { it.isNotEmpty() }; lastQueryFull = null; lastQueryAt = System.currentTimeMillis(); save() }
+    fun openSub(s: String) = synchronized(this) { s.split("+").filter { it.isNotBlank() && !it.startsWith("u/") }.forEach { add("sub", it.lowercase(), 3.0); TasteModel.learnFeature("sub:" + it.lowercase()) }; save() }
+
+    /**
+     * Открыта лента автора (в сетке, в плеере, из графа): +3 автору, связь «автор — сайт» и сигнал модели вкуса по
+     * признаку «user:имя». site — сайт ролика («redgifs», «reddit», «erome»…), пусто — не знаем.
+     */
+    fun openAuthor(user: String, site: String) = synchronized(this) {
+        val u = user.trim().lowercase().removePrefix("u/")
+        if (u.isEmpty() || u == "[deleted]") return@synchronized
+        add("user", u, 3.0)
+        if (site.isNotBlank()) TagNet.linkKey("user:$u", "site:${site.trim().lowercase()}")?.let { add("link", it, 3.0 * LINK) }
+        TasteModel.learnFeature("user:$u")
+        save()
+    }
 
     fun reset() = synchronized(this) {
-        AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); data.put("pin", JSONObject()); seen.clear(); watchSec.clear(); net = null; lastQuery = emptyList(); lastQueryFull = null; save()
+        AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); data.put("pin", JSONObject()); seen.clear(); watchSec.clear(); impressed.clear(); net = null; lastQuery = emptyList(); lastQueryFull = null; TasteModel.reset(); save()
     }
 
     // ---- использование ----
@@ -279,6 +313,15 @@ object Interests {
 
     /** Насколько ролик в твоём вкусе (0 — ничего не известно); отрицательные — «пропускал такое». */
     fun score(g: Gif): Double = synchronized(this) {
+        val a = TasteModel.alpha()
+        val own = netScore(g)
+        // сеть вкуса (веса осей и соседей) плюс α·добавка факторизационной машины (сочетания признаков); без примеров — одна сеть
+        // (без умножения сети на 1−α: добавка центрирована по недавним роликам, сеть не занижаем)
+        if (a == 0.0) own else own + a * TasteModel.bonus(g)
+    }
+
+    /** Оценка одной только сети вкуса ([TagNet] по осям), без модели [TasteModel]. */
+    private fun netScore(g: Gif): Double {
         var s = 0.0
         val act = activation()
         features(g).forEach { (axis, terms) ->
@@ -294,7 +337,7 @@ object Interests {
                 }
             }
         }
-        s
+        return s
     }
 
     /** Связи сети: сочетания тегов («a,b» → «tag:a|tag:b») и связи между типами; вес — действующий. */
@@ -471,6 +514,7 @@ object Interests {
         val own = top("tag", 12).map { it.first }.toSet()
         topNet(30).map { it.first }.filter { it !in own }.take(8).takeIf { it.isNotEmpty() }?.let { append(tr("Рядом с любимыми")).append(": ").append(it.joinToString(", ") { "#$it" }).append("\n\n") }
         line(tr("Сочетания"), "pair", "#"); line(tr("Запросы"), "q", ""); line(tr("Слова"), "kw", ""); line(tr("Сабреддиты"), "sub", "r/"); line(tr("Авторы"), "user", "")
+        TasteModel.summary().takeIf { it.isNotEmpty() }?.let { append(it).append("\n\n") }
         if (isEmpty()) append(tr("Пока пусто: лайкайте, досматривайте и ищите — «Для вас» подстроится."))
     }.trim()
 

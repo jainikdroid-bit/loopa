@@ -54,4 +54,43 @@ object DeviceTier {
 
     fun lowRam(ctx: Context) = (ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).isLowRamDevice
     fun is64() = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
+
+    /**
+     * Сколько живых превью в сетке тянет железо: по классу (слабый 3, средний 5, мощный 8) и по числу аппаратных
+     * декодеров H.264 [avc] (0 — не узнали) за вычетом [PLAYER_DECODERS] на плеер. Не меньше 1.
+     */
+    fun previewLimit(t: Tier, avc: Int): Int {
+        val byTier = when (t) { Tier.LOW -> 3; Tier.MID -> 5; Tier.HIGH -> 8 }
+        return if (avc > 0) minOf(byTier, (avc - PLAYER_DECODERS).coerceAtLeast(1)) else byTier
+    }
+    const val PLAYER_DECODERS = 2
+
+    /**
+     * Сколько превью играет разом всего: аппаратных хватает на [previewLimit], остальные — с программным декодером
+     * (SD-превью ему по силам). На слабом телефоне программный декодер тяжёл для процессора — там не больше 3.
+     */
+    fun previewTotal(t: Tier): Int = when (t) { Tier.LOW -> 3; Tier.MID -> 6; Tier.HIGH -> 8 }
+
+    @Volatile private var avcCache = -1
+
+    /** Значение [avcInstances], если фоновый опрос уже закончился, иначе 0 («не узнали» — лимит берётся по классу телефона). */
+    fun avcInstancesCached(): Int = avcCache.coerceAtLeast(0)
+
+    /** Один раз в фоне опросить декодеры ([avcInstances], MediaCodecList небыстр): вызывать при старте приложения. */
+    fun warmAvc() {
+        if (avcCache >= 0) return
+        kotlin.concurrent.thread(name = "avc-probe", isDaemon = true) { if (avcCache < 0) avcCache = avcInstances() }
+    }
+
+    /**
+     * Сколько экземпляров аппаратного декодера H.264 даёт телефон: наибольшее из аппаратных декодеров (у нишевого —
+     * например, для защищённого или специального видео — предел мал, минимум дал бы ложную единицу). 0 — не узнали.
+     */
+    fun avcInstances(): Int = runCatching {
+        val hw = android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos.filter { ci ->
+            !ci.isEncoder && !ci.name.endsWith(".secure") && ci.supportedTypes.any { it.equals("video/avc", true) } &&
+                if (Build.VERSION.SDK_INT >= 29) ci.isHardwareAccelerated else !ci.name.startsWith("OMX.google.") && !ci.name.startsWith("c2.android.")
+        }
+        hw.maxOfOrNull { it.getCapabilitiesForType("video/avc").maxSupportedInstances } ?: 0
+    }.getOrDefault(0)
 }

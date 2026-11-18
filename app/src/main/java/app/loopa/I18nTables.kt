@@ -264,6 +264,10 @@ object I18nTables {
         "Красная" to "Red",
         "Фиолетовая" to "Violet",
         "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Pinned: stays as set; Reset returns the learned weight",
+        "Модель вкуса, примеров: %s" to "Taste model, examples: %s",
+        "Сильные сочетания модели" to "Strongest combinations",
+        "Ищу…" to "Searching…",
+        "Загружаю…" to "Loading…",
     ) }
     private val ES by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Ya descargado: Descargas/Loopa/%s",
@@ -526,6 +530,10 @@ object I18nTables {
         "Красная" to "Rojo",
         "Фиолетовая" to "Violeta",
         "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Fijado: no cambia solo; Restablecer devuelve el peso aprendido",
+        "Модель вкуса, примеров: %s" to "Modelo de gusto, ejemplos: %s",
+        "Сильные сочетания модели" to "Combinaciones más fuertes",
+        "Ищу…" to "Buscando…",
+        "Загружаю…" to "Cargando…",
     ) }
     private val PT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Já baixado: Downloads/Loopa/%s",
@@ -788,6 +796,10 @@ object I18nTables {
         "Красная" to "Vermelho",
         "Фиолетовая" to "Violeta",
         "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Fixado: não muda sozinho; Redefinir devolve o peso aprendido",
+        "Модель вкуса, примеров: %s" to "Modelo de gosto, exemplos: %s",
+        "Сильные сочетания модели" to "Combinações mais fortes",
+        "Ищу…" to "Buscando…",
+        "Загружаю…" to "Carregando…",
     ) }
     private val DE by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Bereits geladen: Downloads/Loopa/%s",
@@ -1050,6 +1062,10 @@ object I18nTables {
         "Красная" to "Rot",
         "Фиолетовая" to "Violett",
         "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Fixiert: ändert sich nicht von selbst; Zurücksetzen bringt das gelernte Gewicht zurück",
+        "Модель вкуса, примеров: %s" to "Geschmacksmodell, Beispiele: %s",
+        "Сильные сочетания модели" to "Stärkste Kombinationen",
+        "Ищу…" to "Suche läuft…",
+        "Загружаю…" to "Lade…",
     ) }
     private val FR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1312,6 +1328,10 @@ object I18nTables {
         "Красная" to "Rouge",
         "Фиолетовая" to "Violet",
         "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Épinglé : ne change pas tout seul ; Réinitialiser rétablit le poids appris",
+        "Модель вкуса, примеров: %s" to "Modèle de goût, exemples : %s",
+        "Сильные сочетания модели" to "Combinaisons les plus fortes",
+        "Ищу…" to "Recherche…",
+        "Загружаю…" to "Chargement…",
     ) }
     private val IT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Già scaricato: Download/Loopa/%s",
@@ -1574,6 +1594,10 @@ object I18nTables {
         "Красная" to "Rosso",
         "Фиолетовая" to "Viola",
         "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Bloccato: non cambia da solo; Ripristina riporta il peso appreso",
+        "Модель вкуса, примеров: %s" to "Modello di gusto, esempi: %s",
+        "Сильные сочетания модели" to "Combinazioni più forti",
+        "Ищу…" to "Ricerca…",
+        "Загружаю…" to "Caricamento…",
     ) }
     private val TR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -1836,6 +1860,10 @@ object I18nTables {
         "Красная" to "Kırmızı",
         "Фиолетовая" to "Mor",
         "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Sabitlendi: kendiliğinden değişmez; Sıfırla öğrenilen ağırlığı geri getirir",
+        "Модель вкуса, примеров: %s" to "Zevk modeli, örnek: %s",
+        "Сильные сочетания модели" to "En güçlü kombinasyonlar",
+        "Ищу…" to "Aranıyor…",
+        "Загружаю…" to "Yükleniyor…",
     ) }
     private val PL by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Już pobrano: Pobrane/Loopa/%s",
@@ -2098,6 +2126,10 @@ object I18nTables {
         "Красная" to "Czerwony",
         "Фиолетовая" to "Fioletowy",
         "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Przypięty: nie zmienia się sam; Reset przywraca wyuczoną wagę",
+        "Модель вкуса, примеров: %s" to "Model gustu, przykładów: %s",
+        "Сильные сочетания модели" to "Najsilniejsze kombinacje",
+        "Ищу…" to "Szukam…",
+        "Загружаю…" to "Ładuję…",
     ) }
     private val UK by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Уже завантажено: Завантаження/Loopa/%s",
@@ -2360,6 +2392,10 @@ object I18nTables {
         "Красная" to "Червона",
         "Фиолетовая" to "Фіолетова",
         "Закреплён: не меняется сам; Сбросить — вернуть выученный" to "Закріплено: сам не змінюється; Скинути — повернути вивчену вагу",
+        "Модель вкуса, примеров: %s" to "Модель смаку, прикладів: %s",
+        "Сильные сочетания модели" to "Найсильніші поєднання",
+        "Ищу…" to "Шукаю…",
+        "Загружаю…" to "Завантажую…",
     ) }
 
     fun of(code: String): Map<String, String> = when (code) {
