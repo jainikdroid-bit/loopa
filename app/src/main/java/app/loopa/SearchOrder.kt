@@ -9,8 +9,6 @@ object Relevance {
     private val ENDINGS = setOf("s", "es", "ed", "er", "ers", "ing", "ings", "y", "ies", "d")
     private val SPLIT = Regex("[^\\p{L}0-9]+")
 
-    /** Синонимы показываем, пока точных (уровень ≥ 3) набралось меньше этого числа. */
-    const val SYNONYM_UNTIL = 20
 
     fun norm(s: String) = s.lowercase().replace(Regex("[^\\p{L}0-9]"), "")
     private fun stem(w: String) = if (w.length > 4 && w.endsWith("s")) w.dropLast(1) else w
@@ -22,12 +20,13 @@ object Relevance {
      *    целым словом или с обычным окончанием (twin, twins, twinning);
      *  - 16+ — фраза без окончания; однословный запрос — слово в названии/описании/сабреддите (так же, целым словом);
      *  - 12+ — многословный: все слова в одном теге;
-     *  - 7…9 — совпал только синоним («doorknob» на «knob»): [level] 2, показывается, лишь пока точных мало
-     *    ([SYNONYM_UNTIL]);
-     *  - 6+ — многословный: все слова, но в разных тегах/местах («Standing Doggy» + «Dildo» — уже другое);
+     *  - 9+ — многословный: все слова, но в разных тегах/местах («Standing Doggy» + «Dildo» — уже другое);
+     *  дальше — «похожее», в конце выдачи (сначала точное, потом всё менее строгое):
+     *  - 4…5 — совпал только синоним («doorknob» на «knob»);
+     *  - 1…3 — однословный: совпадение по корню (3) или внутри другого слова (2); многословный: совпала хотя бы
+     *    половина слов (1…3 — по доле совпавших);
      *  - дробная часть (до 0,9) — тай-брейк внутри уровня: сколько слов в тегах/тексте и сколько синонимов.
-     *  0 — мимо, в выдачу не идёт: однословный — совпадение только по корню (+1), не целым словом; многословный — не все
-     *  слова (для любого источника; пост Reddit с частью слов остаётся ниже всех, 0,1…0,9).
+     *  0 — мимо, в выдачу не идёт (пост Reddit с частью слов — 0,1…0,9, ниже всех).
      */
     fun score(g: Gif, q: String, alias: List<String>, synonyms: List<String>): Double {
         val words = Api.words(q).map(::stem).filter { it.length >= 2 }
@@ -54,13 +53,20 @@ object Relevance {
         var base = 0.0
         var part = 0.0
         var found = 0
+        var similar = 0.0
         when {
             // запрос не латиницей — по подстроке
             words.isEmpty() -> if (phrase.length >= 4 && all.contains(phrase)) base = 20.0
             words.size == 1 -> {
                 val w = words[0]
-                // целым словом или с обычным окончанием; по корню и внутри другого слова — мимо
-                when { inTags(w) -> { base = 20.0; part = 3.0 }; inText(w) -> { base = 16.0; part = 2.0 } }
+                // целым словом или с обычным окончанием — точное; по корню и внутри другого слова — похожее (в конце)
+                val root = w.replace(Regex("(ers|er|ing|es|y)$"), "").takeIf { it.length >= 4 }
+                when {
+                    inTags(w) -> { base = 20.0; part = 3.0 }
+                    inText(w) -> { base = 16.0; part = 2.0 }
+                    root != null && root != w && (inTags(root) || inText(root)) -> similar = 3.0
+                    w.length >= 4 && all.contains(w) -> similar = 2.0
+                }
             }
             else -> {
                 val stemP = phrase.replace(Regex("(ers|er|ing|es|s)$"), "")
@@ -76,24 +82,32 @@ object Relevance {
                     phrase.length >= 4 && all.contains(phrase) -> 20.0
                     stemP.length >= 5 && all.contains(stemP) -> 16.0
                     tagTok.any { ts -> words.all { w -> ts.any { tokMatch(it, w) } } } -> 12.0
-                    found == words.size -> 6.0
+                    found == words.size -> 9.0
                     else -> 0.0
                 }
+                // не все слова, но хотя бы половина — похожее: 1…3 по доле совпавших
+                if (base == 0.0 && found * 2 >= words.size && found > 0) similar = 1.0 + 2.0 * found / words.size
             }
         }
         if (base > 0) return base + minOf(0.9, part * 0.1 + minOf(0.3, synHits * 0.1))
-        // совпал только синоним («doorknob» на запрос «knob») — тоже по теме, но ниже точных
-        if (synHits > 0) return 7.0 + minOf(2, synHits - 1)
+        // совпал только синоним («doorknob» на запрос «knob») — похожее, сразу после точных
+        if (synHits > 0) return 4.0 + minOf(1.9, (synHits - 1) * 0.5)
+        if (similar > 0) return minOf(3.9, similar + minOf(0.9, part * 0.1))
         // пост Reddit (сабреддит найден по запросу), часть слов многословного запроса — ниже всех, но остаётся
         if (g.reddit && words.size >= 2 && part > 0) return minOf(0.9, part * 0.1)
         return 0.0
     }
 
-    /** Уровень оценки (для [order]): 4 — фраза/слово в теге, 3 — все слова в одном теге, 2 — синоним, 1 — все слова врозь, 0 — прочее. */
-    fun level(s: Double) = when { s >= 16 -> 4; s >= 12 -> 3; s >= 7 -> 2; s >= 6 -> 1; else -> 0 }
+    /**
+     * Уровень оценки (для [order]): 6 — фраза/слово в теге или названии, 5 — все слова в одном теге, 4 — все слова врозь
+     * (это точные); 3 — синоним, 2 — похожее (по корню, внутри слова, часть слов), 1 — пост Reddit с частью слов.
+     */
+    fun level(s: Double) = when { s >= 16 -> 6; s >= 12 -> 5; s >= 9 -> 4; s >= 4 -> 3; s >= 1 -> 2; s > 0 -> 1; else -> 0 }
+    /** Точное совпадение (уровень ≥ 4). */
+    fun exact(s: Double) = level(s) >= 4
 
-    /** Показывать ролик: оценка > 0; совпадение только по синониму — пока точных (уровень ≥ 3) набралось меньше [SYNONYM_UNTIL]. */
-    fun visible(s: Double, strong: Int) = s > 0 && (level(s) != 2 || strong < SYNONYM_UNTIL)
+    /** Показывать ролик: всё, что хоть как-то по теме; похожее — ниже точного за счёт уровня ([order]). */
+    fun visible(s: Double) = s > 0
 
     /** Источник ролика для чередования: сторонний сайт, Reddit или RedGIFs. */
     fun source(g: Gif) = if (g.ext) g.site else if (g.reddit) "reddit" else "redgifs"

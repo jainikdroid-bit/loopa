@@ -135,7 +135,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.23**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.24**.
 
 | Version | What's new |
 |---|---|
@@ -160,6 +160,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.21 | Interest graph: a round 🕸️ button on the tile screen; node labels are tappable (a tap opens the feed, neighbours in the panel have a “↗” icon); more links: the graph shows every link between its nodes, the network learns combinations from 12 tags per clip (generic tags are linked with specific ones too, but weaker), title words with 6 tags; the “My weight” slider now sets an absolute node weight (pinned, does not decay; “Reset” returns the learned one), old multipliers are converted automatically |
 | 1.22 | All sources are on by default (including the welcome screen); for existing installs they are switched on once on update — turn any off in Settings → Sources |
 | 1.23 | Stricter search with all sites mixed together: one score for every source, a single word must match as a whole word, several words must all match, synonym-only matches appear only while exact ones are few; the feed no longer jumps while loading: new items go only below what is already shown |
+| 1.24 | Relevance search: exact matches first, then similar ones (synonyms, then root, inside-a-word and partial multi-word matches) instead of cutting the results short |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |

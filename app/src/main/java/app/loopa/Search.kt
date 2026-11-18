@@ -107,7 +107,7 @@ object Search {
             val scored = got.map { it to score(it) }
             // теги, частые у роликов прямо по теме (оценка ≥ 8), — тоже искать (у «midget» — «Little People»)
             if (p == 1 && !relDone) {
-                scored.filter { Relevance.level(it.second) >= 3 }.forEach { (g, _) -> g.tags.forEach { t -> relCnt[t] = (relCnt[t] ?: 0) + 1 } }
+                scored.filter { Relevance.level(it.second) >= 5 }.forEach { (g, _) -> g.tags.forEach { t -> relCnt[t] = (relCnt[t] ?: 0) + 1 } }
                 val rel = relCnt.filter { (t, c) -> c >= 2 && t !in tags && !Api.isGeneric(t) && !Hide.hidden(Gif("", "", "", "", 0, 0, 0.0, "", listOf(t), false, 0, 0)) }
                     .entries.sortedByDescending { it.value }.map { it.key }.take(3)
                 if (rel.size >= 2 || i >= 3 && rel.isNotEmpty()) {
@@ -118,9 +118,9 @@ object Search {
                 }
             }
             exact += scored.count { it.second >= 6 }
-            strong += scored.count { Relevance.level(it.second) >= 3 }
-            // мимо (0) не показываем; совпавшие только по синониму — пока точных меньше [Relevance.SYNONYM_UNTIL]
-            part(scored.filter { Relevance.visible(it.second, strong) })
+            strong += scored.count { Relevance.exact(it.second) }
+            // мимо (0) не показываем; похожее (синонимы, корень, часть слов) — показываем, но ниже точного
+            part(scored.filter { Relevance.visible(it.second) })
         }
         android.util.Log.i("Loopa", "поиск «$q» p$p: $total роликов, по теме $exact, синонимы $synonyms, теги $tags")
         return total

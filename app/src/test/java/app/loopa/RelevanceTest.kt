@@ -12,8 +12,8 @@ class RelevanceTest {
     private fun score(g: Gif, q: String, syn: List<String> = emptyList(), alias: List<String> = emptyList()) = Relevance.score(g, q, alias, syn)
 
     @Test fun `однословный запрос - слово в теге целым словом или с окончанием`() {
-        assertEquals(4, Relevance.level(score(gif("a", tags = listOf("Twin")), "twin")))
-        assertEquals(4, Relevance.level(score(gif("b", tags = listOf("Twins")), "twin")))
+        assertEquals(6, Relevance.level(score(gif("a", tags = listOf("Twin")), "twin")))
+        assertEquals(6, Relevance.level(score(gif("b", tags = listOf("Twins")), "twin")))
     }
 
     @Test fun `однословный запрос - слово в названии ниже тега но показывается`() {
@@ -22,10 +22,16 @@ class RelevanceTest {
         assertTrue(inTitle > 0 && inTitle < inTag)
     }
 
-    @Test fun `однословный запрос - совпадение только по корню мимо`() {
-        // «twink» — другое слово; подстрока внутри слова — тоже мимо
-        assertEquals(0.0, score(gif("a", tags = listOf("twink")), "twin"), 0.0)
-        assertEquals(0.0, score(gif("b", title = "doorknob review"), "knob"), 0.0)
+    @Test fun `однословный запрос - по корню и внутри слова похожее, ниже точного`() {
+        // «twink» и «doorknob» — не то же слово: в выдаче, но в конце (уровень «похожее»)
+        val inside = score(gif("a", tags = listOf("twink")), "twin")
+        val root = score(gif("c", tags = listOf("fist")), "fisting")
+        assertEquals(2, Relevance.level(inside))
+        assertEquals(2, Relevance.level(root))
+        assertTrue(root > inside)
+        assertEquals(2, Relevance.level(score(gif("b", title = "doorknob review"), "knob")))
+        assertTrue(score(gif("d", title = "knob"), "knob") > root && score(gif("f", tags = listOf("fisting")), "fisting") > root)
+        assertEquals(0.0, score(gif("e", tags = listOf("cat")), "knob"), 0.0)
     }
 
     @Test fun `одна и та же оценка для любого источника`() {
@@ -38,37 +44,40 @@ class RelevanceTest {
         assertEquals(score(gif("t1", title = "Standing dildo ride"), "standing dildo"), score(gif("t2", title = "Standing dildo ride", site = "xvideos"), "standing dildo"), 0.0)
     }
 
-    @Test fun `многословный запрос - не все слова мимо для любого источника`() {
+    @Test fun `многословный запрос - не все слова только похожее для любого источника`() {
         for (site in listOf("", "xvideos", "pornhub", "erome")) {
-            assertEquals(site, 0.0, score(gif("a", tags = listOf("bondage"), title = "bondage fun", site = site), "bondage gear"), 0.0)
+            assertEquals(site, 2, Relevance.level(score(gif("a", tags = listOf("bondage"), title = "bondage fun", site = site), "bondage gear")))
         }
+        // меньше половины слов — мимо
+        assertEquals(0.0, score(gif("z", tags = listOf("red")), "red latex bondage gear"), 0.0)
         assertTrue(score(gif("b", tags = listOf("Bondage Gear")), "bondage gear") >= 12)
     }
 
     @Test fun `многословный запрос - все слова врозь ниже всех слов в одном теге`() {
         val oneTag = score(gif("a", tags = listOf("Standing Dildo")), "dildo standing")
         val apart = score(gif("b", tags = listOf("Standing Doggy", "Dildo")), "dildo standing")
-        assertTrue(oneTag >= 12 && apart in 6.0..7.0)
-        assertEquals(3, Relevance.level(oneTag))
-        assertEquals(1, Relevance.level(apart))
+        assertTrue(oneTag >= 12 && apart in 9.0..10.0)
+        assertEquals(5, Relevance.level(oneTag))
+        assertEquals(4, Relevance.level(apart))
+        assertTrue(Relevance.exact(apart))
     }
 
-    @Test fun `пост Reddit с частью слов остаётся ниже всех`() {
-        val g = gif("r", title = "bondage party", sub = "bondage")
-        val s = score(g, "bondage gear")
-        assertTrue(s > 0 && s < 1)
-        assertEquals(0, Relevance.level(s))
+    @Test fun `часть слов ниже синонима, синоним ниже точного`() {
+        val partial = score(gif("r", title = "bondage party", sub = "bondage"), "bondage gear")
+        val syn = score(gif("s", title = "harness ride"), "bondage gear", syn = listOf("harness"))
+        val exact = score(gif("e", tags = listOf("bondage", "gear")), "bondage gear")
+        assertTrue(partial in 1.0..4.0 && syn in 4.0..6.0 && exact >= 9)
     }
 
-    @Test fun `синоним показывается пока точных мало`() {
-        val g = gif("a", title = "doorknob ride")
-        val s = score(g, "knob", syn = listOf("doorknob"))
-        assertEquals(2, Relevance.level(s))
-        assertTrue(Relevance.visible(s, strong = 5))
-        assertFalse(Relevance.visible(s, strong = Relevance.SYNONYM_UNTIL))
-        // точное показывается всегда
-        assertTrue(Relevance.visible(score(gif("b", tags = listOf("knob")), "knob"), strong = 500))
-        assertFalse(Relevance.visible(0.0, strong = 0))
+    @Test fun `синоним показывается всегда, но после точных`() {
+        val s = score(gif("a", title = "doorknob ride"), "knob", syn = listOf("doorknob"))
+        assertEquals(3, Relevance.level(s))
+        assertTrue(Relevance.visible(s))
+        assertFalse(Relevance.exact(s))
+        assertFalse(Relevance.visible(0.0))
+        val top = gif("t", tags = listOf("knob")); val near = gif("n", title = "doorknob ride", site = "xvideos")
+        val out = Relevance.order(listOf(near, top), ranks(near to s, top to score(top, "knob"))).map { it.id }
+        assertEquals(listOf("t", "n"), out)
     }
 
     @Test fun `запрос не латиницей - по фразе целиком`() {
