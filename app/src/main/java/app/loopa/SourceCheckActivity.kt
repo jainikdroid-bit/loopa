@@ -45,7 +45,8 @@ class SourceCheckActivity : Activity() {
         super.onCreate(savedInstanceState)
         I18n.init(this); Theme.init(this); Net.init(this); ForYou.init(this)
         Theme.bars(this)
-        showAll = savedInstanceState?.getBoolean("all") ?: false
+        // из Настроек — сразу все источники с состоянием; из «!» — только требующие внимания
+        showAll = savedInstanceState?.getBoolean("all") ?: intent.getBooleanExtra("all", false)
         root = makeRoot()
         setContentView(root)
         buildList()
@@ -211,9 +212,21 @@ class SourceCheckActivity : Activity() {
 
     companion object {
         /** Короткая подпись состояния: «капча», «возрастное окно», «доступ закрыт», «в порядке», «временная ошибка». */
-        fun stateText(st: SourceStatus): String = when (st.state) {
-            SourceState.OK -> tr("в порядке")
-            SourceState.ERROR -> tr("временная ошибка")
+        fun stateText(st: SourceStatus): String = when {
+            st.at == 0L && st.state == SourceState.OK -> tr("ещё не проверялся")
+            st.state == SourceState.OK -> "✓ " + tr("работает") + ago(st.at)
+            st.state == SourceState.ERROR -> "✕ " + tr("временная ошибка") + ago(st.at)
+            else -> stateNeeds(st)
+        }
+
+        /** «· 5 мин назад» — когда источник последний раз отвечал (или сломался). */
+        private fun ago(at: Long): String {
+            val m = ((System.currentTimeMillis() - at) / 60_000).coerceAtLeast(0)
+            return " · " + when { m < 1 -> tr("только что"); m < 60 -> tr("%d мин назад", m.toInt()); else -> tr("%d ч назад", (m / 60).toInt()) }
+        }
+
+        private fun stateNeeds(st: SourceStatus): String = when (st.state) {
+            SourceState.OK, SourceState.ERROR -> "" 
             SourceState.NEEDS_ACTION -> "⚠ " + when (st.reason) {
                 BlockReason.CAPTCHA -> tr("капча")
                 BlockReason.AGE_GATE -> tr("возрастное окно")

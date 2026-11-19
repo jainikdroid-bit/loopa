@@ -300,7 +300,14 @@
   "Удалить",
   "Кэш и сохранённые ролики вместе не больше этого размера",
   "Не удалось сохранить в папку: %s",
-  "Выберите другую папку или освободите место"
+  "Выберите другую папку или освободите место",
+  "ещё не проверялся",
+  "работает",
+  "только что",
+  "%d мин назад",
+  "%d ч назад",
+  "Проверка источников",
+  "Состояние каждого сайта; пройти капчу или возрастное окно вручную"
  ],
  "en": [
   "Already downloaded: Downloads/Loopa/%s",
@@ -602,7 +609,14 @@
   "Delete",
   "Cache and saved videos together stay within this size",
   "Could not save to the folder: %s",
-  "Pick another folder or free up space"
+  "Pick another folder or free up space",
+  "not checked yet",
+  "working",
+  "just now",
+  "%d min ago",
+  "%d h ago",
+  "Source check",
+  "Status of each site; pass a captcha or age gate manually"
  ],
  "es": [
   "Ya descargado: Descargas/Loopa/%s",
@@ -904,7 +918,14 @@
   "Eliminar",
   "La caché y los vídeos guardados juntos no superan este tamaño",
   "No se pudo guardar en la carpeta: %s",
-  "Elige otra carpeta o libera espacio"
+  "Elige otra carpeta o libera espacio",
+  "aún sin comprobar",
+  "funciona",
+  "ahora mismo",
+  "hace %d min",
+  "hace %d h",
+  "Comprobar fuentes",
+  "Estado de cada sitio; pasar un captcha o aviso de edad a mano"
  ],
  "pt": [
   "Já baixado: Downloads/Loopa/%s",
@@ -1206,7 +1227,14 @@
   "Excluir",
   "O cache e os vídeos salvos juntos não passam deste tamanho",
   "Não foi possível salvar na pasta: %s",
-  "Escolha outra pasta ou libere espaço"
+  "Escolha outra pasta ou libere espaço",
+  "ainda não verificado",
+  "funciona",
+  "agora mesmo",
+  "há %d min",
+  "há %d h",
+  "Verificar fontes",
+  "Estado de cada site; passar captcha ou aviso de idade manualmente"
  ],
  "de": [
   "Bereits geladen: Downloads/Loopa/%s",
@@ -1508,7 +1536,14 @@
   "Löschen",
   "Cache und gespeicherte Videos zusammen bleiben unter dieser Größe",
   "Speichern im Ordner fehlgeschlagen: %s",
-  "Anderen Ordner wählen oder Speicher freigeben"
+  "Anderen Ordner wählen oder Speicher freigeben",
+  "noch nicht geprüft",
+  "funktioniert",
+  "gerade eben",
+  "vor %d Min.",
+  "vor %d Std.",
+  "Quellen prüfen",
+  "Status jeder Seite; Captcha oder Altersabfrage selbst bestehen"
  ],
  "fr": [
   "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1810,7 +1845,14 @@
   "Supprimer",
   "Le cache et les vidéos enregistrées réunis ne dépassent pas cette taille",
   "Impossible d’enregistrer dans le dossier : %s",
-  "Choisissez un autre dossier ou libérez de l’espace"
+  "Choisissez un autre dossier ou libérez de l’espace",
+  "pas encore vérifié",
+  "fonctionne",
+  "à l’instant",
+  "il y a %d min",
+  "il y a %d h",
+  "Vérifier les sources",
+  "État de chaque site ; passer un captcha ou une vérification d’âge à la main"
  ],
  "it": [
   "Già scaricato: Download/Loopa/%s",
@@ -2112,7 +2154,14 @@
   "Elimina",
   "Cache e video salvati insieme restano entro questa dimensione",
   "Impossibile salvare nella cartella: %s",
-  "Scegli un’altra cartella o libera spazio"
+  "Scegli un’altra cartella o libera spazio",
+  "non ancora verificato",
+  "funziona",
+  "proprio ora",
+  "%d min fa",
+  "%d h fa",
+  "Verifica fonti",
+  "Stato di ogni sito; superare a mano captcha o verifica dell’età"
  ],
  "tr": [
   "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -2414,7 +2463,14 @@
   "Sil",
   "Önbellek ve kayıtlı videolar birlikte bu boyutu aşmaz",
   "Klasöre kaydedilemedi: %s",
-  "Başka bir klasör seçin veya yer açın"
+  "Başka bir klasör seçin veya yer açın",
+  "henüz kontrol edilmedi",
+  "çalışıyor",
+  "az önce",
+  "%d dk önce",
+  "%d sa önce",
+  "Kaynak kontrolü",
+  "Her sitenin durumu; captcha veya yaş onayını elle geç"
  ],
  "pl": [
   "Już pobrano: Pobrane/Loopa/%s",
@@ -2716,7 +2772,14 @@
   "Usuń",
   "Pamięć podręczna i zapisane filmy razem mieszczą się w tym rozmiarze",
   "Nie udało się zapisać w folderze: %s",
-  "Wybierz inny folder lub zwolnij miejsce"
+  "Wybierz inny folder lub zwolnij miejsce",
+  "jeszcze nie sprawdzono",
+  "działa",
+  "przed chwilą",
+  "%d min temu",
+  "%d godz. temu",
+  "Sprawdzanie źródeł",
+  "Stan każdej strony; ręcznie przejdź captchę lub weryfikację wieku"
  ],
  "uk": [
   "Уже завантажено: Завантаження/Loopa/%s",
@@ -3018,6 +3081,13 @@
   "Видалити",
   "Кеш і збережені ролики разом не більші за цей розмір",
   "Не вдалося зберегти в папку: %s",
-  "Оберіть іншу папку або звільніть місце"
+  "Оберіть іншу папку або звільніть місце",
+  "ще не перевірявся",
+  "працює",
+  "щойно",
+  "%d хв тому",
+  "%d год тому",
+  "Перевірка джерел",
+  "Стан кожного сайту; пройти капчу або вікно віку вручну"
  ]
 }

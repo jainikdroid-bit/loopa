@@ -135,7 +135,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.29**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.30**.
 
 | Version | What's new |
 |---|---|
@@ -166,6 +166,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.27 | Site age gates (“I am 18”, “Enter”) in sign-in windows and the hidden browser are passed automatically: “age verified” cookies are set in advance, the rest is clicked for you. A source that returns a captcha, an age gate or blocks access no longer vanishes silently: a yellow “!” badge appears on the feed and opens “Sources need attention” — open the site in the built-in browser, pass the check and tap “Done”; afterwards the app’s requests to that site carry the browser’s cookies and User-Agent. The “needs a check” mark is also shown in Settings → Sources. The player seek bar is wider and thicker (52 dp touch zone, a nearby tap no longer pauses the video) and shows what is already loaded: the player buffer and the scattered cached chunks. Fully cached watched videos are moved into plain files in “Downloads/AdultSpace/cached videos” (or your own folder) and play from there; they are removed from the cache, so there is one copy, not two. Streams (Reddit, xHamster, FikFap) are remuxed into mp4 without re-encoding when all segments are cached (otherwise they stay in the cache) The saved-videos folder gets a `.nomedia` file (the gallery hides them); saved videos and the video cache share one cache limit — beyond it the least recently watched item among all of them is deleted. A tag tapped in the player searches all sources. Grid previews are three pieces: from 10 %, 50 % and 80 % of the clip (studio titles at the start are skipped), on slow networks too. |
 | 1.28 | Previews of Pornhub, YouPorn, RedTube and Tube8 clips show the three hottest moments from the site’s view statistics (peaks above neighbouring segments); other sites use pieces from 10/50/80 % |
 | 1.29 | Preview hot moments — one in each part of the clip (start 5–30 %, middle 35–65 %, end 70–95 %); a part without a clear peak uses 10/50/80 %: pieces never bunch up, so the story shows |
+| 1.30 | Settings → Sources → “Source check”: the status of every site (working / needs a check / temporary error, when it last answered) and a manual check, even without the “!” badge |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |

@@ -89,11 +89,16 @@ class SettingsActivity : Activity() {
 
     private fun sources() {
         caption(tr("Источники: «Для вас» и поиск"))
+        // всегда доступно, даже когда всё в порядке и значка «!» нет: состояние каждого сайта и проверка вручную
+        row(tr("Проверка источников"), tr("Состояние каждого сайта; пройти капчу или возрастное окно вручную")) {
+            startActivity(Intent(this, SourceCheckActivity::class.java).putExtra("all", true))
+        }
         toggle("RedGIFs", null, ForYou.useRg) { ForYou.useRg = it; sourcesChanged() }
         toggle("Reddit", null, ForYou.mixReddit) { ForYou.mixReddit = it; sourcesChanged() }
         Sources.ALL.forEach { s ->
             val warn = SourceHealth.status(s.id).state == SourceState.NEEDS_ACTION
-            toggle(s.title, if (warn) SourceCheckActivity.stateText(SourceHealth.status(s.id)) + " — " + tr("требует проверки") else null, ForYou.uses(s), subWarn = warn) { ForYou.setUses(s, it); sourcesChanged() }
+            val st = SourceCheckActivity.stateText(SourceHealth.status(s.id))
+            toggle(s.title, if (warn) st + " — " + tr("требует проверки") else st, ForYou.uses(s), subWarn = warn) { ForYou.setUses(s, it); sourcesChanged() }
         }
         caption(tr("Доля источника в «Для вас»"))
         val shares = (listOf(Triple("rg", "RedGIFs", ForYou.useRg), Triple("rd", "Reddit", ForYou.reddit)) +

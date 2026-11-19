@@ -116,6 +116,7 @@ object SourceHealth {
         states[id] = n
         // сохраняем и оповещаем, только если что-то изменилось (успехи идут постоянно)
         if (cur?.state == n.state && cur.reason == n.reason) return
+        android.util.Log.i("Loopa", "источник $id: ${cur?.state ?: "—"} → ${n.state}${n.reason?.let { " ($it)" }.orEmpty()}")
         app?.getSharedPreferences("loopa", Context.MODE_PRIVATE)?.edit()?.putString(PREFIX + id, encode(n))?.apply()
         ui.post { listeners.toList().forEach { it() } }
     }

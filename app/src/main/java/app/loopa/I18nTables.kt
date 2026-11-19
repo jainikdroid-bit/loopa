@@ -304,6 +304,13 @@ object I18nTables {
         "Кэш и сохранённые ролики вместе не больше этого размера" to "Cache and saved videos together stay within this size",
         "Не удалось сохранить в папку: %s" to "Could not save to the folder: %s",
         "Выберите другую папку или освободите место" to "Pick another folder or free up space",
+        "ещё не проверялся" to "not checked yet",
+        "работает" to "working",
+        "только что" to "just now",
+        "%d мин назад" to "%d min ago",
+        "%d ч назад" to "%d h ago",
+        "Проверка источников" to "Source check",
+        "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Status of each site; pass a captcha or age gate manually",
     ) }
     private val ES by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Ya descargado: Descargas/Loopa/%s",
@@ -606,6 +613,13 @@ object I18nTables {
         "Кэш и сохранённые ролики вместе не больше этого размера" to "La caché y los vídeos guardados juntos no superan este tamaño",
         "Не удалось сохранить в папку: %s" to "No se pudo guardar en la carpeta: %s",
         "Выберите другую папку или освободите место" to "Elige otra carpeta o libera espacio",
+        "ещё не проверялся" to "aún sin comprobar",
+        "работает" to "funciona",
+        "только что" to "ahora mismo",
+        "%d мин назад" to "hace %d min",
+        "%d ч назад" to "hace %d h",
+        "Проверка источников" to "Comprobar fuentes",
+        "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Estado de cada sitio; pasar un captcha o aviso de edad a mano",
     ) }
     private val PT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Já baixado: Downloads/Loopa/%s",
@@ -908,6 +922,13 @@ object I18nTables {
         "Кэш и сохранённые ролики вместе не больше этого размера" to "O cache e os vídeos salvos juntos não passam deste tamanho",
         "Не удалось сохранить в папку: %s" to "Não foi possível salvar na pasta: %s",
         "Выберите другую папку или освободите место" to "Escolha outra pasta ou libere espaço",
+        "ещё не проверялся" to "ainda não verificado",
+        "работает" to "funciona",
+        "только что" to "agora mesmo",
+        "%d мин назад" to "há %d min",
+        "%d ч назад" to "há %d h",
+        "Проверка источников" to "Verificar fontes",
+        "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Estado de cada site; passar captcha ou aviso de idade manualmente",
     ) }
     private val DE by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Bereits geladen: Downloads/Loopa/%s",
@@ -1210,6 +1231,13 @@ object I18nTables {
         "Кэш и сохранённые ролики вместе не больше этого размера" to "Cache und gespeicherte Videos zusammen bleiben unter dieser Größe",
         "Не удалось сохранить в папку: %s" to "Speichern im Ordner fehlgeschlagen: %s",
         "Выберите другую папку или освободите место" to "Anderen Ordner wählen oder Speicher freigeben",
+        "ещё не проверялся" to "noch nicht geprüft",
+        "работает" to "funktioniert",
+        "только что" to "gerade eben",
+        "%d мин назад" to "vor %d Min.",
+        "%d ч назад" to "vor %d Std.",
+        "Проверка источников" to "Quellen prüfen",
+        "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Status jeder Seite; Captcha oder Altersabfrage selbst bestehen",
     ) }
     private val FR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1512,6 +1540,13 @@ object I18nTables {
         "Кэш и сохранённые ролики вместе не больше этого размера" to "Le cache et les vidéos enregistrées réunis ne dépassent pas cette taille",
         "Не удалось сохранить в папку: %s" to "Impossible d’enregistrer dans le dossier : %s",
         "Выберите другую папку или освободите место" to "Choisissez un autre dossier ou libérez de l’espace",
+        "ещё не проверялся" to "pas encore vérifié",
+        "работает" to "fonctionne",
+        "только что" to "à l’instant",
+        "%d мин назад" to "il y a %d min",
+        "%d ч назад" to "il y a %d h",
+        "Проверка источников" to "Vérifier les sources",
+        "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "État de chaque site ; passer un captcha ou une vérification d’âge à la main",
     ) }
     private val IT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Già scaricato: Download/Loopa/%s",
@@ -1814,6 +1849,13 @@ object I18nTables {
         "Кэш и сохранённые ролики вместе не больше этого размера" to "Cache e video salvati insieme restano entro questa dimensione",
         "Не удалось сохранить в папку: %s" to "Impossibile salvare nella cartella: %s",
         "Выберите другую папку или освободите место" to "Scegli un’altra cartella o libera spazio",
+        "ещё не проверялся" to "non ancora verificato",
+        "работает" to "funziona",
+        "только что" to "proprio ora",
+        "%d мин назад" to "%d min fa",
+        "%d ч назад" to "%d h fa",
+        "Проверка источников" to "Verifica fonti",
+        "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Stato di ogni sito; superare a mano captcha o verifica dell’età",
     ) }
     private val TR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -2116,6 +2158,13 @@ object I18nTables {
         "Кэш и сохранённые ролики вместе не больше этого размера" to "Önbellek ve kayıtlı videolar birlikte bu boyutu aşmaz",
         "Не удалось сохранить в папку: %s" to "Klasöre kaydedilemedi: %s",
         "Выберите другую папку или освободите место" to "Başka bir klasör seçin veya yer açın",
+        "ещё не проверялся" to "henüz kontrol edilmedi",
+        "работает" to "çalışıyor",
+        "только что" to "az önce",
+        "%d мин назад" to "%d dk önce",
+        "%d ч назад" to "%d sa önce",
+        "Проверка источников" to "Kaynak kontrolü",
+        "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Her sitenin durumu; captcha veya yaş onayını elle geç",
     ) }
     private val PL by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Już pobrano: Pobrane/Loopa/%s",
@@ -2418,6 +2467,13 @@ object I18nTables {
         "Кэш и сохранённые ролики вместе не больше этого размера" to "Pamięć podręczna i zapisane filmy razem mieszczą się w tym rozmiarze",
         "Не удалось сохранить в папку: %s" to "Nie udało się zapisać w folderze: %s",
         "Выберите другую папку или освободите место" to "Wybierz inny folder lub zwolnij miejsce",
+        "ещё не проверялся" to "jeszcze nie sprawdzono",
+        "работает" to "działa",
+        "только что" to "przed chwilą",
+        "%d мин назад" to "%d min temu",
+        "%d ч назад" to "%d godz. temu",
+        "Проверка источников" to "Sprawdzanie źródeł",
+        "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Stan każdej strony; ręcznie przejdź captchę lub weryfikację wieku",
     ) }
     private val UK by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Уже завантажено: Завантаження/Loopa/%s",
@@ -2720,6 +2776,13 @@ object I18nTables {
         "Кэш и сохранённые ролики вместе не больше этого размера" to "Кеш і збережені ролики разом не більші за цей розмір",
         "Не удалось сохранить в папку: %s" to "Не вдалося зберегти в папку: %s",
         "Выберите другую папку или освободите место" to "Оберіть іншу папку або звільніть місце",
+        "ещё не проверялся" to "ще не перевірявся",
+        "работает" to "працює",
+        "только что" to "щойно",
+        "%d мин назад" to "%d хв тому",
+        "%d ч назад" to "%d год тому",
+        "Проверка источников" to "Перевірка джерел",
+        "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Стан кожного сайту; пройти капчу або вікно віку вручну",
     ) }
 
     fun of(code: String): Map<String, String> = when (code) {
