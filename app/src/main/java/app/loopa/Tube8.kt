@@ -29,5 +29,5 @@ object Tube8 : Source {
         return Aylo.htmlPage(url, id, "t8", p, AGE)
     }
 
-    override fun resolve(key: String, hd: Boolean): Resolved? = Aylo.resolveMp4("$SITE/porn-video/$key/", SITE, AGE, hd)
+    override fun resolve(key: String, hd: Boolean): Resolved? = Aylo.resolveMp4("$SITE/porn-video/$key/", SITE, AGE, hd, "t8:$key")
 }

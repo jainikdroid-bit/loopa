@@ -29,5 +29,5 @@ object YouPorn : Source {
         return Aylo.htmlPage(url, id, "yp", p, AGE)
     }
 
-    override fun resolve(key: String, hd: Boolean): Resolved? = Aylo.resolveMp4("$SITE/watch/$key/", SITE, AGE, hd)
+    override fun resolve(key: String, hd: Boolean): Resolved? = Aylo.resolveMp4("$SITE/watch/$key/", SITE, AGE, hd, "yp:$key")
 }

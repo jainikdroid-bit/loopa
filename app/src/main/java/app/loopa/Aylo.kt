@@ -187,8 +187,10 @@ internal object Aylo {
      * для Pornhub) → [pick]. [site] — корень сайта (для относительных адресов RedTube и Referer), [base] — cookie
      * подтверждения возраста. null — на странице нет MP4 (например, только HLS).
      */
-    fun resolveMp4(pageUrl: String, site: String, base: Map<String, String>, hd: Boolean): Resolved? {
+    fun resolveMp4(pageUrl: String, site: String, base: Map<String, String>, hd: Boolean, id: String? = null): Resolved? {
         val page = get(pageUrl, base)
+        // горячие моменты — для кусков превью в сетке ([Hotspots])
+        if (id != null) Hotspots.put(id, Hotspots.parse(page.body))
         val session = base + page.cookies
         val files = parseMediaDefinitions(page.body).filter { it.format == "mp4" }.flatMap { d ->
             val url = if (d.url.startsWith("/")) site + d.url else d.url

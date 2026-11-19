@@ -33,5 +33,5 @@ object RedTube : Source {
         return Page(gifs, if (gifs.isEmpty()) p else pages, emptyList())
     }
 
-    override fun resolve(key: String, hd: Boolean): Resolved? = Aylo.resolveMp4("$SITE/$key", SITE, AGE, hd)
+    override fun resolve(key: String, hd: Boolean): Resolved? = Aylo.resolveMp4("$SITE/$key", SITE, AGE, hd, "rt:$key")
 }

@@ -135,7 +135,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.27**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.28**.
 
 | Version | What's new |
 |---|---|
@@ -164,6 +164,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.25 | Taste model — a factorization machine trained on the phone: it learns combinations of tags, creators, sites and words from watch time, likes, downloads, link taps and skipped clips, blended with the taste network. “Similar” keeps a step history: “back” returns to the clip you opened it from. Previews: software decoding beyond the hardware decoders, a frame-based watchdog; on slow networks all visible previews play — started one by one, each looping its own cached piece. A spinner in the status line while searching. The search box always searches every source, even on a site tab |
 | 1.26 | Seven more sites: YouPorn, Tube8 (Pornhub network, 3.4 s intro skipped), TNAFlix, EMPFlix, YouJizz, PornOne and EroProfile (home videos) — on right away, in tabs, “For you”, search and “Similar” |
 | 1.27 | Site age gates (“I am 18”, “Enter”) in sign-in windows and the hidden browser are passed automatically: “age verified” cookies are set in advance, the rest is clicked for you. A source that returns a captcha, an age gate or blocks access no longer vanishes silently: a yellow “!” badge appears on the feed and opens “Sources need attention” — open the site in the built-in browser, pass the check and tap “Done”; afterwards the app’s requests to that site carry the browser’s cookies and User-Agent. The “needs a check” mark is also shown in Settings → Sources. The player seek bar is wider and thicker (52 dp touch zone, a nearby tap no longer pauses the video) and shows what is already loaded: the player buffer and the scattered cached chunks. Fully cached watched videos are moved into plain files in “Downloads/AdultSpace/cached videos” (or your own folder) and play from there; they are removed from the cache, so there is one copy, not two. Streams (Reddit, xHamster, FikFap) are remuxed into mp4 without re-encoding when all segments are cached (otherwise they stay in the cache) The saved-videos folder gets a `.nomedia` file (the gallery hides them); saved videos and the video cache share one cache limit — beyond it the least recently watched item among all of them is deleted. A tag tapped in the player searches all sources. Grid previews are three pieces: from 10 %, 50 % and 80 % of the clip (studio titles at the start are skipped), on slow networks too. |
+| 1.28 | Previews of Pornhub, YouPorn, RedTube and Tube8 clips show the three hottest moments from the site’s view statistics (peaks above neighbouring segments); other sites use pieces from 10/50/80 % |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |

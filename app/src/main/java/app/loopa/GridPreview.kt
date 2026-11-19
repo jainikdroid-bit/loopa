@@ -57,7 +57,7 @@ class GridPreview(private val ctx: Context) {
     private val soft = HashSet<ExoPlayer>()
     private val active = HashMap<Slot, ExoPlayer>()
     /** Нарезка для играющего: начала кусков (мс), длина куска, текущий кусок. */
-    private class Cuts(val at: LongArray, val len: Long) { var i = 0; @Volatile var looped = false
+    private class Cuts(val at: LongArray, val len: Long, val hot: Boolean = false) { var i = 0; @Volatile var looped = false
         /** Все куски уже сыграны хотя бы раз — лежат в кэше. */
         var round = false }
     private val cuts = HashMap<ExoPlayer, Cuts>()
@@ -173,15 +173,18 @@ class GridPreview(private val ctx: Context) {
     }
 
     /** Куски: начало (после заставки сайта), ~33 %, ~66 % и концовка; длина — 8 % ролика, но 1,5–2,5 с. */
-    private fun plan(p: ExoPlayer, durSec: Double, introMs: Long) {
-        if (durSec < CUTS_MIN || cuts.containsKey(p)) return
+    private fun plan(p: ExoPlayer, durSec: Double, introMs: Long, id: String) {
+        // горячие моменты пришли позже (со страницы ролика при раскрытии адреса) — заменить 10/50/80 на них
+        if (durSec < CUTS_MIN || cuts[p]?.let { it.hot || Hotspots.cuts(id, (durSec * 1000).toLong(), it.len) == null } == true) return
         val d = (durSec * 1000).toLong()
         val len = (d * 0.08).toLong().coerceIn(1500, 2500)
         // три куска — начало, середина и ближе к концу ([previewCuts]): сюжет понятен, титры студий в начале мимо;
         // и на медленной сети так же — куски маленькие, один раз скачаны, дальше играют из кэша
-        val at = previewCuts(d, introMs, len)
+        // горячие моменты (Pornhub и сеть, [Hotspots]) — если известны; иначе 10/50/80 %
+        val hot = Hotspots.cuts(id, d, len)?.takeIf { it[0] >= introMs }
+        val at = hot ?: previewCuts(d, introMs, len)
         if (at[0] > 0) p.seekTo(at[0])
-        cuts[p] = Cuts(at, len)
+        cuts[p] = Cuts(at, len, hot != null)
         ui.removeCallbacks(tick); ui.post(tick)
     }
     var enabled = true
@@ -283,7 +286,7 @@ class GridPreview(private val ctx: Context) {
             }
             override fun onRenderedFirstFrame() { if (s.player === p) s.tex.alpha = 1f }
             // длительность из API бывает пустой (Imgur) — тогда берём у плеера, когда он её узнал
-            override fun onPlaybackStateChanged(st: Int) { if (st == Player.STATE_READY && s.player === p && p.duration > 0) plan(p, p.duration / 1000.0, Sources.intro(g)) }
+            override fun onPlaybackStateChanged(st: Int) { if (st == Player.STATE_READY && s.player === p && p.duration > 0) plan(p, p.duration / 1000.0, Sources.intro(g), g.id) }
         }.also { listeners[p] = it })
         // ролик перенесён в файл ([CachedExport]) — играем из него, не из кэша
         val local = CachedExport.localUri(g)
@@ -292,7 +295,7 @@ class GridPreview(private val ctx: Context) {
         p.setMediaItem(MediaItem.Builder().setUri(u).setMediaId(u).apply { if (g.hls && local == null) setMimeType(MimeTypes.APPLICATION_M3U8) }.build())
         p.prepare(); p.play()
         val intro = Sources.intro(g)
-        if (g.duration > 0) plan(p, g.duration, intro)
+        if (g.duration > 0) plan(p, g.duration, intro, g.id)
         else if (intro > 0) p.seekTo(intro)   // длительность неизвестна — хотя бы первый кусок уже за заставкой
     }
     private val listeners = HashMap<ExoPlayer, Player.Listener>()

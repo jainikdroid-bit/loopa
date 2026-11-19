@@ -31,6 +31,6 @@ object Pornhub : Source {
     }
 
     override fun resolve(key: String, hd: Boolean): Resolved? =
-        runCatching { Aylo.resolveMp4("$SITE/view_video.php?viewkey=$key", SITE, AGE, hd) }.getOrNull()
+        runCatching { Aylo.resolveMp4("$SITE/view_video.php?viewkey=$key", SITE, AGE, hd, "ph:$key") }.getOrNull()
             ?: Aylo.resolveMp4("$SITE/embed/$key", SITE, AGE, hd)
 }
