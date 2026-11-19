@@ -16,6 +16,7 @@ object EroProfile : Source {
     override val id = "eroprofile"
     override val title = "EroProfile"
     override val badge = "EO"
+    override val home = SITE
     override val about = "домашние ролики пользователей"
 
     private const val SITE = "https://www.eroprofile.com"
@@ -38,11 +39,11 @@ object EroProfile : Source {
 
     private fun get(url: String): String = Net.retry {
         val c = Net.open(url)
-        c.setRequestProperty("User-Agent", UA)
+        Net.ua(c, UA)
         c.setRequestProperty("Accept-Language", "en")
         try {
             if (c.responseCode !in 200..299) throw Net.fail(c)
-            c.inputStream.bufferedReader().use { it.readText() }
+            Net.text(c)
         } finally { c.disconnect() }
     }
 

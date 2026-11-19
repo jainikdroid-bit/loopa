@@ -30,6 +30,7 @@ object FikFap : Source {
     override val id = "fikfap"
     override val title = "FikFap"
     override val badge = "FF"
+    override val home = "https://fikfap.com"
     override val hlsOnly = true
     override val about = "короткие вертикальные любительские ролики"
 
@@ -83,14 +84,14 @@ object FikFap : Source {
 
     private fun get(url: String): String = Net.retry {
         val c = Net.open(url)
-        c.setRequestProperty("User-Agent", UA)
+        Net.ua(c, UA)
         c.setRequestProperty("Authorization-Anonymous", anon)
         c.setRequestProperty("IsLoggedIn", "false")
         c.setRequestProperty("Origin", ORIGIN)
         c.setRequestProperty("Referer", REFERER)
         try {
             if (c.responseCode !in 200..299) throw Net.fail(c)
-            c.inputStream.bufferedReader().use { it.readText() }
+            Net.text(c)
         } finally { c.disconnect() }
     }
 

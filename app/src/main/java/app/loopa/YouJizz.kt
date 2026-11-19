@@ -17,6 +17,7 @@ object YouJizz : Source {
     override val id = "youjizz"
     override val title = "YouJizz"
     override val badge = "YJ"
+    override val home = SITE
     override val about = "любительское и всё подряд"
 
     const val SITE = "https://www.youjizz.com"
@@ -44,10 +45,10 @@ object YouJizz : Source {
 
     private fun get(url: String): String = Net.retry {
         val c = Net.open(url)
-        c.setRequestProperty("User-Agent", XParse.UA)
+        Net.ua(c, XParse.UA)
         try {
             if (c.responseCode !in 200..299) throw Net.fail(c)
-            c.inputStream.bufferedReader().use { it.readText() }
+            Net.text(c)
         } finally { c.disconnect() }
     }
 

@@ -15,6 +15,7 @@ object Erome : Source {
     override val id = "erome"
     override val title = "Erome"
     override val badge = "ER"
+    override val home = SITE
     override val about = "альбомы пользователей"
     const val SITE = "https://www.erome.com"
     const val REFERER = "$SITE/"
@@ -50,10 +51,10 @@ object Erome : Source {
         val c = Net.open(url)
         c.setRequestProperty("Referer", REFERER)
         // вошли в Erome ([Ext]) — страницы с куками входа (подписки, скрытое от гостей)
-        Ext.cookie(url)?.let { c.setRequestProperty("Cookie", it) }
+        Ext.cookie(url)?.let { Net.addCookie(c, it) }
         try {
             if (c.responseCode !in 200..299) throw Net.fail(c)
-            c.inputStream.bufferedReader().use { it.readText() }
+            Net.text(c)
         } finally { c.disconnect() }
     }
 

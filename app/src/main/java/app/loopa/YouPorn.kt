@@ -12,6 +12,7 @@ object YouPorn : Source {
     override val id = "youporn"
     override val title = "YouPorn"
     override val badge = "YP"
+    override val home = SITE
     override val about = "любительское, сеть Pornhub"
     override val introSec = INTRO_SEC
     /** Заставка сайта в начале ролика, с (по замерам 19.11). */

@@ -24,6 +24,7 @@ object XHamster : Source {
     override val id = "xhamster"
     override val title = "xHamster"
     override val badge = "XH"
+    override val home = SITE
     override val hlsOnly = true
     override val introSec = INTRO_SEC
     /** Заставка сайта в начале ролика, с (по замерам 14.11). */
@@ -53,17 +54,17 @@ object XHamster : Source {
 
     private fun get(url: String): String = Net.retry {
         val c = Net.open(url)
-        c.setRequestProperty("User-Agent", UA)
+        Net.ua(c, UA)
         try {
             if (c.responseCode !in 200..299) throw Net.fail(c)
-            c.inputStream.bufferedReader().use { it.readText() }
+            Net.text(c)
         } finally { c.disconnect() }
     }
 
     /** Отвечает ли адрес (h264 на части хостов даёт 403 — тогда берём запасной). */
     private fun works(url: String): Boolean = runCatching {
         val c = Net.open(url)
-        c.setRequestProperty("User-Agent", UA)
+        Net.ua(c, UA)
         try { c.responseCode in 200..299 } finally { c.disconnect() }
     }.getOrDefault(false)
 

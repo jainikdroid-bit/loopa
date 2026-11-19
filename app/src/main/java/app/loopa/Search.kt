@@ -86,7 +86,7 @@ object Search {
         }
         if (reddit) { cs.submit { redditPart(q, p) }; n++ }
         // сторонние сайты (галочки «Источники» в меню 👤): их поиск по тому же запросу, страница p
-        for (s in ForYou.onSources) { cs.submit { runCatching { s.page(q, false, p).gifs }.getOrDefault(emptyList()) }; n++ }
+        for (s in ForYou.onSources) { cs.submit { runCatching { s.tracked(q, false, p).gifs }.getOrDefault(emptyList()) }; n++ }
         var total = 0
         var synDone = p != 1
         if (p == 1) strong = 0

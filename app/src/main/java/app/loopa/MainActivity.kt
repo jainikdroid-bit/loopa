@@ -49,6 +49,9 @@ class MainActivity : Activity() {
     private lateinit var swipe: SwipeRefreshLayout
     private lateinit var tabs: LinearLayout
     private lateinit var userBtn: TextView
+    /** Значок «!»: есть включённые источники, которым нужна проверка (капча, возрастное окно) — нажатие открывает [SourceCheckActivity]. */
+    private lateinit var warnBtn: TextView
+    private val onHealth: () -> Unit = { refreshWarn() }
     private val adapter = GridAdapter()
     /** Что сейчас показано в сетке (id по порядку) — чтобы не перерисовывать без нужды. */
     private var shownIds: List<String> = emptyList()
@@ -61,7 +64,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         // первый запуск — приветствие (до того, как что-то запишется в настройки: по их пустоте узнаём новую установку)
         val welcome = savedInstanceState == null && WelcomeActivity.needed(prefs)
-        I18n.init(this); Theme.init(this); themeKey = Theme.id + I18n.code; Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); Video.init(this); Hide.init(this); DeviceTier.warmAvc()
+        I18n.init(this); Theme.init(this); themeKey = Theme.id + I18n.code; Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); Video.init(this); CachedExport.init(this); Hide.init(this); DeviceTier.warmAvc()
         @Suppress("DEPRECATION") if (welcome) startActivityForResult(Intent(this, WelcomeActivity::class.java), 4)
         preview.enabled = prefs.getBoolean("live", true)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
@@ -102,6 +105,14 @@ class MainActivity : Activity() {
         bar.addView(filterBtn, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(6) })
         userBtn = chip("👤", Theme.chip) { account() }
         bar.addView(userBtn, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(6) })
+        warnBtn = TextView(this).apply {
+            text = "!"; setTextColor(0xFF1A1200.toInt()); textSize = 15f; typeface = android.graphics.Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Theme.warn) }
+            visibility = View.GONE; contentDescription = tr("Источники требуют внимания")
+            setOnClickListener { startActivity(Intent(this@MainActivity, SourceCheckActivity::class.java)) }
+        }
+        bar.addView(warnBtn, LinearLayout.LayoutParams(dp(30), dp(30)).apply { marginStart = dp(6) })
+        SourceHealth.listeners += onHealth
         root.addView(bar)
         // вкладки: рекомендации по лайкам (нужен вход), популярное, лайкнутое
         tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(10), dp(2), dp(10), dp(2)) }
@@ -307,7 +318,10 @@ class MainActivity : Activity() {
     }
     private fun savedSubs() = prefs.getString("subs", "")!!.split("\n").filter { it.isNotBlank() }
 
-    override fun onDestroy() { Feed.listeners -= onFeed; preview.release(); super.onDestroy() }
+    override fun onDestroy() { Feed.listeners -= onFeed; SourceHealth.listeners -= onHealth; preview.release(); super.onDestroy() }
+
+    /** «!» виден, только пока есть включённые источники в NEEDS_ACTION. */
+    private fun refreshWarn() { if (::warnBtn.isInitialized) warnBtn.visibility = if (SourceHealth.needsAction().isEmpty()) View.GONE else View.VISIBLE }
     // превью — только пока главный экран на виду: иначе (лента догрузилась, пока открыт плеер) они запускались в фоне
     // и отбирали видеодекодеры у плеера — картинка вставала, а звук шёл дальше
     private var shown = false
@@ -315,6 +329,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume(); shown = true; Prefetch.resume()
         if (!::grid.isInitialized) return
+        refreshWarn()
         // тему или язык сменили в настройках — перестроить экран; живые превью включили или выключили — применить
         Theme.init(this)
         if (themeKey != Theme.id + I18n.code) { recreate(); return }
@@ -447,7 +462,7 @@ class MainActivity : Activity() {
         intent.getStringExtra("tag")?.let { search.setText(it); go(it, tag = true) }
         intent.getStringExtra("author")?.let { nav(); search.setText(""); Interests.openAuthor(it, "redgifs"); Feed.reset("", Feed.order, it); grid.scrollToPosition(0) }
         intent.getStringExtra("sub")?.let { nav(); search.setText(""); openSub(it) }
-        // автор или тег ролика стороннего сайта — поиск по тому же сайту (extra — id сайта)
+        // автор ролика стороннего сайта — поиск по тому же сайту (extra — id сайта); тег идёт как "tag" — глобальный поиск, см. go()
         for (m in Sources.ALL.map { it.id }) intent.getStringExtra(m)?.let { nav(); search.setText(it); Feed.reset(it, Feed.order, mode = m); grid.scrollToPosition(0) }
         // вкладка сайта из 3D-графа: стороннего — своя лента, «reddit» — последний сабреддит, «redgifs» — главная
         intent.getStringExtra("site")?.let { m ->
@@ -484,13 +499,14 @@ class MainActivity : Activity() {
             return
         }
         nav()
-        if (Feed.reddit) { openSub(q); return }
+        if (Feed.reddit && !tag) { openSub(q); return }
         // сторонний сайт: поиск по тому же сайту (пусто — его лента)
         // пустой ввод на вкладке сайта — его лента; текст — всегда глобальный поиск по всем источникам (ниже), а не только по сайту
         if (Feed.ext && q.isBlank()) { Feed.reset("", Feed.order, mode = Feed.mode); grid.scrollToPosition(0); return }
         if (q.isBlank()) { home(); return }
         if (tag) Interests.openTag(q.trim()) else Interests.search(q)
-        Feed.reset(q.trim(), Feed.order, tag = tag)
+        // тег (из плеера, панели, чипов) ищет как обычный текст — по всем включённым источникам, а не строго по RedGIFs или сайту ролика
+        Feed.reset(q.trim(), Feed.order)
         grid.scrollToPosition(0)
     }
 

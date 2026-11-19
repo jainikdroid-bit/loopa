@@ -50,4 +50,10 @@ class DeviceTierTest {
         // аппаратных декодеров 4 — аппаратных превью 2, остальные 6 — программные
         assertEquals(2, DeviceTier.previewLimit(Tier.HIGH, 4))
     }
+
+    @Test fun `превью - три куска 10, 50 и 80 процентов, первый после заставки`() {
+        assertEquals(listOf(4_400L, 22_000L, 35_200L), GridPreview.previewCuts(44_000, 0, 2000).toList())
+        assertEquals(listOf(5_000L, 15_000L, 24_000L), GridPreview.previewCuts(30_000, 5_000, 2000).toList())   // 10 % < заставки
+        assertEquals(listOf(264_000L, 1_320_000L, 2_112_000L), GridPreview.previewCuts(44 * 60_000L, 3400, 2500).toList())
+    }
 }

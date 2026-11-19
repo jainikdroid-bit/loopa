@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- установка скачанного обновления (разрешение «Установка неизвестных приложений» пользователь даёт сам) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- сохранение досмотренных роликов в Загрузки/AdultSpace на Android 8–9 (с 10 — через MediaStore, без разрешений) -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <application
         android:label="Adult Space"
@@ -60,8 +62,16 @@
         <activity
             android:name=".SettingsActivity"
             android:exported="false" />
+        <!-- выбор своей папки для сохранённых из кэша роликов (невидимый, результат уходит в CachedExport) -->
+        <activity
+            android:name=".FolderPickActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity
             android:name=".WelcomeActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SourceCheckActivity"
             android:exported="false" />
         <activity
             android:name=".ExtLoginActivity"

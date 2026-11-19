@@ -48,15 +48,18 @@ object RgSite : Site("RedGIFs", "https://www.redgifs.com/login", "https://www.re
 /**
  * Окно входа под видом обычного Chrome: без пометки «wv» в User-Agent и без заголовка X-Requested-With с именем
  * приложения. По ним Google узнаёт встроенное окно и не пускает войти («Continue with Google» на Reddit висел).
- * Только для окна входа — ленты и API ходят с честным [Api.UA].
+ * Ленты и API ходят с честным [Api.UA]; браузерный — только к сайтам, где пользователь прошёл проверку ([WebAccess]).
  */
 object Disguise {
     // REQUESTED_WITH_HEADER_ALLOW_LIST в androidx.webkit помечен @RestrictTo (экспериментальный), но это публичный
     // флаг, и вызов защищён isFeatureSupported — lint здесь ошибается
+    /** User-Agent такого окна: Chrome без пометок WebView. Его же шлют запросы приложения к сайтам, где пройдена проверка ([WebAccess]). */
+    fun ua(ctx: android.content.Context): String = android.webkit.WebSettings.getDefaultUserAgent(ctx)
+        .replace("; wv", "").replace(Regex(" Version/\\d+(\\.\\d+)*"), "")
+
     @SuppressLint("RestrictedApi")
     fun apply(w: WebView) {
-        w.settings.userAgentString = android.webkit.WebSettings.getDefaultUserAgent(w.context)
-            .replace("; wv", "").replace(Regex(" Version/\\d+(\\.\\d+)*"), "")
+        w.settings.userAgentString = ua(w.context)
         if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST))
             androidx.webkit.WebSettingsCompat.setRequestedWithHeaderOriginAllowList(w.settings, emptySet())
     }
@@ -84,6 +87,8 @@ class TokenCatcher(
             override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest) = !(r.url.scheme == "https" || r.url.scheme == "http")
 
             override fun onPageStarted(v: WebView, url: String, f: android.graphics.Bitmap?) { onPage?.invoke(url, null) }
+            // возрастное окно сайта («I am 18») — пройти самим ([AgeGate])
+            override fun onPageFinished(v: WebView, url: String) { AgeGate.pass(v) }
             override fun onReceivedError(v: WebView, r: WebResourceRequest, e: android.webkit.WebResourceError) {
                 if (r.isForMainFrame) onPage?.invoke(r.url.toString(), e.description.toString())
             }
@@ -99,6 +104,7 @@ class TokenCatcher(
                 return null   // запрос идёт как обычно
             }
         }
+        AgeGate.cookies()
         web.loadUrl(url)
         poll()
     }

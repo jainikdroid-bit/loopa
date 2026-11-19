@@ -11,6 +11,7 @@ import java.net.URLEncoder
  */
 internal abstract class XTube : Source {
     abstract val host: String
+    override val home get() = host
     /** Префикс id: «xv» / «xn». */
     abstract val prefix: String
     /** Адрес страницы ленты; p — номер с 1. */
@@ -30,11 +31,11 @@ internal abstract class XTube : Source {
 
     private fun get(url: String): String = Net.retry {
         val c = Net.open(url)
-        c.setRequestProperty("User-Agent", XParse.UA)
-        c.setRequestProperty("Cookie", "age_verified=1")
+        Net.ua(c, XParse.UA)
+        Net.addCookie(c, "age_verified=1")
         try {
             if (c.responseCode !in 200..299) throw Net.fail(c)
-            c.inputStream.bufferedReader().use { it.readText() }
+            Net.text(c)
         } finally { c.disconnect() }
     }
 }

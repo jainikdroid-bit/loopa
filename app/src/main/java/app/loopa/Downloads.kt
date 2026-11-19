@@ -26,6 +26,8 @@ object Downloads {
     private val ui = Handler(Looper.getMainLooper())
 
     fun get(ctx: Context, g: Gif) {
+        // ролик уже лежит файлом в папке сохранённых из кэша ([CachedExport]) — второй копии не делаем
+        if (CachedExport.localUri(g) != null) { toast(ctx, tr("Уже сохранён в папке: %s", CachedExport.folderLabel())); return }
         val name = "${g.user.ifBlank { "loopa" }}_${g.id}.mp4".replace(Regex("[^A-Za-z0-9._-]"), "_")
         val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         if (File(dir, "Loopa/$name").exists()) { toast(ctx, tr("Уже скачано: Загрузки/Loopa/%s", name)); return }

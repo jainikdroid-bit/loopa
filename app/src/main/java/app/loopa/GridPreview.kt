@@ -30,6 +30,16 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 class GridPreview(private val ctx: Context) {
     companion object {
         const val CUTS_MIN = 8.0
+
+        /**
+         * Куски превью ролика длиной [d] мс по [len] мс: с 10 %, 50 % и 80 % длины (первый — не раньше конца заставки
+         * сайта [introMs]); кусок не выходит за конец ролика. Плеер при открытии стартует, как прежде, после заставки.
+         */
+        fun previewCuts(d: Long, introMs: Long, len: Long): LongArray {
+            val last = (d - len - 200).coerceAtLeast(0)
+            fun at(pct: Int, min: Long = 0) = maxOf(min, d * pct / 100).coerceAtMost(last)
+            return longArrayOf(at(10, introMs), at(50), at(80))
+        }
         /** Программные декодеры — первыми (аппаратные — запасом): для превью сверх числа аппаратных декодеров. */
         private val SOFT_FIRST = MediaCodecSelector { mime, secure, tunneling ->
             MediaCodecUtil.getDecoderInfos(mime, secure, tunneling).sortedBy { if (it.hardwareAccelerated) 1 else 0 }
@@ -47,7 +57,9 @@ class GridPreview(private val ctx: Context) {
     private val soft = HashSet<ExoPlayer>()
     private val active = HashMap<Slot, ExoPlayer>()
     /** Нарезка для играющего: начала кусков (мс), длина куска, текущий кусок. */
-    private class Cuts(val at: LongArray, val len: Long) { var i = 0; @Volatile var looped = false }
+    private class Cuts(val at: LongArray, val len: Long) { var i = 0; @Volatile var looped = false
+        /** Все куски уже сыграны хотя бы раз — лежат в кэше. */
+        var round = false }
     private val cuts = HashMap<ExoPlayer, Cuts>()
     private val ui = Handler(Looper.getMainLooper())
 
@@ -154,7 +166,7 @@ class GridPreview(private val ctx: Context) {
                 val pos = p.currentPosition
                 // кусок доигран (или ролик кончился и плеер ушёл по кругу в начало) — следующий. Сравнивать позицию с началом
                 // куска нельзя: seek к ключевому кадру (CLOSEST_SYNC) приземляется чуть раньше
-                if (pos >= c.at[c.i] + c.len || c.looped) { c.looped = false; c.i = (c.i + 1) % c.at.size; p.seekTo(c.at[c.i]) }
+                if (pos >= c.at[c.i] + c.len || c.looped) { c.looped = false; c.i = (c.i + 1) % c.at.size; if (c.i == 0) c.round = true; p.seekTo(c.at[c.i]) }
             }
             if (cuts.isNotEmpty()) ui.postDelayed(this, 150)
         }
@@ -165,15 +177,11 @@ class GridPreview(private val ctx: Context) {
         if (durSec < CUTS_MIN || cuts.containsKey(p)) return
         val d = (durSec * 1000).toLong()
         val len = (d * 0.08).toLong().coerceIn(1500, 2500)
-        // заставку сайта пропускаем: первый кусок — сразу за ней, остальные — в пределах [intro, конец]
-        val end = (d - len - 200).coerceAtLeast(0)
-        val lo = introMs.coerceAtMost(end)
-        val span = d - lo
-        if (lo > 0) p.seekTo(lo)
-        // медленная сеть: один кусок [SLOW_LOOP_MS] после заставки по кругу — скачан один раз, дальше играет из кэша и
-        // канал не просит; так на ~5 Мбит/с играют все видимые плитки, а не две
-        cuts[p] = if (Video.slow) Cuts(longArrayOf(lo), SLOW_LOOP_MS.coerceAtMost(d - lo).coerceAtLeast(1000))
-        else Cuts(longArrayOf(lo, lo + span * 33 / 100, lo + span * 66 / 100, end.coerceAtLeast(lo)), len)
+        // три куска — начало, середина и ближе к концу ([previewCuts]): сюжет понятен, титры студий в начале мимо;
+        // и на медленной сети так же — куски маленькие, один раз скачаны, дальше играют из кэша
+        val at = previewCuts(d, introMs, len)
+        if (at[0] > 0) p.seekTo(at[0])
+        cuts[p] = Cuts(at, len)
         ui.removeCallbacks(tick); ui.post(tick)
     }
     var enabled = true
@@ -196,8 +204,6 @@ class GridPreview(private val ctx: Context) {
     private val hwLimit get() = DeviceTier.previewLimit(tier, DeviceTier.avcInstancesCached())
     private var decoderCap = Int.MAX_VALUE
     private val SLOW_NET = 2
-    /** Медленная сеть: длина куска, который превью крутит по кругу. */
-    private val SLOW_LOOP_MS = 4_000L
 
     /**
      * Кому играть: по порядку важности. На медленной сети новые превью из сети запускаются по очереди: одновременно
@@ -212,7 +218,9 @@ class GridPreview(private val ctx: Context) {
     /** Кусок превью скачан: буфер дошёл до конца куска нарезки, а без нарезки — до конца ролика. */
     private fun loaded(p: ExoPlayer): Boolean {
         val c = cuts[p]
-        val end = if (c != null) c.at[c.i] + c.len else p.duration.takeIf { it > 0 } ?: return false
+        // нарезка: все три куска сыграны хотя бы раз — лежат в кэше; без нарезки — буфер дошёл до конца ролика
+        if (c != null) return c.round
+        val end = p.duration.takeIf { it > 0 } ?: return false
         return p.bufferedPosition >= end - 100
     }
     /** Ячейки, чьё превью уже скачало свой кусок (или ролик целиком) — дальше крутится из кэша, сеть не просит. */
@@ -277,8 +285,11 @@ class GridPreview(private val ctx: Context) {
             // длительность из API бывает пустой (Imgur) — тогда берём у плеера, когда он её узнал
             override fun onPlaybackStateChanged(st: Int) { if (st == Player.STATE_READY && s.player === p && p.duration > 0) plan(p, p.duration / 1000.0, Sources.intro(g)) }
         }.also { listeners[p] = it })
-        val u = g.sd
-        p.setMediaItem(MediaItem.Builder().setUri(u).setMediaId(u).apply { if (g.hls) setMimeType(MimeTypes.APPLICATION_M3U8) }.build())
+        // ролик перенесён в файл ([CachedExport]) — играем из него, не из кэша
+        val local = CachedExport.localUri(g)
+        if (local != null) CachedExport.played(g)
+        val u = local?.toString() ?: g.sd
+        p.setMediaItem(MediaItem.Builder().setUri(u).setMediaId(u).apply { if (g.hls && local == null) setMimeType(MimeTypes.APPLICATION_M3U8) }.build())
         p.prepare(); p.play()
         val intro = Sources.intro(g)
         if (g.duration > 0) plan(p, g.duration, intro)

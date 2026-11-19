@@ -94,7 +94,7 @@ class ExtLoginActivity : Activity() {
             CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(v: WebView, r: android.webkit.WebResourceRequest) = blocked(r.url)
-                override fun onPageFinished(v: WebView, url: String) { state.text = android.net.Uri.parse(url).host.orEmpty(); check(manual = false) }
+                override fun onPageFinished(v: WebView, url: String) { AgeGate.pass(v); state.text = android.net.Uri.parse(url).host.orEmpty(); check(manual = false) }
             }
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(v: WebView, p: Int) { bar.progress = p; bar.visibility = if (p < 100) View.VISIBLE else View.INVISIBLE }
@@ -109,6 +109,7 @@ class ExtLoginActivity : Activity() {
         box = android.widget.FrameLayout(this).apply { addView(web, android.widget.FrameLayout.LayoutParams(-1, -1)) }
         root.addView(box, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
+        AgeGate.cookies()
         web.loadUrl(site.login)
     }
 
@@ -148,6 +149,7 @@ class ExtLoginActivity : Activity() {
                 override fun shouldOverrideUrlLoading(v: WebView, r: android.webkit.WebResourceRequest) = blocked(r.url)
                 // вход завершился и вернул на сайт — окно больше не нужно, проверяем главную страницу
                 override fun onPageFinished(v: WebView, url: String) {
+                    AgeGate.pass(v)
                     if (site.allowed(android.net.Uri.parse(url).host.orEmpty()) && android.net.Uri.parse(url).host.orEmpty().endsWith(site.domain.trimStart('.'))) { closePopup(); web.reload() }
                 }
             }

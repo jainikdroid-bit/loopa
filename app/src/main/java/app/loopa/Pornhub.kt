@@ -12,6 +12,7 @@ object Pornhub : Source {
     override val id = "pornhub"
     override val title = "Pornhub"
     override val badge = "PH"
+    override val home = SITE
     override val about = "любительское и verified amateurs"
     override val introSec = INTRO_SEC
     /** Заставка сайта в начале ролика, с (по замерам 14.11). */

@@ -49,6 +49,7 @@ object WebJson {
             val w = view(ctx)
             w.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(v: WebView, u: String) {
+                    AgeGate.pass(v)
                     if (f.isDone) return
                     // запоздавшее окончание прошлой страницы — не наш ответ
                     if (u.substringBefore('?').trimEnd('/').lowercase() != want && (accept == null || !u.lowercase().contains(accept))) { android.util.Log.i("Loopa", "WebJson: не та страница " + u.substringBefore('?')); return }
@@ -63,6 +64,7 @@ object WebJson {
                 }
             }
             w.stopLoading()
+            AgeGate.cookies()
             w.loadUrl(url)
         }
         val t0 = System.currentTimeMillis()

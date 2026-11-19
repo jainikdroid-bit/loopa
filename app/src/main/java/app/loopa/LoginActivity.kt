@@ -95,6 +95,7 @@ class LoginActivity : Activity() {
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest) = !(r.url.scheme == "https" || r.url.scheme == "http")
+                override fun onPageFinished(v: WebView, url: String) { AgeGate.pass(v) }
             }
             webChromeClient = object : WebChromeClient() { override fun onCloseWindow(w: WebView) { closePopup() } }
         }
@@ -121,6 +122,7 @@ class LoginActivity : Activity() {
         if (link == null || !(host == "reddit.com" || host.endsWith(".reddit.com") || host.endsWith(".redditmail.com"))) {
             Toast.makeText(this, tr("В буфере нет ссылки Reddit — скопируйте ссылку из письма целиком"), Toast.LENGTH_LONG).show(); return
         }
+        AgeGate.cookies()
         web.loadUrl(link)
     }
 

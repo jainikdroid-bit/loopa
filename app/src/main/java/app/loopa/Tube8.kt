@@ -12,6 +12,7 @@ object Tube8 : Source {
     override val id = "tube8"
     override val title = "Tube8"
     override val badge = "T8"
+    override val home = SITE
     override val about = "любительское, сеть Pornhub"
     override val introSec = INTRO_SEC
     /** Заставка сайта в начале ролика, с (по замерам 19.11). */

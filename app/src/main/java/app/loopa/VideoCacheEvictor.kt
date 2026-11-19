@@ -17,15 +17,25 @@ class VideoCacheEvictor(@Volatile var max: Long) : CacheEvictor {
     private val spans = java.util.TreeSet<CacheSpan>(compareBy<CacheSpan> { it.lastTouchTimestamp }.thenBy { it })
     /** Сколько сейчас занято, байт. */
     var size = 0L; private set
+    /** Сколько сверх кэша занимают сохранённые ролики ([CachedExport]): вместе с кэшем они входят в [max] — см. [CacheReaper]. */
+    @Volatile var extra: () -> Long = { 0L }
+    /** Кэш вместе с сохранёнными больше предела — позвать уборщика. Вызывается под замком кэша: только поставить задачу. */
+    @Volatile var onOver: (() -> Unit)? = null
 
     override fun requiresCacheSpanTouches() = true
     override fun onCacheInitialized() {}
     override fun onStartFile(cache: Cache, key: String, position: Long, length: Long) {
         if (length != C.LENGTH_UNSET.toLong()) evict(cache, length)
     }
-    override fun onSpanAdded(cache: Cache, span: CacheSpan) { spans += span; size += span.length; evict(cache, 0) }
+    override fun onSpanAdded(cache: Cache, span: CacheSpan) {
+        spans += span; size += span.length; evict(cache, 0)
+        if (size + extra() > max) onOver?.invoke()
+    }
     override fun onSpanRemoved(cache: Cache, span: CacheSpan) { if (spans.remove(span)) size -= span.length }
     override fun onSpanTouched(cache: Cache, old: CacheSpan, new: CacheSpan) { onSpanRemoved(cache, old); onSpanAdded(cache, new) }
+
+    /** Куски кэша (копия) — для общего уборщика; звать под замком кэша. */
+    fun snapshot(): List<CacheSpan> = spans.toList()
 
     /** Ужать до предела (после смены предела в меню). */
     fun trim(cache: Cache) = evict(cache, 0)

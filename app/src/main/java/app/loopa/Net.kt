@@ -14,6 +14,8 @@ import java.net.URL
 class HttpError(val code: Int, msg: String = "HTTP $code") : IOException(msg) {
     val transient get() = code == 429 || code >= 500
     var retryAfterMs = 0L
+    /** Начало тела ответа (не больше [Net.BODY_KEEP] знаков): по нему видно, что это капча или заглушка ([SourceHealth]). */
+    var body: String = ""
 }
 
 /**
@@ -34,6 +36,7 @@ object Net {
         inited = true
         val app = ctx.applicationContext
         runCatching { HttpResponseCache.install(app.cacheDir.resolve("http"), 64L shl 20) }
+        WebAccess.init(app); SourceHealth.init(app)
         initImg(app)
         val cm = app.getSystemService(ConnectivityManager::class.java)
         runCatching {
@@ -59,14 +62,31 @@ object Net {
         return block()
     }
 
-    /** GET/запрос с общими таймаутами; ошибка HTTP — [HttpError]. */
+    /** Сколько знаков тела ошибки хранится в [HttpError.body]. */
+    const val BODY_KEEP = 4000
+
+    /**
+     * GET/запрос с общими таймаутами; ошибка HTTP — [HttpError]. К сайтам из [Sources.ALL] — с куками встроенного браузера
+     * и, если пользователь проходил проверку на этом сайте, с его User-Agent ([WebAccess]).
+     */
     fun open(url: String): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
         connectTimeout = CONNECT_MS; readTimeout = READ_MS
         setRequestProperty("User-Agent", Api.UA)
+        WebAccess.decorate(this)
     }
+
+    /** User-Agent сайта: у сайта, где пройдена проверка, остаётся UA браузера (Cloudflare привязывает к нему cf_clearance). */
+    fun ua(c: HttpURLConnection, ua: String) { if (!WebAccess.verified(c.url.host)) c.setRequestProperty("User-Agent", ua) }
+
+    /** Добавить куки к запросу: свои ([extra]) главнее куки браузера, уже стоящей в запросе ([Net.open]). */
+    fun addCookie(c: HttpURLConnection, extra: String) { c.setRequestProperty("Cookie", WebAccess.mergeCookies(extra, c.getRequestProperty("Cookie")).orEmpty()) }
+
+    /** Тело ответа как текст; копию начала видит [SourceHealth] — страница без роликов может оказаться капчей. */
+    fun text(c: HttpURLConnection): String = c.inputStream.bufferedReader().use { it.readText() }.also { SourceHealth.noteBody(it) }
 
     fun fail(c: HttpURLConnection): HttpError = HttpError(c.responseCode).apply {
         retryAfterMs = (c.getHeaderField("Retry-After")?.toLongOrNull() ?: 0) * 1000
+        body = runCatching { c.errorStream?.bufferedReader()?.use { r -> val b = CharArray(BODY_KEEP); val n = r.read(b); if (n > 0) String(b, 0, n) else "" } }.getOrNull().orEmpty()
     }
 
     // ---- один клиент OkHttp для видео и картинок: канал с большим пингом (VPN, спутник, ~800 мс) ----
@@ -152,6 +172,7 @@ object Net {
             .retryOnConnectionFailure(true)
             .addInterceptor(Redirects)
             .addInterceptor(SiteReferer)
+            .addInterceptor(WebAccess.interceptor)
             .eventListenerFactory { SlowLog() }
             .build()
     }

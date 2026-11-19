@@ -11,6 +11,7 @@ object RedTube : Source {
     override val id = "redtube"
     override val title = "RedTube"
     override val badge = "RT"
+    override val home = SITE
     override val about = "та же сеть, что Pornhub"
     override val introSec = INTRO_SEC
     /** Заставка сайта в начале ролика, с (по замерам 14.11). */

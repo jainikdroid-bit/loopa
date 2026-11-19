@@ -27,6 +27,10 @@ object Theme {
     val bg get() = cur.bg
     val field get() = cur.field
     val chip get() = cur.chip
+    /** Предупреждение (значок «!», пометка «требует проверки»): жёлто-оранжевый, одинаковый во всех темах. */
+    const val warn = 0xCCFFB020.toInt()
+    /** Тот же цвет без прозрачности — для текста пометок. */
+    const val warnText = 0xFFFFB020.toInt()
     /** Акцент, подмешанный к белому: подзаголовки и ссылки на тёмном фоне. */
     val soft get() = ColorUtils.blendARGB(cur.accent, Color.WHITE, 0.45f)
     /** Акцент как «#rrggbb» — для страницы 3D-графа. */

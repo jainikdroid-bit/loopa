@@ -20,6 +20,8 @@ interface Source {
     val title: String
     /** Значок на плитке, 2 буквы: «XV». */
     val badge: String
+    /** Главная страница сайта: её открывает встроенный браузер, где пользователь проходит капчу и возрастное окно ([SourceCheckActivity]). */
+    val home: String
     /** Подпись в окне приветствия: что за ролики. */
     val about: String
     /** Галочка по умолчанию у нового пользователя: все источники включены (выключаются в Настройки → Источники). */
@@ -84,7 +86,7 @@ object Sources {
         val parts = url.removePrefix("$SCHEME://").split('/')
         require(parts.size == 3) { "плохой адрес $url" }
         val src = byId(parts[0]) ?: throw IllegalArgumentException("нет сайта ${parts[0]}")
-        val r = src.resolve(URLDecoder.decode(parts[1], "UTF-8"), parts[2] == "hd") ?: throw IllegalStateException("${src.title}: нет видео")
+        val r = SourceHealth.trackValue(src.id) { src.resolve(URLDecoder.decode(parts[1], "UTF-8"), parts[2] == "hd") } ?: throw IllegalStateException("${src.title}: нет видео")
         memo[url] = Hit(r, System.currentTimeMillis())
         return r
     }

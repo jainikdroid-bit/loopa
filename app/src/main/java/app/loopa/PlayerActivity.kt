@@ -187,7 +187,13 @@ class PlayerActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.statusBarColor = Color.BLACK; window.navigationBarColor = Color.BLACK
         Video.init(this); Interests.init(this); Likes.init(this)
-        Net.init(this)
+        Net.init(this); CachedExport.init(this)
+        // Android 8–9: запись в публичные Загрузки требует разрешения — спросить один раз
+        if (android.os.Build.VERSION.SDK_INT < 29 && CachedExport.enabled && !prefs.getBoolean("cx_perm_asked", false) &&
+            checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            prefs.edit().putBoolean("cx_perm_asked", true).apply()
+            requestPermissions(arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE), 7)
+        }
         list += Feed.items; Feed.items.forEach { ids += it.id }
         if (list.isEmpty()) { finish(); return }
         // канал с большим пингом (~800 мс): старт после 1 с буфера (полсекунды проедаются за один круг до сервера),
@@ -222,6 +228,7 @@ class PlayerActivity : Activity() {
                     // сеть: показать и повторить самим; прочее (файл удалён, вместо видео картинка или заглушка) — так и сказать,
                     // но не листать самим: иначе на этот ролик не вернуться — каждый раз уносит к следующему
                     android.util.Log.w("Loopa", "ошибка плеера ${e.errorCodeName}: ${list.getOrNull(current)?.id}")
+                    if (fallbackToNet()) return
                     // ленивый адрес мог устареть (подпись истекла, 403) — повтор спросит сайт заново
                     list.getOrNull(current)?.let { Sources.forget(it.hd); Sources.forget(it.sd) }
                     if (e.errorCode in 2000..2999 && e.errorCode != androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) {
@@ -256,17 +263,56 @@ class PlayerActivity : Activity() {
         tick()
     }
 
-    override fun onPause() { super.onPause(); if (!::player.isInitialized) return; player.pause(); report(); if (current >= 0) Feed.lastSeen = feedIndex() }
+    override fun onPause() {
+        super.onPause(); if (!::player.isInitialized) return
+        list.getOrNull(current)?.let { CachedExport.touch(it) }; CachedExport.sweep(list.getOrNull(current)?.id)
+        player.pause(); report(); if (current >= 0) Feed.lastSeen = feedIndex()
+    }
     override fun onResume() { super.onResume(); if (::player.isInitialized && current >= 0) { player.play(); shownAt = System.currentTimeMillis() } }
     override fun onDestroy() {
         Feed.listeners -= onFeed; Net.online -= onOnline; ui.removeCallbacksAndMessages(null); warmTask?.cancel(false); simPool.shutdown()
         if (::player.isInitialized) { player.release(); preload.release() }
+        CachedExport.playing = null; CachedExport.sweep()   // вышли из плеера — и последний ролик можно переносить
         super.onDestroy()
     }
 
     /** v.redd.it — поток HLS (качество подстраивает сам плеер), остальное — mp4 выбранного качества. */
-    private fun item(g: Gif) = url(g).let { u ->
-        MediaItem.Builder().setUri(u).setMediaId(u).apply { if (g.hls) setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) }.build()
+    private fun item(g: Gif): MediaItem {
+        // ролик перенесён из кэша в файл ([CachedExport]) — играем из него (file:// или content://, без HLS)
+        CachedExport.localUri(g)?.let { return MediaItem.Builder().setUri(it).setMediaId(it.toString()).build() }
+        return url(g).let { u ->
+            MediaItem.Builder().setUri(u).setMediaId(u).apply { if (g.hls) setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) }.build()
+        }
+    }
+
+    /** Ролик № i перенесли в файл, а в окне предзагрузки он ещё по сетевому адресу — заменить (текущий, что играет, не трогаем). */
+    private fun refreshLocal(i: Int) {
+        val old = managed[i] ?: return
+        val g = list.getOrNull(i) ?: return
+        val loc = CachedExport.localUri(g)?.toString()
+        // файл убрали (пользователь или уборщик места), а в окне предзагрузки ролик ещё локальный — вернуть сетевой
+        if (loc == null && !isLocal(old)) return
+        if (old.mediaId == loc) return
+        preload.remove(old); item(g).also { managed[i] = it; preload.add(it, i) }
+    }
+
+    /** Элемент играет из файла ([CachedExport]): адрес file:// или content://. */
+    private fun isLocal(m: MediaItem?): Boolean = m?.localConfiguration?.uri?.scheme.let { it == "file" || it == "content" }
+
+    /**
+     * Ошибка при игре из сохранённого файла (удалён, нет доступа, битый): запись из индекса снять и сразу играть по сети,
+     * без «нет связи — повторю». false — ролик не из файла, обычная обработка ошибки.
+     */
+    private fun fallbackToNet(): Boolean {
+        val g = list.getOrNull(current) ?: return false
+        if (!isLocal(player.currentMediaItem)) return false
+        android.util.Log.w("Loopa", "сохранённый файл не играет, перехожу на сеть: ${g.id}")
+        CachedExport.forget(g)
+        val at = player.currentPosition
+        managed[current]?.let { preload.remove(it) }
+        val m = item(g).also { managed[current] = it; preload.add(it, current) }
+        player.setMediaSource(source(m), at); player.prepare(); player.play()
+        return true
     }
 
     /** Держать в PreloadManager окно вокруг текущего: −4…+6 (что из него грузить — решает [Control]). */
@@ -275,6 +321,7 @@ class PlayerActivity : Activity() {
         val want = (maxOf(0, current - 4)..minOf(list.size - 1, current + 6)).toSet()
         managed.keys.filter { it !in want }.forEach { preload.remove(managed.remove(it)!!) }
         want.filter { it !in managed }.forEach { i -> item(list[i]).also { managed[i] = it; preload.add(it, i) } }
+        want.filter { it != current }.forEach { refreshLocal(it) }
         if (control.open) preload.invalidate()
     }
 
@@ -293,6 +340,10 @@ class PlayerActivity : Activity() {
         if (pos == current || pos !in list.indices) return
         val h = rv.findViewHolderForAdapterPosition(pos) as? PageHolder ?: run { pager.post { settle(pos) }; return }
         report(); shownAt = System.currentTimeMillis()
+        // ушли с ролика — если он целиком в кэше, перенести в Загрузки (в фоне; ролик на экране не трогаем)
+        list.getOrNull(current)?.let { CachedExport.touch(it) }
+        CachedExport.playing = list[pos].id
+        CachedExport.sweep(list[pos].id)
         holder?.poster?.visibility = View.VISIBLE
         holder = h; h.spin.text = tr("загрузка…"); fails = 0; rendered = false
         val now = System.currentTimeMillis()
@@ -304,6 +355,8 @@ class PlayerActivity : Activity() {
         simSteps.lastOrNull()?.let { st -> val id = list[pos].id; if (id != st.opened.id && id != st.origin.id) simSteps.clear() }
         cancelWarm(); ui.postDelayed(warmSimilar, 3_000)
         feedIndex().let { if (it >= 0) Feed.markSeen(it + 1 + Feed.SEEN_AHEAD) }       // подгрузка не вставляет выше текущего ролика
+        refreshLocal(pos)   // ролик уже перенесён в файл — играть из него
+        list[pos].let { if (CachedExport.localUri(it) != null) CachedExport.played(it) }   // играем из файла — он «свежий» для уборщика места
         control.cur = pos; preload.setCurrentPlayingIndex(pos)
         settledAt = now; startAt = now; cache0 = Video.fromCache.get(); net0 = Video.fromNet.get()
         sync()
@@ -347,8 +400,27 @@ class PlayerActivity : Activity() {
         holder?.let { h ->
             val d = player.duration
             if (d > 0 && !h.dragging) { h.seek.max = d.toInt(); h.seek.progress = player.currentPosition.toInt() }
+            if (d > 0 && ++loadedTick % 2 == 0) showLoaded(h, d)
         }
         ui.postDelayed({ tick() }, 250)
+    }
+
+    private var loadedTick = 0
+
+    /**
+     * Что загружено, на ползунке (раз в ~500 мс): буфер плеера и куски кэша ролика. Куски — из байтовых диапазонов
+     * [Video.cache] по ключу текущего ролика (его адрес), байты → время пропорционально ([CacheMap.parts]); у HLS и у
+     * ролика из файла — только буфер.
+     */
+    private fun showLoaded(h: PageHolder, d: Long) {
+        val buffered = (player.bufferedPosition.toFloat() / d).coerceIn(0f, 1f)
+        val g = list.getOrNull(current)
+        val key = player.currentMediaItem?.mediaId
+        val parts = if (g == null || g.hls || key == null || !key.startsWith("http") && !Sources.isLazy(key) || Sources.uncached(key)) emptyList() else runCatching {
+            val len = androidx.media3.datasource.cache.ContentMetadata.getContentLength(Video.cache.getContentMetadata(key))
+            CacheMap.parts(Video.cache.getCachedSpans(key).filter { it.isCached }.map { it.position to it.length }, len)
+        }.getOrDefault(emptyList())
+        h.seek.setLoaded(buffered, parts)
     }
 
     /** Лайкнутые — помним у себя (в «Моих лайках» — все). */
@@ -369,7 +441,7 @@ class PlayerActivity : Activity() {
         val src = TextView(this@PlayerActivity).apply { setTextColor(Color.WHITE); textSize = 11f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(dp(7), dp(2), dp(7), dp(2)) }
         val info = TextView(this@PlayerActivity).apply { setTextColor(0xFFDDDDDD.toInt()); textSize = 12f; setShadowLayer(4f, 0f, 0f, Color.BLACK) }
         val tags = LinearLayout(this@PlayerActivity).apply { orientation = LinearLayout.HORIZONTAL }
-        val seek = SeekBar(this@PlayerActivity).apply { progressTintList = Theme.tint(); thumbTintList = Theme.tint() }
+        val seek = ScrubBar(this@PlayerActivity)
         var dragging = false
         private var col: View? = null
         private var bottom: View? = null
@@ -392,6 +464,9 @@ class PlayerActivity : Activity() {
             root.addView(poster, FrameLayout.LayoutParams(-1, -1))
             root.addView(spin, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
             root.addView(pausedMark, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
+            // касания в полосе вокруг ползунка (вся зона и запас над ней) уходят в ползунок, а не в паузу; начатый там жест
+            // до отпускания остаётся у ползунка
+            root.setOnTouchListener { _, ev -> scrubTouch(ev) }
             root.setOnClickListener {
                 if (player.isPlaying) { player.pause(); pausedMark.visibility = View.VISIBLE } else { player.play(); pausedMark.visibility = View.GONE }
             }
@@ -406,16 +481,40 @@ class PlayerActivity : Activity() {
                     addView(src); addView(user, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
                 }); addView(info)
                 addView(HorizontalScrollView(this@PlayerActivity).apply { isHorizontalScrollBarEnabled = false; addView(tags) }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
-                addView(seek, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
+                // зона касания 52 dp, дорожка 6 dp; на всю ширину панели (поля 12 dp)
+                addView(seek, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(2) })
             }
             root.addView(bottom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
             this.bottom = bottom
+            seek.setOnTouchListener { v, ev ->
+                if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) v.parent?.requestDisallowInterceptTouchEvent(true)
+                false
+            }
             seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar, p: Int, fromUser: Boolean) { if (fromUser && holder === this@PageHolder) player.seekTo(p.toLong()) }
                 override fun onStartTrackingTouch(s: SeekBar) { dragging = true }
                 override fun onStopTrackingTouch(s: SeekBar) { dragging = false }
             })
             pad()
+        }
+
+        /** Жест начат в зоне ползунка (но не на нём самом) — события пересылаются ему. */
+        private var scrubbing = false
+
+        /** Полоса перемотки: ползунок 52 dp + [SCRUB_SLACK_DP] запаса сверху и всё ниже него до края экрана. */
+        private fun scrubTouch(ev: android.view.MotionEvent): Boolean {
+            if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+                val r = IntArray(2).also { itemView.getLocationOnScreen(it) }; val s = IntArray(2).also { seek.getLocationOnScreen(it) }
+                scrubbing = seek.isShown && ev.rawY >= s[1] - dp(SCRUB_SLACK_DP) && ev.rawY <= r[1] + itemView.height
+                if (scrubbing) itemView.parent?.requestDisallowInterceptTouchEvent(true)
+            }
+            if (!scrubbing) return false
+            val s = IntArray(2).also { seek.getLocationOnScreen(it) }
+            val m = android.view.MotionEvent.obtain(ev)
+            m.setLocation(ev.rawX - s[0], seek.height / 2f)
+            seek.dispatchTouchEvent(m); m.recycle()
+            if (ev.actionMasked == android.view.MotionEvent.ACTION_UP || ev.actionMasked == android.view.MotionEvent.ACTION_CANCEL) scrubbing = false
+            return true
         }
 
         /** Видео вписать в экран с сохранением пропорций. */
@@ -445,7 +544,7 @@ class PlayerActivity : Activity() {
                 tags.addView(TextView(this@PlayerActivity).apply {
                     text = if (t.startsWith("r/")) t else "#$t"; setTextColor(Color.WHITE); textSize = 13f; setPadding(dp(10), dp(5), dp(10), dp(5))
                     background = GradientDrawable().apply { setColor(0x66FFFFFF); cornerRadius = dp(20).toFloat() }
-                    setOnClickListener { when { t.startsWith("r/") -> back("sub", t.substring(2)); g.ext -> back(g.site, t); else -> back("tag", t) } }
+                    setOnClickListener { when { t.startsWith("r/") -> back("sub", t.substring(2)); else -> back("tag", t) } }
                 }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
             }
             dl.setOnClickListener { Downloads.get(this@PlayerActivity, g); Interests.download(g) }
@@ -609,6 +708,8 @@ class PlayerActivity : Activity() {
         const val PRELOAD_AFTER_MS = 2_500L
         /** Буферизация дольше этого — пауза предзагрузки соседей. */
         const val BUFFERING_PAUSE_MS = 400L
+        /** Запас над ползунком, dp: касание чуть выше него тоже перематывает, а не ставит паузу. */
+        const val SCRUB_SLACK_DP = 24
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).roundToInt()

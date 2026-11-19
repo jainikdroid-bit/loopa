@@ -197,7 +197,7 @@ object ForYou {
         val term = (if (n % 3 == 0) Interests.pickQuery(dead) else null) ?: Interests.pickTag(dead) ?: Interests.top("kw", 5).randomOrNull()?.first ?: ""
         val k = "${src.id}:q:$term"
         if (k in dead) return emptyList()
-        val g = src.page(term, false, next(k)).gifs
+        val g = src.tracked(term, false, next(k)).gifs
         if (g.isEmpty()) dead += k
         android.util.Log.i("Loopa", "Для вас: ${src.title} «$term» — ${g.size}")
         return g

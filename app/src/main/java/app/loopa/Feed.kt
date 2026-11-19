@@ -210,7 +210,7 @@ object Feed {
         if (ext) {
             val m = mode; val t = text; val fresh = sort.id == "date" && desc
             thread {
-                val r = runCatching { Sources.byId(m)!!.page(t, fresh, p) }
+                val r = runCatching { Sources.byId(m)!!.tracked(t, fresh, p) }
                 ui.post {
                     if (g != gen) return@post
                     loading = false

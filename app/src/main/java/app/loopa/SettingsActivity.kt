@@ -32,7 +32,7 @@ class SettingsActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        I18n.init(this); Theme.init(this); Api.init(this); Reddit.init(this); Ext.init(this); ForYou.init(this); Interests.init(this); Hide.init(this); Net.init(this); Video.init(this)
+        I18n.init(this); Theme.init(this); Api.init(this); Reddit.init(this); Ext.init(this); ForYou.init(this); Interests.init(this); Hide.init(this); Net.init(this); Video.init(this); CachedExport.init(this)
         page = savedInstanceState?.getString("page")
         Theme.bars(this)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Theme.bg) }
@@ -91,7 +91,10 @@ class SettingsActivity : Activity() {
         caption(tr("Источники: «Для вас» и поиск"))
         toggle("RedGIFs", null, ForYou.useRg) { ForYou.useRg = it; sourcesChanged() }
         toggle("Reddit", null, ForYou.mixReddit) { ForYou.mixReddit = it; sourcesChanged() }
-        Sources.ALL.forEach { s -> toggle(s.title, null, ForYou.uses(s)) { ForYou.setUses(s, it); sourcesChanged() } }
+        Sources.ALL.forEach { s ->
+            val warn = SourceHealth.status(s.id).state == SourceState.NEEDS_ACTION
+            toggle(s.title, if (warn) SourceCheckActivity.stateText(SourceHealth.status(s.id)) + " — " + tr("требует проверки") else null, ForYou.uses(s), subWarn = warn) { ForYou.setUses(s, it); sourcesChanged() }
+        }
         caption(tr("Доля источника в «Для вас»"))
         val shares = (listOf(Triple("rg", "RedGIFs", ForYou.useRg), Triple("rd", "Reddit", ForYou.reddit)) +
             Sources.ALL.map { Triple(it.badge.lowercase(), it.title, ForYou.uses(it)) }).filter { it.third }
@@ -99,6 +102,9 @@ class SettingsActivity : Activity() {
             choice(name, ForYou.WEIGHTS.map { tr(it.second) }, ForYou.WEIGHTS.indexOfFirst { it.first == ForYou.weight(key) }) { ForYou.setWeight(key, ForYou.WEIGHTS[it].first); reload() }
         }
     }
+
+    // после выбора папки (FolderPickActivity) — перечитать подпись; источники — состояние после проверки
+    override fun onResume() { super.onResume(); if ((page == "sources" || page == "video") && ::body.isInitialized) render() }
 
     private fun sourcesChanged() { if (Feed.mode == "foryou") reload() else touch(); render() }
 
@@ -135,9 +141,24 @@ class SettingsActivity : Activity() {
         choice(tr("Качество по умолчанию"), listOf(tr("Авто"), "HD", "SD"), q.indexOf(prefs.getString("quality", "auto")).coerceAtLeast(0), tr("Авто: HD на быстрой сети, SD на медленной")) {
             prefs.edit().putString("quality", q[it]).apply()
         }
-        val used = tr("Занято: %s", size(Video.cacheUsed + Net.imgCacheUsed))
+        // кэш видео и сохранённые ролики делят один предел, поэтому «Занято» — всё вместе (+ картинки-превью)
+        val used = tr("Занято: %s", size(Video.cacheUsed + CachedExport.usedBytes() + Net.imgCacheUsed)) + ". " + tr("Кэш и сохранённые ролики вместе не больше этого размера")
         choice(tr("Кэш видео"), PreloadPolicy.CACHE_CHOICES.map { if (it == 0) tr("Авто — по свободному месту") else size(it * PreloadPolicy.MB) },
             PreloadPolicy.CACHE_CHOICES.indexOf(Video.cacheChoice).coerceAtLeast(0), used) { Video.cacheChoice = PreloadPolicy.CACHE_CHOICES[it] }
+        // ролик, скачанный в кэш целиком, переезжает в папку (одна копия) — его можно открыть другим плеером без сети
+        toggle(tr("Сохранять досмотренные ролики"), tr("Целиком скачанный ролик переносится в папку — его откроет любой плеер без интернета"), CachedExport.enabled) {
+            CachedExport.enabled = it; render()
+        }
+        if (CachedExport.enabled) {
+            row(tr("Папка"), CachedExport.folderLabel()) { startActivity(Intent(this, FolderPickActivity::class.java)) }
+            row(tr("Папка по умолчанию"), tr("Загрузки/AdultSpace/cached videos")) { CachedExport.resetFolder(); render() }
+            CachedExport.lastError?.let { err -> row(tr("Не удалось сохранить в папку: %s", err), tr("Выберите другую папку или освободите место")) { startActivity(Intent(this, FolderPickActivity::class.java)) } }
+            row(tr("Сохранённые ролики"), tr("Занято: %s", size(CachedExport.usedBytes())), tr("Очистить")) {
+                android.app.AlertDialog.Builder(this).setMessage(tr("Удалить сохранённые ролики из папки?"))
+                    .setPositiveButton(tr("Удалить")) { _, _ -> Thread { CachedExport.clear(); runOnUiThread { render() } }.start() }
+                    .setNegativeButton(tr("Отмена"), null).show()
+            }
+        }
     }
 
     /** Размер кэша: «512 МБ», «1 ГБ», «1,5 ГБ». */
@@ -261,7 +282,7 @@ class SettingsActivity : Activity() {
 
     // --- строки ---
 
-    private fun row(title: String, sub: String?, value: String? = null, lead: View? = null, enabled: Boolean = true, extra: View? = null, click: (() -> Unit)? = null): LinearLayout {
+    private fun row(title: String, sub: String?, value: String? = null, lead: View? = null, enabled: Boolean = true, extra: View? = null, subWarn: Boolean = false, click: (() -> Unit)? = null): LinearLayout {
         val r = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(14), dp(16), dp(14)); alpha = if (enabled) 1f else 0.45f
             background = GradientDrawable().apply { setColor(Theme.field); cornerRadius = dp(14).toFloat() }
@@ -269,7 +290,13 @@ class SettingsActivity : Activity() {
         lead?.let { r.addView(it, LinearLayout.LayoutParams(dp(18), dp(18)).apply { marginEnd = dp(14) }) }
         val text = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         text.addView(TextView(this).apply { this.text = title; setTextColor(Color.WHITE); textSize = 16f })
-        sub?.let { text.addView(TextView(this).apply { this.text = it; setTextColor(0xFFB0B5BD.toInt()); textSize = 13f; setPadding(0, dp(2), 0, 0) }) }
+        sub?.let {
+            text.addView(TextView(this).apply {
+                this.text = it; setTextColor(if (subWarn) Theme.warnText else 0xFFB0B5BD.toInt()); textSize = 13f; setPadding(0, dp(2), 0, 0)
+                // пометка «требует проверки» ведёт на экран проверки источников
+                if (subWarn) setOnClickListener { startActivity(Intent(this@SettingsActivity, SourceCheckActivity::class.java)) }
+            })
+        }
         r.addView(text, LinearLayout.LayoutParams(0, -2, 1f))
         value?.let { r.addView(TextView(this).apply { this.text = it; setTextColor(Theme.soft); textSize = 14f; gravity = Gravity.END; setPadding(dp(10), 0, 0, 0) }, LinearLayout.LayoutParams(-2, -2)) }
         extra?.let { r.addView(it) }
@@ -282,13 +309,13 @@ class SettingsActivity : Activity() {
 
     private fun action(title: String, sub: String?, enabled: Boolean = true, click: () -> Unit) { row(title, sub, enabled = enabled, click = click) }
 
-    private fun toggle(title: String, sub: String?, on: Boolean, enabled: Boolean = true, change: (Boolean) -> Unit) {
+    private fun toggle(title: String, sub: String?, on: Boolean, enabled: Boolean = true, subWarn: Boolean = false, change: (Boolean) -> Unit) {
         val sw = Switch(this).apply {
             isChecked = on && enabled; isEnabled = enabled
             val (thumb, track) = Theme.switchTints(); thumbTintList = thumb; trackTintList = track
             setOnCheckedChangeListener { _, c -> change(c) }
         }
-        val r = row(title, sub, enabled = enabled, extra = sw)
+        val r = row(title, sub, enabled = enabled, extra = sw, subWarn = subWarn)
         // нажатие по строке — то же, что по самому переключателю
         if (enabled) r.setOnClickListener { sw.toggle() }
     }

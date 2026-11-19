@@ -12,6 +12,7 @@ object Eporner : Source {
     override val id = "eporner"
     override val title = "Eporner"
     override val badge = "EP"
+    override val home = SITE
     override val about = "полные видео"
     const val SITE = "https://www.eporner.com"
     private const val PER_PAGE = 30
@@ -26,7 +27,7 @@ object Eporner : Source {
             val c = Net.open(url)
             try {
                 if (c.responseCode !in 200..299) throw Net.fail(c)
-                c.inputStream.bufferedReader().use { it.readText() }
+                Net.text(c)
             } finally { c.disconnect() }
         })
         val arr = js.optJSONArray("videos")

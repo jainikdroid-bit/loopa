@@ -16,6 +16,7 @@ object PornOne : Source {
     override val id = "pornone"
     override val title = "PornOne"
     override val badge = "P1"
+    override val home = SITE
     override val about = "любительское"
 
     const val SITE = "https://pornone.com"
@@ -39,10 +40,10 @@ object PornOne : Source {
 
     private fun get(url: String): String = Net.retry {
         val c = Net.open(url)
-        c.setRequestProperty("User-Agent", XParse.UA)
+        Net.ua(c, XParse.UA)
         try {
             if (c.responseCode !in 200..299) throw Net.fail(c)
-            c.inputStream.bufferedReader().use { it.readText() }
+            Net.text(c)
         } finally { c.disconnect() }
     }
 

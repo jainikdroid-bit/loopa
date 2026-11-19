@@ -14,6 +14,7 @@ import java.net.URLEncoder
  */
 internal abstract class FlixTube : Source {
     abstract val host: String
+    override val home get() = host
     /** Префикс id: «tf» / «ef». */
     abstract val prefix: String
     /** Раздел «новые» любительского: у TNAFlix most-recent, у EMPFlix new. */
@@ -42,10 +43,10 @@ internal abstract class FlixTube : Source {
 
     private fun get(url: String): String = Net.retry {
         val c = Net.open(url)
-        c.setRequestProperty("User-Agent", XParse.UA)
+        Net.ua(c, XParse.UA)
         try {
             if (c.responseCode !in 200..299) throw Net.fail(c)
-            c.inputStream.bufferedReader().use { it.readText() }
+            Net.text(c)
         } finally { c.disconnect() }
     }
 }

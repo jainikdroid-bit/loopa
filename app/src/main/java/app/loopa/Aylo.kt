@@ -171,14 +171,14 @@ internal object Aylo {
     fun get(url: String, cookies: Map<String, String> = emptyMap()): Reply = Net.retry {
         val c = Net.open(url)
         try {
-            c.setRequestProperty("User-Agent", UA)
+            Net.ua(c, UA)
             c.setRequestProperty("Accept-Language", "en-US,en;q=0.9")
-            if (cookies.isNotEmpty()) c.setRequestProperty("Cookie", cookies.entries.joinToString("; ") { "${it.key}=${it.value}" })
+            if (cookies.isNotEmpty()) Net.addCookie(c, cookies.entries.joinToString("; ") { "${it.key}=${it.value}" })
             if (c.responseCode !in 200..299) throw Net.fail(c)
             val set = (c.headerFields["Set-Cookie"] ?: emptyList<String>()).mapNotNull { h ->
                 h.substringBefore(';').split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0].trim() to it[1].trim() }
             }.toMap()
-            Reply(c.inputStream.bufferedReader().use { it.readText() }, set)
+            Reply(Net.text(c), set)
         } finally { c.disconnect() }
     }
 

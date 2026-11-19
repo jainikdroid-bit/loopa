@@ -10,6 +10,7 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
@@ -47,21 +48,30 @@ object Video {
         }
     /** Предел кэша сейчас, байт. */
     val cacheLimit get() = evictor.max
-    /** Занято кэшем, байт. */
+    /** Занято кэшем, байт (без сохранённых роликов — они в [CachedExport.usedBytes]; предел [cacheLimit] общий для обоих). */
     val cacheUsed get() = cache.cacheSpace
+    /** Кэш создан. */
+    val ready get() = ::cache.isInitialized
+
+    /** Куски кэша для общего уборщика ([CacheReaper]). */
+    fun spans(): List<androidx.media3.datasource.cache.CacheSpan> = synchronized(cache) { evictor.snapshot() }
+    fun dropSpan(s: androidx.media3.datasource.cache.CacheSpan) { synchronized(cache) { runCatching { cache.removeSpan(s) } } }
 
     /** Пересчитать предел (выбор в меню, свободное место) и сразу ужать кэш, если он больше. */
     private fun applyCacheSize() {
         val used = if (::cache.isInitialized) cache.cacheSpace else 0L
         evictor.max = PreloadPolicy.cacheBytes(cacheChoice, dir.apply { mkdirs() }.usableSpace, used)
-        if (::cache.isInitialized) synchronized(cache) { evictor.trim(cache) }
+        if (::cache.isInitialized) { synchronized(cache) { evictor.trim(cache) }; CacheReaper.request() }
     }
 
     fun init(ctx: Context) {
         if (::cache.isInitialized) return
         app = ctx.applicationContext
+        CachedExport.init(app)   // сохранённые ролики нужны превью, предзагрузке и плееру с холодного старта (localUri, hasUrl, fullyCached)
+        evictor.extra = { CachedExport.savedTotal }; evictor.onOver = { CacheReaper.request() }
         applyCacheSize()
         cache = SimpleCache(dir, evictor, StandaloneDatabaseProvider(app))
+        CacheReaper.request()   // кэш и сохранённые вместе могли не влезть в предел (его уменьшили или место кончилось)
         android.util.Log.i("Loopa", "кэш видео: занято ${cache.cacheSpace shr 20} МБ из ${evictor.max shr 20} МБ")
         meter = DefaultBandwidthMeter.Builder(app).setInitialBitrateEstimate(INITIAL_BITRATE).build()
         // один OkHttp на всё ([Net.http]): соединения к CDN переиспользуются (HTTP/2), DNS и переадресации помнятся;
@@ -70,13 +80,14 @@ object Video {
         // Erome отдаёт видео только с Referer своего сайта (без него 403)
         val ref = ResolvingDataSource.Factory(http) { spec -> resolveSpec(spec) }
         source = cached(ref)
-        play = Split.Factory(source, ref)
+        // локальные адреса (file://, content:// — сохранённые ролики [CachedExport]) читает сам DefaultDataSource, http и свои — база
+        play = DefaultDataSource.Factory(app, Split.Factory(source, ref))
         // фон (живые превью сетки, видео заранее) — тот же кэш, но свои соединения ([Net.bg]): открыли ролик — фон
         // обрывается целиком и не стоит в очереди перед ним
         val bgHttp = OkHttpDataSource.Factory(Net.bg).setUserAgent(Api.UA).setTransferListener(Counted(meter))
         val bgRef = ResolvingDataSource.Factory(bgHttp) { spec -> resolveSpec(spec) }
         bgSource = cached(bgRef)
-        bgPlay = Split.Factory(bgSource, bgRef)
+        bgPlay = DefaultDataSource.Factory(app, Split.Factory(bgSource, bgRef))
     }
 
     /**
@@ -105,6 +116,7 @@ object Video {
 
     /** Ролик целиком лежит в дисковом кэше — превью и просмотр сети не просят. */
     fun fullyCached(url: String): Boolean {
+        if (CachedExport.hasUrl(url)) return true   // ролик перенесён в файл ([CachedExport]) — для превью и предзагрузки он «бесплатный»
         if (!::cache.isInitialized || url.isEmpty() || Sources.uncached(url)) return false
         return runCatching {
             val len = androidx.media3.datasource.cache.ContentMetadata.getContentLength(cache.getContentMetadata(url))
