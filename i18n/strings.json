@@ -264,7 +264,11 @@
   "Модель вкуса, примеров: %s",
   "Сильные сочетания модели",
   "Ищу…",
-  "Загружаю…"
+  "Загружаю…",
+  "любительское, сеть Pornhub",
+  "та же сеть, что TNAFlix",
+  "любительское",
+  "домашние ролики пользователей"
  ],
  "en": [
   "Already downloaded: Downloads/Loopa/%s",
@@ -530,7 +534,11 @@
   "Taste model, examples: %s",
   "Strongest combinations",
   "Searching…",
-  "Loading…"
+  "Loading…",
+  "amateur, Pornhub network",
+  "same network as TNAFlix",
+  "amateur",
+  "users' home videos"
  ],
  "es": [
   "Ya descargado: Descargas/Loopa/%s",
@@ -796,7 +804,11 @@
   "Modelo de gusto, ejemplos: %s",
   "Combinaciones más fuertes",
   "Buscando…",
-  "Cargando…"
+  "Cargando…",
+  "amateur, red de Pornhub",
+  "misma red que TNAFlix",
+  "amateur",
+  "vídeos caseros de usuarios"
  ],
  "pt": [
   "Já baixado: Downloads/Loopa/%s",
@@ -1062,7 +1074,11 @@
   "Modelo de gosto, exemplos: %s",
   "Combinações mais fortes",
   "Buscando…",
-  "Carregando…"
+  "Carregando…",
+  "amador, rede Pornhub",
+  "mesma rede do TNAFlix",
+  "amador",
+  "vídeos caseiros de usuários"
  ],
  "de": [
   "Bereits geladen: Downloads/Loopa/%s",
@@ -1328,7 +1344,11 @@
   "Geschmacksmodell, Beispiele: %s",
   "Stärkste Kombinationen",
   "Suche läuft…",
-  "Lade…"
+  "Lade…",
+  "Amateur, Pornhub-Netzwerk",
+  "gleiches Netzwerk wie TNAFlix",
+  "Amateur",
+  "Heimvideos von Nutzern"
  ],
  "fr": [
   "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1594,7 +1614,11 @@
   "Modèle de goût, exemples : %s",
   "Combinaisons les plus fortes",
   "Recherche…",
-  "Chargement…"
+  "Chargement…",
+  "amateur, réseau Pornhub",
+  "même réseau que TNAFlix",
+  "amateur",
+  "vidéos maison des utilisateurs"
  ],
  "it": [
   "Già scaricato: Download/Loopa/%s",
@@ -1860,7 +1884,11 @@
   "Modello di gusto, esempi: %s",
   "Combinazioni più forti",
   "Ricerca…",
-  "Caricamento…"
+  "Caricamento…",
+  "amatoriale, rete Pornhub",
+  "stessa rete di TNAFlix",
+  "amatoriale",
+  "video casalinghi degli utenti"
  ],
  "tr": [
   "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -2126,7 +2154,11 @@
   "Zevk modeli, örnek: %s",
   "En güçlü kombinasyonlar",
   "Aranıyor…",
-  "Yükleniyor…"
+  "Yükleniyor…",
+  "amatör, Pornhub ağı",
+  "TNAFlix ile aynı ağ",
+  "amatör",
+  "kullanıcıların ev videoları"
  ],
  "pl": [
   "Już pobrano: Pobrane/Loopa/%s",
@@ -2392,7 +2424,11 @@
   "Model gustu, przykładów: %s",
   "Najsilniejsze kombinacje",
   "Szukam…",
-  "Ładuję…"
+  "Ładuję…",
+  "amatorskie, sieć Pornhub",
+  "ta sama sieć co TNAFlix",
+  "amatorskie",
+  "domowe filmy użytkowników"
  ],
  "uk": [
   "Уже завантажено: Завантаження/Loopa/%s",
@@ -2658,6 +2694,10 @@
   "Модель смаку, прикладів: %s",
   "Найсильніші поєднання",
   "Шукаю…",
-  "Завантажую…"
+  "Завантажую…",
+  "аматорське, мережа Pornhub",
+  "та сама мережа, що TNAFlix",
+  "аматорське",
+  "домашні ролики користувачів"
  ]
 }

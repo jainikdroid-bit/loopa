@@ -268,6 +268,10 @@ object I18nTables {
         "Сильные сочетания модели" to "Strongest combinations",
         "Ищу…" to "Searching…",
         "Загружаю…" to "Loading…",
+        "любительское, сеть Pornhub" to "amateur, Pornhub network",
+        "та же сеть, что TNAFlix" to "same network as TNAFlix",
+        "любительское" to "amateur",
+        "домашние ролики пользователей" to "users' home videos",
     ) }
     private val ES by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Ya descargado: Descargas/Loopa/%s",
@@ -534,6 +538,10 @@ object I18nTables {
         "Сильные сочетания модели" to "Combinaciones más fuertes",
         "Ищу…" to "Buscando…",
         "Загружаю…" to "Cargando…",
+        "любительское, сеть Pornhub" to "amateur, red de Pornhub",
+        "та же сеть, что TNAFlix" to "misma red que TNAFlix",
+        "любительское" to "amateur",
+        "домашние ролики пользователей" to "vídeos caseros de usuarios",
     ) }
     private val PT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Já baixado: Downloads/Loopa/%s",
@@ -800,6 +808,10 @@ object I18nTables {
         "Сильные сочетания модели" to "Combinações mais fortes",
         "Ищу…" to "Buscando…",
         "Загружаю…" to "Carregando…",
+        "любительское, сеть Pornhub" to "amador, rede Pornhub",
+        "та же сеть, что TNAFlix" to "mesma rede do TNAFlix",
+        "любительское" to "amador",
+        "домашние ролики пользователей" to "vídeos caseiros de usuários",
     ) }
     private val DE by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Bereits geladen: Downloads/Loopa/%s",
@@ -1066,6 +1078,10 @@ object I18nTables {
         "Сильные сочетания модели" to "Stärkste Kombinationen",
         "Ищу…" to "Suche läuft…",
         "Загружаю…" to "Lade…",
+        "любительское, сеть Pornhub" to "Amateur, Pornhub-Netzwerk",
+        "та же сеть, что TNAFlix" to "gleiches Netzwerk wie TNAFlix",
+        "любительское" to "Amateur",
+        "домашние ролики пользователей" to "Heimvideos von Nutzern",
     ) }
     private val FR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1332,6 +1348,10 @@ object I18nTables {
         "Сильные сочетания модели" to "Combinaisons les plus fortes",
         "Ищу…" to "Recherche…",
         "Загружаю…" to "Chargement…",
+        "любительское, сеть Pornhub" to "amateur, réseau Pornhub",
+        "та же сеть, что TNAFlix" to "même réseau que TNAFlix",
+        "любительское" to "amateur",
+        "домашние ролики пользователей" to "vidéos maison des utilisateurs",
     ) }
     private val IT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Già scaricato: Download/Loopa/%s",
@@ -1598,6 +1618,10 @@ object I18nTables {
         "Сильные сочетания модели" to "Combinazioni più forti",
         "Ищу…" to "Ricerca…",
         "Загружаю…" to "Caricamento…",
+        "любительское, сеть Pornhub" to "amatoriale, rete Pornhub",
+        "та же сеть, что TNAFlix" to "stessa rete di TNAFlix",
+        "любительское" to "amatoriale",
+        "домашние ролики пользователей" to "video casalinghi degli utenti",
     ) }
     private val TR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -1864,6 +1888,10 @@ object I18nTables {
         "Сильные сочетания модели" to "En güçlü kombinasyonlar",
         "Ищу…" to "Aranıyor…",
         "Загружаю…" to "Yükleniyor…",
+        "любительское, сеть Pornhub" to "amatör, Pornhub ağı",
+        "та же сеть, что TNAFlix" to "TNAFlix ile aynı ağ",
+        "любительское" to "amatör",
+        "домашние ролики пользователей" to "kullanıcıların ev videoları",
     ) }
     private val PL by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Już pobrano: Pobrane/Loopa/%s",
@@ -2130,6 +2158,10 @@ object I18nTables {
         "Сильные сочетания модели" to "Najsilniejsze kombinacje",
         "Ищу…" to "Szukam…",
         "Загружаю…" to "Ładuję…",
+        "любительское, сеть Pornhub" to "amatorskie, sieć Pornhub",
+        "та же сеть, что TNAFlix" to "ta sama sieć co TNAFlix",
+        "любительское" to "amatorskie",
+        "домашние ролики пользователей" to "domowe filmy użytkowników",
     ) }
     private val UK by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Уже завантажено: Завантаження/Loopa/%s",
@@ -2396,6 +2428,10 @@ object I18nTables {
         "Сильные сочетания модели" to "Найсильніші поєднання",
         "Ищу…" to "Шукаю…",
         "Загружаю…" to "Завантажую…",
+        "любительское, сеть Pornhub" to "аматорське, мережа Pornhub",
+        "та же сеть, что TNAFlix" to "та сама мережа, що TNAFlix",
+        "любительское" to "аматорське",
+        "домашние ролики пользователей" to "домашні ролики користувачів",
     ) }
 
     fun of(code: String): Map<String, String> = when (code) {

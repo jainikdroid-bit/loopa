@@ -5,7 +5,7 @@ import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Сторонний сайт с роликами (Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster, FikFap): своя лента и поиск.
+ * Сторонний сайт с роликами (Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, YouPorn, Tube8, xHamster, FikFap, TNAFlix, EMPFlix, YouJizz, PornOne, EroProfile): своя лента и поиск.
  * Ролики такого сайта — [Gif] с site = [id]; лайк только у себя, автор и теги — поиском по тому же сайту.
  *
  * Многие сайты не дают адрес видео в выдаче: он лежит на странице ролика и часто подписан и истекает. Тогда в [Gif.hd] и
@@ -45,7 +45,7 @@ object Sources {
     private const val TTL_MS = 30 * 60_000L
 
     /** Все сайты по порядку вкладок. Заполняется в одном месте — здесь. */
-    val ALL: List<Source> by lazy { listOf(Erome, Eporner, XVideos, Xnxx, Pornhub, RedTube, XHamster, FikFap) }
+    val ALL: List<Source> by lazy { listOf(Erome, Eporner, XVideos, Xnxx, Pornhub, RedTube, YouPorn, Tube8, XHamster, FikFap, TnaFlix, EmpFlix, YouJizz, PornOne, EroProfile) }
     fun byId(id: String?): Source? = ALL.firstOrNull { it.id == id }
 
     /**

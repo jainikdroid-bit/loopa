@@ -4,7 +4,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Общее для Pornhub и RedTube (одна сеть Aylo, одинаковые API для вебмастеров и страницы ролика).
+ * Общее для Pornhub, RedTube, YouPorn и Tube8 (одна сеть Aylo, одинаковые API для вебмастеров и страницы ролика).
+ * У YouPorn и Tube8 API вебмастеров закрыт (404/301), лента — HTML-плитки одной вёрстки ([parseHtmlList]), а страница
+ * ролика и индекс MP4 (/media/mp4/?s=…) такие же, как у Pornhub, так что [resolveMp4] подходит без изменений.
  *
  * Выдача — JSON: список videos, элемент — сам ролик (Pornhub) или обёртка {"video": {…}} (RedTube).
  * Адрес видео лежит на странице ролика в flashvars → mediaDefinitions: запись format=mp4 ведёт не на файл, а на «индекс»
@@ -50,6 +52,62 @@ internal object Aylo {
             gif(item.optJSONObject("video") ?: item, site, prefix)
         }
     }
+
+    // ---- HTML-лента YouPorn и Tube8 ----
+
+    private val ARTICLE = Regex("""<article class="video-box[^>]*>""")
+    private val F_ID = Regex("""data-video-id="(\d+)"""")
+    private val F_USER = Regex("""data-uploader-name="([^"]*)"""")
+    private val F_TITLE = Regex("""aria-label="([^"]*)"""")
+    private val F_POSTER = Regex("""data-poster=['"]([^'"]+)['"]""")
+    private val F_SRC = Regex("""data-src=['"]([^'"]+)['"]""")
+    private val F_DUR = Regex("""video-duration[^>]*>\s*<span>\s*([\d:]+)\s*</span>""")
+    private val F_VIEWS = Regex("""Views: </span>([^<]*)<""")
+    private val F_RATING = Regex("""Rating: </span>(\d+)%""")
+
+    /** «1.2M», «401K», «135» в число; непонятное — 0. */
+    fun count(s: String): Long {
+        val t = s.trim().replace(",", "")
+        val mul = when (t.lastOrNull()?.uppercaseChar()) { 'K' -> 1_000.0; 'M' -> 1_000_000.0; 'B' -> 1_000_000_000.0; else -> 1.0 }
+        return ((t.trimEnd('K', 'k', 'M', 'm', 'B', 'b').toDoubleOrNull() ?: return 0L) * mul).toLong()
+    }
+
+    /** Текст из атрибута HTML: основные сущности (&amp; &quot; &#039; …). */
+    fun unescape(s: String): String = s.replace("&quot;", "\"").replace("&#039;", "'").replace("&#x27;", "'")
+        .replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+
+    /**
+     * Ролики со страницы-ленты YouPorn/Tube8: плитки <article class="video-box …"> (рекламные <div class="video-box"> без
+     * ссылки пропускаются). Адрес видео в плитке — только превью на 360p, поэтому ролик ленивый ([Sources.lazy]) по номеру.
+     * Тегов в плитке нет; рейтинг в процентах даёт оценку лайков.
+     */
+    fun parseHtmlList(html: String, site: String, prefix: String): List<Gif> {
+        val starts = ARTICLE.findAll(html).map { it.range.first }.toList()
+        return starts.mapIndexedNotNull { i, at ->
+            val tile = html.substring(at, starts.getOrElse(i + 1) { html.length })
+            val key = F_ID.find(tile)?.groupValues?.get(1) ?: return@mapIndexedNotNull null
+            val thumb = (F_POSTER.find(tile) ?: F_SRC.find(tile))?.groupValues?.get(1)?.let(::unescape) ?: return@mapIndexedNotNull null
+            val views = F_VIEWS.find(tile)?.groupValues?.get(1)?.let(::count) ?: 0L
+            val rating = F_RATING.find(tile)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            Gif(id = "$prefix:$key", thumb = thumb, hd = Sources.lazy(site, key, true), sd = Sources.lazy(site, key, false),
+                w = 1280, h = 720, duration = F_DUR.find(tile)?.groupValues?.get(1)?.let(::seconds) ?: 0.0,
+                user = F_USER.find(tile)?.groupValues?.get(1)?.let(::unescape).orEmpty(), tags = emptyList(), hasAudio = true,
+                views = views, likes = views * rating / 100, description = F_TITLE.find(tile)?.groupValues?.get(1)?.let(::unescape).orEmpty(),
+                site = site)
+        }
+    }
+
+    /** Адрес страницы p ленты: ?page=p (или &page=p), первая — без параметра. */
+    fun paged(url: String, p: Int) = if (p > 1) url + (if ('?' in url) "&" else "?") + "page=$p" else url
+
+    /** Страница ленты YouPorn/Tube8 по адресу [url] (cookie подтверждения возраста): ролики и признак «дальше есть». */
+    fun htmlPage(url: String, site: String, prefix: String, p: Int, age: Map<String, String>): Page {
+        val html = get(url, age).body
+        return Page(parseHtmlList(html, site, prefix), if (hasNext(html)) p + 1 else p, emptyList())
+    }
+
+    /** Есть ли следующая страница: в head ленты стоит <link rel="next">. */
+    fun hasNext(html: String) = html.contains("<link rel=\"next\"")
 
     private fun gif(v: JSONObject, site: String, prefix: String): Gif? {
         val key = v.optString("video_id").takeIf { it.isNotEmpty() } ?: return null
