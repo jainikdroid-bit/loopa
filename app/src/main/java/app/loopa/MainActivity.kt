@@ -64,7 +64,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         // первый запуск — приветствие (до того, как что-то запишется в настройки: по их пустоте узнаём новую установку)
         val welcome = savedInstanceState == null && WelcomeActivity.needed(prefs)
-        I18n.init(this); Theme.init(this); themeKey = Theme.id + I18n.code; Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); Video.init(this); CachedExport.init(this); Hide.init(this); DeviceTier.warmAvc()
+        I18n.init(this); Theme.init(this); themeKey = Theme.id + I18n.code; Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); SearchTaste.init(prefs); Video.init(this); CachedExport.init(this); Hide.init(this); DeviceTier.warmAvc()
         @Suppress("DEPRECATION") if (welcome) startActivityForResult(Intent(this, WelcomeActivity::class.java), 4)
         preview.enabled = prefs.getBoolean("live", true)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
@@ -139,6 +139,7 @@ class MainActivity : Activity() {
                     if (st == RecyclerView.SCROLL_STATE_IDLE) { live(); ahead(0f, 0); blanksReport() }
                 }
                 override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
+                    if (dy != 0 && rv.scrollState != RecyclerView.SCROLL_STATE_IDLE) trackPassedTiles()
                     markSeen()
                     val now = android.os.SystemClock.uptimeMillis()
                     if (now - liveAt > LIVE_SCROLL_MS) { liveAt = now; live() }
@@ -218,7 +219,8 @@ class MainActivity : Activity() {
     private fun homeOrder() = Feed.order.takeIf { it != "score" } ?: "trending"
 
     /** Вкладки: общие и по одной на каждый включённый сторонний сайт (галочки в меню 👤). */
-    private fun tabList() = TABS + ForYou.onSources.map { it.title to it.id as String? }
+    private fun tabList() = TABS + ForYou.onSources.map { it.title to it.id as String? } +
+        listOfNotNull(("MFC Share ↗" to "mfcshare").takeIf { prefs.getBoolean("mfc_catalog", true) })
     private var tabsKey = ""
     private fun buildTabs() {
         val l = tabList(); tabsKey = l.joinToString { it.second.orEmpty() }
@@ -227,6 +229,17 @@ class MainActivity : Activity() {
     }
 
     private fun tab(m: String?) {
+        if (m == "mfcshare") {
+            val q = search.text.toString().trim()
+            val url = if (q.isEmpty()) android.net.Uri.parse("https://share.myfreecams.com/recordings/newest?free=t")
+                else android.net.Uri.parse("https://share.myfreecams.com/search").buildUpon()
+                    .appendQueryParameter("type", "tagged_album").appendQueryParameter("q", q).build()
+            try { startActivity(Intent(Intent.ACTION_VIEW, url)) }
+            catch (_: android.content.ActivityNotFoundException) {
+                android.widget.Toast.makeText(this, url.toString(), android.widget.Toast.LENGTH_LONG).show()
+            }
+            return
+        }
         if (m == "reddit") {
             if (!Reddit.hadUser) { login(Reddit.SITE); return }
             nav(); search.setText(""); openSub(prefs.getString("last_sub", "")!!); return
@@ -325,7 +338,7 @@ class MainActivity : Activity() {
     // превью — только пока главный экран на виду: иначе (лента догрузилась, пока открыт плеер) они запускались в фоне
     // и отбирали видеодекодеры у плеера — картинка вставала, а звук шёл дальше
     private var shown = false
-    override fun onPause() { super.onPause(); shown = false; impressions.clear(); preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch() }
+    override fun onPause() { super.onPause(); shown = false; passCandidates.clear(); impressions.clear(); preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch() }
     override fun onResume() {
         super.onResume(); shown = true; Prefetch.resume()
         if (!::grid.isInitialized) return
@@ -392,6 +405,30 @@ class MainActivity : Activity() {
 
     /** Ячейка сетки «Для вас», видимая целиком: ролик, когда впервые и когда в последний раз видели целиком, и была ли сетка неподвижна. */
     private class Imp(val g: Gif, val first: Long, var last: Long, var still: Boolean)
+    private val passCandidates = HashMap<String, Int>()
+    private var passGeneration = -1
+
+    private fun trackPassedTiles() {
+        if (!shown || (Feed.mode != "foryou" && Feed.searchContext == null) || passGeneration != Feed.generation) {
+            passCandidates.clear()
+            return
+        }
+        val layout = grid.layoutManager as GridLayoutManager
+        val first = layout.findFirstVisibleItemPosition()
+        val last = layout.findLastVisibleItemPosition()
+        if (first < 0 || last < first) return
+        val iter = passCandidates.entries.iterator()
+        while (iter.hasNext()) {
+            val (id, position) = iter.next()
+            if (position in first..last) continue
+            iter.remove()
+            Feed.items.getOrNull(position)?.takeIf { it.id == id }?.let { g ->
+                val q = Feed.searchContext
+                if (q != null) SearchTaste.pass(q, g) else ForYou.passed(g)
+            }
+        }
+    }
+
     private val impressions = HashMap<String, Imp>()
 
     /**
@@ -400,25 +437,32 @@ class MainActivity : Activity() {
      * (если сетка стояла — до ухода: на первом же шаге прокрутки ячейка уже не целиком). Пауза приложения показов не даёт.
      */
     private fun trackImpressions() {
-        if (Feed.mode != "foryou" || !shown) { impressions.clear(); return }
+        if ((Feed.mode != "foryou" && Feed.searchContext == null) || !shown) { impressions.clear(); return }
         val now = android.os.SystemClock.uptimeMillis()
         val lm = grid.layoutManager as GridLayoutManager
         val a = lm.findFirstVisibleItemPosition(); val b = lm.findLastVisibleItemPosition()
         val still = grid.scrollState == RecyclerView.SCROLL_STATE_IDLE
-        val full = HashSet<String>()
+        if (passGeneration != Feed.generation) {
+            impressions.clear()
+            passGeneration = Feed.generation
+            passCandidates.clear()
+        }
+        val full = LinkedHashSet<String>()
         if (a >= 0) for (p in a..b) {
             val v = lm.findViewByPosition(p) ?: continue
             if (v.top < 0 || v.bottom > grid.height) continue
             val g = Feed.items.getOrNull(p) ?: continue
             full += g.id
+            passCandidates[g.id] = p
             impressions.getOrPut(g.id) { Imp(g, now, now, still) }.also { it.last = now; it.still = still }
         }
+        if (Feed.mode == "foryou") ForYou.visible(full.toList())
         val iter = impressions.entries.iterator()
         while (iter.hasNext()) {
             val (id, imp) = iter.next()
             if (id in full) continue
             iter.remove()
-            if ((if (imp.still) now else imp.last) - imp.first >= IMPRESSION_MS) Interests.impression(imp.g)
+            if (Feed.mode == "foryou" && passGeneration == Feed.generation && (if (imp.still) now else imp.last) - imp.first >= IMPRESSION_MS) Interests.impression(imp.g)
         }
     }
 

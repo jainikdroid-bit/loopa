@@ -53,6 +53,13 @@ object Updater {
     private fun p(ctx: Context) = prefs ?: ctx.applicationContext.getSharedPreferences("loopa", Context.MODE_PRIVATE).also { prefs = it }
     private fun dir(ctx: Context) = File(ctx.cacheDir, "updates").apply { mkdirs() }
 
+    private fun installer(ctx: Context, version: String): File {
+        val target = File(dir(ctx), "AdultSpace-$version.apk")
+        val previous = File(dir(ctx), "Loopa-$version.apk")
+        if (!target.exists() && previous.exists() && !previous.renameTo(target)) return previous
+        return target
+    }
+
     const val MANUAL = "manual"; const val ASK = "ask"; const val AUTO = "auto"
     fun parseMode(s: String?) = if (s == MANUAL || s == ASK || s == AUTO) s else ASK
 
@@ -66,7 +73,7 @@ object Updater {
     /** Скачанная и проверенная версия, готовая к установке; null — нет. */
     fun ready(ctx: Context): String? {
         val v = p(ctx).getString("upd_ready", null) ?: return null
-        return v.takeIf { File(dir(ctx), "Loopa-$it.apk").exists() && isNewer(current(ctx), it) }
+        return v.takeIf { installer(ctx, it).exists() && isNewer(current(ctx), it) }
     }
 
     /** Итог проверки: версия, готовая к установке (или null), и текст сообщения. */
@@ -86,7 +93,7 @@ object Updater {
         }
         sp.edit().putLong("upd_checked", System.currentTimeMillis()).apply()
         if (!isNewer(current(ctx), rel.version)) { sp.edit().remove("upd_ready").apply(); return Result(null, tr("У вас последняя версия")) }
-        val file = File(dir(ctx), "Loopa-${rel.version}.apk")
+        val file = installer(ctx, rel.version)
         if (!(file.exists() && sp.getString("upd_ready", null) == rel.version)) {
             // сеть с экономией трафика — автоматически не качаем (вручную — качаем)
             if (!force && Video.net() == NetKind.SAVER) return Result(null, tr("Доступна версия %s", rel.version), rel.notes)
@@ -108,15 +115,20 @@ object Updater {
 
     private fun latest(): Release {
         val j = JSONObject(get(API))
+        val version = j.getString("tag_name").removePrefix("v")
         val assets = j.getJSONArray("assets")
         var apk: Pair<String, String>? = null; var sums: String? = null
         for (i in 0 until assets.length()) {
             val a = assets.getJSONObject(i); val n = a.getString("name"); val u = a.getString("browser_download_url")
             if (!trusted(u)) continue
-            if (Regex("^Loopa-.*\\.apk$").matches(n)) apk = n to u else if (n == "SHA256SUMS") sums = u
+            when (n) {
+                "AdultSpace-$version.apk" -> apk = n to u
+                "Loopa-$version.apk" -> if (apk == null) apk = n to u
+                "SHA256SUMS" -> sums = u
+            }
         }
         if (apk == null || sums == null) throw RuntimeException("в релизе нет APK или SHA256SUMS")
-        return Release(j.getString("tag_name").removePrefix("v"), j.optString("body"), apk.second, apk.first, sums)
+        return Release(version, j.optString("body"), apk.second, apk.first, sums)
     }
 
     /** Скачать APK и сверить SHA-256 с SHA256SUMS; не совпало — исключение, файл удалён. */
@@ -137,7 +149,7 @@ object Updater {
     /** Поставить скачанную версию через установщик Android; null — запущено, иначе текст ошибки. */
     fun install(ctx: Context): String? {
         val v = ready(ctx) ?: return tr("Не удалось установить: %s", "нет скачанной версии")
-        val f = File(dir(ctx), "Loopa-$v.apk")
+        val f = installer(ctx, v)
         if (!ctx.packageManager.canRequestPackageInstalls()) {
             ctx.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             return tr("Разрешите Adult Space устанавливать приложения: откроются настройки")
@@ -148,7 +160,7 @@ object Updater {
             if (Build.VERSION.SDK_INT >= 31) params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
             val id = pi.createSession(params)
             pi.openSession(id).use { s ->
-                f.inputStream().use { i -> s.openWrite("loopa.apk", 0, f.length()).use { o -> i.copyTo(o); s.fsync(o) } }
+                f.inputStream().use { i -> s.openWrite("AdultSpace.apk", 0, f.length()).use { o -> i.copyTo(o); s.fsync(o) } }
                 val it = Intent(ctx, UpdateReceiver::class.java).setAction(ACTION)
                 val pend = PendingIntent.getBroadcast(ctx, id, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
                 s.commit(pend.intentSender)

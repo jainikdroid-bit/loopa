@@ -43,6 +43,7 @@ class PlayerActivity : Activity() {
     private val ui = Handler(Looper.getMainLooper())
     private lateinit var player: ExoPlayer
     private lateinit var preload: DefaultPreloadManager
+    private val backfill = CacheBackfill()
     private val control = Control()
     /** Ролики под управлением PreloadManager: номер в выдаче → MediaItem (окно вокруг текущего). */
     private val managed = HashMap<Int, MediaItem>()
@@ -213,7 +214,14 @@ class PlayerActivity : Activity() {
                     rendered = true; holder?.poster?.visibility = View.GONE
                 }
                 // замер: от выбора страницы до начала воспроизведения (в журнал)
-                override fun onIsPlayingChanged(p: Boolean) { if (p && startAt > 0) { android.util.Log.i("Loopa", "старт: ${System.currentTimeMillis() - startAt} мс"); startAt = 0 } }
+                override fun onIsPlayingChanged(p: Boolean) {
+                    if (!p) backfill.stop()
+                    watchClock.playing(p, android.os.SystemClock.elapsedRealtime())
+                    if (p && startAt > 0) {
+                        android.util.Log.i("Loopa", "старт: ${System.currentTimeMillis() - startAt} мс")
+                        startAt = 0
+                    }
+                }
                 override fun onVideoSizeChanged(s: VideoSize) { holder?.fit(s.width, s.height) }
                 // повтор по кругу: ролик сайта с заставкой начинается заново уже после неё
                 override fun onPositionDiscontinuity(old: Player.PositionInfo, new: Player.PositionInfo, reason: Int) {
@@ -264,12 +272,14 @@ class PlayerActivity : Activity() {
     }
 
     override fun onPause() {
+        backfill.stop()
         super.onPause(); if (!::player.isInitialized) return
         list.getOrNull(current)?.let { CachedExport.touch(it) }; CachedExport.sweep(list.getOrNull(current)?.id)
-        player.pause(); report(); if (current >= 0) Feed.lastSeen = feedIndex()
+        player.pause(); report(allowSkip = false); if (current >= 0) Feed.lastSeen = feedIndex()
     }
-    override fun onResume() { super.onResume(); if (::player.isInitialized && current >= 0) { player.play(); shownAt = System.currentTimeMillis() } }
+    override fun onResume() { super.onResume(); if (::player.isInitialized && current >= 0) { player.play() } }
     override fun onDestroy() {
+        backfill.close()
         Feed.listeners -= onFeed; Net.online -= onOnline; ui.removeCallbacksAndMessages(null); warmTask?.cancel(false); simPool.shutdown()
         if (::player.isInitialized) { player.release(); preload.release() }
         CachedExport.playing = null; CachedExport.sweep()   // вышли из плеера — и последний ролик можно переносить
@@ -325,21 +335,20 @@ class PlayerActivity : Activity() {
         if (control.open) preload.invalidate()
     }
 
-    /** Сколько текущий ролик был на экране — сигнал для «Для вас» ([Interests.watched]). */
-    private var shownAt = 0L
-    private fun report() {
+    private val watchClock = WatchClock()
+
+    private fun report(allowSkip: Boolean = true) {
+        val elapsed = watchClock.take(android.os.SystemClock.elapsedRealtime())
         val g = list.getOrNull(current) ?: return
-        if (shownAt == 0L) return
-        val sec = (System.currentTimeMillis() - shownAt) / 1000.0
-        Interests.watched(g, sec)
-        shownAt = 0L
+        if (elapsed > 0) Interests.watched(g, elapsed / 1000.0, allowSkip)
     }
 
     /** Страница выбрана — играть её ролик (источник уже подгружен PreloadManager). */
     private fun settle(pos: Int) {
         if (pos == current || pos !in list.indices) return
         val h = rv.findViewHolderForAdapterPosition(pos) as? PageHolder ?: run { pager.post { settle(pos) }; return }
-        report(); shownAt = System.currentTimeMillis()
+        backfill.stop()
+        report()
         // ушли с ролика — если он целиком в кэше, перенести в Загрузки (в фоне; ролик на экране не трогаем)
         list.getOrNull(current)?.let { CachedExport.touch(it) }
         CachedExport.playing = list[pos].id
@@ -351,6 +360,8 @@ class PlayerActivity : Activity() {
         control.dir = if (current >= 0 && pos < current) -1 else 1
         control.flinging = PreloadPolicy.flinging(dwells.toList())
         current = pos
+        ForYou.opened(list[pos].id)
+        Feed.searchFor(list[pos])?.let { SearchTaste.opened(it, list[pos].id) }
         // ушли листать в сторону от шагов «Похожих» — это уже не их продолжение: назад выйдет в сетку
         simSteps.lastOrNull()?.let { st -> val id = list[pos].id; if (id != st.opened.id && id != st.origin.id) simSteps.clear() }
         cancelWarm(); ui.postDelayed(warmSimilar, 3_000)
@@ -416,11 +427,17 @@ class PlayerActivity : Activity() {
         val buffered = (player.bufferedPosition.toFloat() / d).coerceIn(0f, 1f)
         val g = list.getOrNull(current)
         val key = player.currentMediaItem?.mediaId
+        val playlist = (player.currentManifest as? androidx.media3.exoplayer.hls.HlsManifest)?.mediaPlaylist
+        if (player.isPlaying && !h.dragging && player.bufferedPosition >= d - 100 &&
+            key != null && !isLocal(player.currentMediaItem) && g != null && (!g.hls || playlist != null) &&
+            (key.startsWith("http") || Sources.isLazy(key))) {
+            backfill.start(key, playlist)
+        } else backfill.stop()
         val parts = if (g == null || g.hls || key == null || !key.startsWith("http") && !Sources.isLazy(key) || Sources.uncached(key)) emptyList() else runCatching {
             val len = androidx.media3.datasource.cache.ContentMetadata.getContentLength(Video.cache.getContentMetadata(key))
             CacheMap.parts(Video.cache.getCachedSpans(key).filter { it.isCached }.map { it.position to it.length }, len)
         }.getOrDefault(emptyList())
-        h.seek.setLoaded(buffered, parts)
+        h.seek.setLoaded((player.currentPosition.toFloat() / d).coerceIn(0f, 1f), buffered, parts)
     }
 
     /** Лайкнутые — помним у себя (в «Моих лайках» — все). */

@@ -93,8 +93,13 @@ object Search {
         val relCnt = HashMap<String, Int>()
         var relDone = false
         var i = 0
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(45)
         while (i < n) {
-            val got = runCatching { cs.poll(45, TimeUnit.SECONDS)?.get() }.getOrNull() ?: emptyList(); i++
+            val remaining = deadline - System.nanoTime()
+            if (remaining <= 0) break
+            val done = cs.poll(remaining, TimeUnit.NANOSECONDS) ?: break
+            val got = runCatching { done.get() }.getOrDefault(emptyList())
+            i++
             // синонимы готовы — сразу отправить поиски по ним (первая порция)
             if (!synDone && synReady) {
                 synDone = true

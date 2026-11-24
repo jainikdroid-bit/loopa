@@ -262,7 +262,8 @@ object Api {
     }
 
     /** Значимые слова запроса (без предлогов и артиклей). */
-    fun words(q: String) = q.lowercase().split(Regex("[^a-z0-9'-]+")).filter { it.length > 1 && it !in STOP }.distinct()
+    private val WORD_BREAK = Regex("[^\\p{L}0-9]+")
+    fun words(q: String) = q.lowercase().split(WORD_BREAK).filter { it.length > 1 && it !in STOP }.distinct()
     private val STOP = setOf("in", "the", "a", "an", "on", "with", "of", "at", "and", "for", "to", "my", "her", "his", "by", "from", "is", "into", "while")
 
     /** Приложение представляется честно, без маскировки под браузер. */

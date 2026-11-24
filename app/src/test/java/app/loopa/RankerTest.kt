@@ -38,6 +38,16 @@ class RankerTest {
         assertEquals(listOf("a1", "a2", "b1"), Ranker.diversify(l).map { it.id })
     }
 
+    @Test fun watchClockExcludesStallsAndResetsBetweenVideos() {
+        val clock = WatchClock()
+        clock.playing(true, 1000)
+        clock.playing(false, 2000)
+        clock.playing(true, 12000)
+        clock.playing(true, 12500)
+        assertEquals(2000L, clock.take(13000))
+        assertEquals(0L, clock.take(17000))
+    }
+
     @Test fun `соседние ролики не про одно и то же`() {
         val t = listOf("Riding", "Blonde", "POV")
         val l = listOf(gif("x1", "u1", t) to 5.0, gif("x2", "u2", t) to 4.9, gif("y1", "u3", listOf("Outdoor", "Feet")) to 4.6)
@@ -47,8 +57,12 @@ class RankerTest {
     @Test fun `явно не во вкусе убирается, но лента не пустеет`() {
         val l = listOf("a" to 1.0, "b" to 0.5, "c" to 0.1)
         assertEquals(listOf("a", "b"), Ranker.dropDisliked(l) { if (it == "c") -2.0 else 0.5 }.map { it.first })
-        // почти всё «не во вкусе» — оставляем как есть
-        assertEquals(3, Ranker.dropDisliked(l) { if (it == "a") 0.5 else -2.0 }.size)
+        // При нехватке выбираем наименее нежелательный запасной ролик.
+        assertEquals(listOf("a", "c"), Ranker.dropDisliked(l) { when (it) {
+            "a" -> 0.5
+            "c" -> -2.0
+            else -> -5.0
+        } }.map { it.first })
     }
 
     @Test fun `добавка к поиску не перепрыгивает уровень релевантности`() {

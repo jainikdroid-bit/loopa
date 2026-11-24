@@ -85,6 +85,9 @@ object Feed {
     private var page = 0
     private var pages = 1
     private var loading = false
+    val searchContext get() = if (mode == null && author == null && !tagOnly && text.isNotBlank()) SearchTaste.key(text) else null
+    fun searchFor(g: Gif) = searchContext?.takeIf { items.any { it.id == g.id } }
+    val generation get() = gen
     private var gen = 0
     private val ui = Handler(Looper.getMainLooper())
     val listeners = LinkedHashSet<() -> Unit>()
@@ -121,12 +124,14 @@ object Feed {
         this.text = text; this.order = order; this.author = author; this.mode = mode; query = ""; tagOnly = tag; byTag = tag; exact = 0
         scoreOf.clear(); seenTo = 0; chaining = false
         items.clear(); page = 0; pages = 1; after = null; loading = false; error = null; fails = 0; chain = 0; stopRetry(); gen++
+        ForYou.visible(emptyList())
         if (mode == "foryou") ForYou.reset()
         // первый показ ленты после запуска — сразу прошлая лента с диска (без уже просмотренного), свежее допишется
         stale.clear()
         cacheKey()?.takeIf { restored.add(it) }?.let { k ->
-            val old = FeedCache.load(k).filter { !Hide.hidden(it) && !(mode == "foryou" && Interests.isSeen(it.id)) }
-            items += old; old.forEach { stale += it.id }
+            val old = FeedCache.load(k).filter { !Hide.hidden(it) && !(mode == "foryou" && (Interests.isSeen(it.id) || ForYou.dismissed(it.id))) }
+            val recent = if (mode == "foryou") ForYou.recentOrder() else emptyMap()
+            items += if (recent.isEmpty()) old else old.sortedBy { recent[it.id] ?: 0 }; old.forEach { stale += it.id }
             if (old.isNotEmpty()) android.util.Log.i("Loopa", "лента $k: из кэша ${old.size}")
         }
         changed(); more()
@@ -223,9 +228,25 @@ object Feed {
         if (text.isNotBlank() && author == null && mode == null && !tagOnly) {
             // поиск текстом — живьём: каждый источник, как ответил, сразу в выдачу на своё место по релевантности ([Search])
             val t = text
+            val strictFirst = p == 1 && localCmp() == null
+            val compareFirstPage = strictFirst && SearchTaste.hasProfile(SearchTaste.key(t))
             thread {
                 if (p == 1) Search.reset(t)
-                val r = runCatching { Search.run(p, ord, searchReddit && Reddit.hadUser) { part -> ui.post { if (g == gen) { addLive(part); changed() } } } }
+                val deferred = ArrayList<Pair<Gif, Double>>()
+                fun publish(rows: List<Pair<Gif, Double>>) {
+                    if (rows.isNotEmpty()) ui.post { if (g == gen) { addLive(rows); changed() } }
+                }
+                val r = runCatching {
+                    Search.run(p, ord, searchReddit && Reddit.hadUser) { part ->
+                        if (compareFirstPage) deferred.addAll(part)
+                        else if (strictFirst) {
+                            val (literal, rest) = part.partition { Relevance.level(it.second) == 8 }
+                            deferred.addAll(rest)
+                            publish(literal)
+                        } else publish(part)
+                    }
+                }
+                publish(deferred)
                 ui.post {
                     if (g != gen) return@post
                     loading = false
@@ -262,12 +283,17 @@ object Feed {
         query = q; byTag = bt; page = p; pages = pg.pages; error = null; fails = 0
         if (pg.tags.isNotEmpty() && p == 1) tags = pg.tags
         val seen = items.mapTo(HashSet()) { it.id }
+        items.forEach { if (it.hd.isNotBlank()) seen.add(it.hd) }
         val same = items.mapNotNullTo(HashSet()) { twin(it) }
         val range = range
         // одинаковые ролики: тот же id, тот же файл или перезалив (тот же размер кадра и длительность до сотых секунды)
-        val fresh = pg.gifs.filter { seen.add(it.id) && seen.add(it.hd) && twin(it)?.let { k -> same.add(k) } != false }
+        val fresh = pg.gifs.filter { mode != "foryou" || !ForYou.dismissed(it.id) }.filter { seen.add(it.id) && seen.add(it.hd) && twin(it)?.let { k -> same.add(k) } != false }
             .filter { duration == "any" || it.duration in range }.filter { !audioOnly || it.hasAudio }.filter { !Hide.hidden(it) }
-        val cmp = if (mode == null || mode == "foryou") localCmp() else null
+        val local = if (mode == null || mode == "foryou") localCmp() else null
+        val cmp = if (mode == "foryou" && local != null) {
+            val recent = ForYou.recentOrder()
+            compareBy<Gif> { recent[it.id] ?: 0 }.then(local)
+        } else local
         if (cmp != null) {
             // досортировка: первые POOL роликов — целиком, дальше — каждая страница в себе; показанное (до [frozen]) не трогаем
             val keep = frozen()
@@ -314,7 +340,12 @@ object Feed {
         else {
             // по релевантности: из одинаково подходящих выше тот, что во вкусе и качественнее ([Ranker.searchBonus])
             fresh.forEach { (x, sc) -> scoreOf[x.id] = Relevance.Rank(sc, Ranker.searchBonus(Interests.score(x), x.tags.size, x.likes, x.views)) }
-            replaceTail(keep, Relevance.order(tail) { scoreOf[it.id] })
+            val context = SearchTaste.key(text)
+            val ranks = tail.associate { g ->
+                val base = scoreOf[g.id]
+                g.id to base?.let { Relevance.Rank(it.score, it.bonus + SearchTaste.bonus(context, g)) }
+            }
+            replaceTail(keep, Relevance.order(tail) { ranks[it.id] })
             exact = Search.exact
             return
         }
@@ -323,7 +354,14 @@ object Feed {
     }
 
     /** Ключ перезалива: размер кадра + длительность до 0,01 с (у разных роликов совпадает редко); null — длительность неизвестна. */
-    private fun twin(g: Gif) = if (g.duration > 0.5 && g.w > 16) "${g.w}x${g.h}@${Math.round(g.duration * 100)}" else null
+    private fun twin(g: Gif): String? {
+        if (g.duration <= 0.5) return null
+        val title = g.description.trim().lowercase()
+        if (title.length >= 12) return "$title@${Math.round(g.duration)}"
+        // Sources often provide placeholder dimensions and whole seconds for unrelated clips.
+        if (g.w <= 16 || g.duration == kotlin.math.floor(g.duration)) return null
+        return "${g.w}x${g.h}@${Math.round(g.duration * 100)}"
+    }
 
     private fun fail(e: Throwable) {
         error = when {

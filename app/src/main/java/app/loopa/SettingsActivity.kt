@@ -100,6 +100,10 @@ class SettingsActivity : Activity() {
             val st = SourceCheckActivity.stateText(SourceHealth.status(s.id))
             toggle(s.title, if (warn) st + " — " + tr("требует проверки") else st, ForYou.uses(s), subWarn = warn) { ForYou.setUses(s, it); sourcesChanged() }
         }
+        toggle("MFC Share ↗", null, prefs.getBoolean("mfc_catalog", true)) {
+            prefs.edit().putBoolean("mfc_catalog", it).apply()
+            sourcesChanged()
+        }
         caption(tr("Доля источника в «Для вас»"))
         val shares = (listOf(Triple("rg", "RedGIFs", ForYou.useRg), Triple("rd", "Reddit", ForYou.reddit)) +
             Sources.ALL.map { Triple(it.badge.lowercase(), it.title, ForYou.uses(it)) }).filter { it.third }

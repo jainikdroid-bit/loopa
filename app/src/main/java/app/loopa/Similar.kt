@@ -75,12 +75,14 @@ object Similar {
             var s = tagSim + minOf(1.2, 0.4 * ws)
             // сколько общих конкретных тегов: одного общего тега «amateur» мало
             val strong = shared.count { !Api.isGeneric(it) }
-            if (strong == 0 && ws < 2) s *= 0.3
+            if (strong == 0 && ws < 2) return@map c to 0.0
             if (g.user.isNotBlank() && c.user.equals(g.user, true) && c.site == g.site) s += 0.35
             if (g.reddit && c.sub.equals(g.sub, true)) s += 0.25
             if (g.duration > 0 && c.duration > 0) s += 0.1 * (1 - minOf(1.0, abs(g.duration - c.duration) / maxOf(g.duration, c.duration)))
             if (Interests.isSeen(c.id)) s -= 0.1
-            c to s
-        }.filter { it.second >= MIN }.sortedByDescending { it.second }.take(LIMIT).map { it.first }.toList()
+            if (s < MIN) return@map c to 0.0
+            val preference = Interests.damp(Interests.score(c) * Ranker.norm(c.tags.size)).coerceIn(-2.0, 2.0)
+            c to (s + 0.08 * preference)
+        }.filter { it.second > 0.0 }.sortedByDescending { it.second }.take(LIMIT).map { it.first }.toList()
     }
 }

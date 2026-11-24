@@ -239,8 +239,8 @@ object Interests {
         if (fresh) TasteModel.learnImpression(g)
     }
 
-    fun like(g: Gif, on: Boolean) { bump(g, if (on) 5.0 else -5.0); TasteModel.learn(g, if (on) 1f else 0f, if (on) 3.0 else 2.0) }
-    fun download(g: Gif) { bump(g, 4.0); TasteModel.learn(g, 1f, 3.0) }
+    fun like(g: Gif, on: Boolean) { if (on) Feed.searchFor(g)?.let { SearchTaste.choose(it, g, 2.0) }; bump(g, if (on) 5.0 else -5.0); TasteModel.learn(g, if (on) 1f else 0f, if (on) 3.0 else 2.0, compare = on && Feed.mode == "foryou") }
+    fun download(g: Gif) { Feed.searchFor(g)?.let { SearchTaste.choose(it, g, 2.0) }; bump(g, 4.0); TasteModel.learn(g, 1f, 3.0, compare = Feed.mode == "foryou") }
     /** Лайк, поставленный на Reddit раньше (импорт): слабее свежего — вкус мог измениться. */
     fun imported(g: Gif) { bump(g, 2.5); TasteModel.learn(g, 1f, 1.5) }
 
@@ -249,7 +249,7 @@ object Interests {
      * к интересам добавляется прирост [Ranker.watchWeight] (новое всего) − (старое всего), так что повторы и возвраты
      * к ролику считаются, а длинный ролик получает очки за реальное время, а не за досмотр до конца.
      */
-    fun watched(g: Gif, sec: Double) {
+    fun watched(g: Gif, sec: Double, allowSkip: Boolean = true) {
         val before: Double
         val after: Double
         synchronized(this) {
@@ -266,11 +266,15 @@ object Interests {
         val gain = Ranker.watchWeight(after) - Ranker.watchWeight(before)
         when {
             // пропуск того, что сеть считала «во вкусе», — её ошибка: штраф до двух раз сильнее (только первый просмотр)
-            before == 0.0 && sec < 2.5 && g.duration > 6 -> {
+            allowSkip && before == 0.0 && sec < 2.5 && g.duration > 6 -> {
                 val surprise = TagNet.surprise(score(g) * Ranker.norm(g.tags.size))
+                Feed.searchFor(g)?.let { SearchTaste.pass(it, g, quick = true) }
+                if (Feed.mode == "foryou") TasteModel.noteSkip(g)
                 bump(g, -0.4 * surprise); TasteModel.learn(g, 0f, surprise)
             }
-            gain > 0.0 -> { bump(g, gain); TasteModel.learn(g, 1f, gain) }
+            gain > 0.0 -> {
+                if (before < 10 && after >= 10) Feed.searchFor(g)?.let { SearchTaste.choose(it, g, 1.0) }
+                bump(g, gain); TasteModel.learn(g, 1f, gain, compare = after >= 10 && Feed.mode == "foryou") }
             else -> if (sec >= 2) save()
         }
     }
@@ -304,6 +308,7 @@ object Interests {
     }
 
     fun reset() = synchronized(this) {
+        SearchTaste.reset()
         AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); data.put("pin", JSONObject()); seen.clear(); watchSec.clear(); impressed.clear(); net = null; lastQuery = emptyList(); lastQueryFull = null; TasteModel.reset(); save()
     }
 

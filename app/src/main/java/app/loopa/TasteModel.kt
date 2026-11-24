@@ -39,9 +39,6 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
     var examples = 0L; private set
     /** Из них примеров по роликам (не по одиночным признакам): по ним считается доля модели в оценке. */
     var videoExamples = 0L; private set
-    /** Скользящее среднее логита по недавно оценённым роликам ([bonus]) и сколько значений в нём (до [EMA_WINDOW]). */
-    private var meanLogit = 0.0
-    private var meanCount = 0
     /** Корзина → имя признака для последних [MAX_NAMES] признаков (порядок — по давности): для читаемой сводки. */
     private val names = object : LinkedHashMap<Int, String>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, String>) = size > MAX_NAMES
@@ -95,19 +92,27 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
 
     fun predict(features: List<Pair<String, Float>>): Double = sigmoid(logit(features))
 
-    /**
-     * Добавка к оценке вкуса в единицах [Interests.score]: [BONUS_SCALE]·tanh((ŷ − среднее)/2), где среднее — скользящее
-     * среднее логита по последним [EMA_WINDOW] оценённым роликам (а не σ(w0): модель учится в основном на плюсах, w0
-     * уходит вверх, и добавка была бы почти всегда отрицательной). Отрицательная часть ограничена [BONUS_NEG_MAX] —
-     * модель не выбивает ролик за порог «не во вкусе» одна. Пустая модель и ролик без признаков — 0.
+    /** Evidence from this video's features, relative to the model's featureless baseline. */
+    @Synchronized fun bonus(features: List<Pair<String, Float>>): Double {
+        if (videoExamples == 0L || features.isEmpty()) return 0.0
+        return (BONUS_SCALE * tanh((logit(features) - w0) / 2)).coerceAtLeast(-BONUS_NEG_MAX)
+    }
+
+    /** Pairwise logistic loss on the linear weights, using the complete FM prediction for the margin.
+     * Shared features cancel. The original observations already trained the interactions and bias.
      */
-    fun bonus(features: List<Pair<String, Float>>): Double = synchronized(this) {
-        if (features.isEmpty()) return 0.0
-        val y = logitAt(IntArray(features.size) { bucket(features[it].first) }, FloatArray(features.size) { features[it].second })
-        val centre = if (meanCount == 0) y else meanLogit
-        if (meanCount < EMA_WINDOW) meanCount++
-        meanLogit = if (meanCount == 1) y else meanLogit + (y - meanLogit) / meanCount
-        (BONUS_SCALE * tanh((y - centre) / 2)).coerceAtLeast(-BONUS_NEG_MAX)
+    @Synchronized fun prefer(chosen: List<Pair<String, Float>>, skipped: List<Pair<String, Float>>) {
+        if (chosen.isEmpty() || skipped.isEmpty()) return
+        val delta = HashMap<Int, Float>()
+        for ((name, x) in chosen) delta.merge(bucket(name), x, Float::plus)
+        for ((name, x) in skipped) delta.merge(bucket(name), -x, Float::plus)
+        val error = sigmoid(logit(skipped) - logit(chosen)).toFloat()
+        for ((index, difference) in delta) {
+            if (difference == 0f) continue
+            val gradient = -error * difference
+            gw[index] += gradient * gradient
+            w[index] -= LR_W * gradient / (sqrt(gw[index]) + EPS)
+        }
     }
 
     /**
@@ -161,7 +166,7 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
 
     /** Обнулить: веса, накопители AdaGrad, счётчик и имена; v — снова детерминированное начальное. */
     fun reset() = synchronized(this) {
-        w0 = 0f; gw0 = 0f; w.fill(0f); gw.fill(0f); gv.fill(0f); examples = 0; videoExamples = 0; meanLogit = 0.0; meanCount = 0; names.clear(); initFactors()
+        w0 = 0f; gw0 = 0f; w.fill(0f); gw.fill(0f); gv.fill(0f); examples = 0; videoExamples = 0; names.clear(); initFactors()
     }
 
     // ---- хранение: версия формата, w0, w[], v[], накопители, имена ----
@@ -207,7 +212,7 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
         }
         synchronized(this) {
             w0 = nw0; gw0 = ngw0; nw.copyInto(w); ngw.copyInto(gw); nv.copyInto(v); ngv.copyInto(gv)
-            names.clear(); names.putAll(nn); examples = ex; videoExamples = vex; meanLogit = 0.0; meanCount = 0
+            names.clear(); names.putAll(nn); examples = ex; videoExamples = vex
         }
         true
     }.getOrDefault(false)
@@ -223,7 +228,6 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
         /** Масштаб добавки модели (единицы [Interests.score]) и нижний предел её отрицательной части. */
         const val BONUS_SCALE = 8.0
         const val BONUS_NEG_MAX = 0.8
-        const val EMA_WINDOW = 500
         private const val INIT_STD = 0.01
         private const val LR_W = 0.15f
         private const val LR_V = 0.08f
@@ -319,10 +323,35 @@ object TasteModel {
      */
     fun bonus(g: Gif): Double = if (!loaded) 0.0 else model.bonus(features(g))
 
-    /** Обучить на ролике: label 1 — понравилось, 0 — нет; weight — вес примера. */
-    fun learn(g: Gif, label: Float, weight: Double) {
+    private data class Skipped(val id: String, val at: Long, val features: List<Pair<String, Float>>)
+    private val skipped = ArrayDeque<Skipped>()
+
+    fun noteSkip(g: Gif) {
         if (!loaded) return
-        model.learn(features(g), label, weight.toFloat()); scheduleSave()
+        val item = Skipped(g.id, android.os.SystemClock.elapsedRealtime(), features(g))
+        synchronized(skipped) {
+            skipped.removeAll { it.id == g.id }
+            skipped.addLast(item)
+            if (skipped.size > 8) skipped.removeFirst()
+        }
+    }
+
+    fun forgetSkip(id: String) { synchronized(skipped) { skipped.removeAll { it.id == id } } }
+
+    /** Обучить на ролике: label 1 — понравилось, 0 — нет; weight — вес примера. */
+    fun learn(g: Gif, label: Float, weight: Double, compare: Boolean = false) {
+        if (!loaded) return
+        val chosen = features(g)
+        model.learn(chosen, label, weight.toFloat())
+        if (compare && label == 1f) {
+            val now = android.os.SystemClock.elapsedRealtime()
+            val alternative = synchronized(skipped) {
+                skipped.removeAll { it.id == g.id || now - it.at > 10 * 60_000L }
+                skipped.removeLastOrNull()
+            }
+            alternative?.let { model.prefer(chosen, it.features) }
+        }
+        scheduleSave()
     }
 
     /** Ролик был на экране сетки «Для вас» достаточно долго и не открыт: слабый отрицательный пример ([IMPRESSION_WEIGHT]). */
@@ -336,6 +365,7 @@ object TasteModel {
 
     /** Сброс: если файл ещё грузится — после загрузки (очередь одного потока), иначе сразу. */
     fun reset() {
+        synchronized(skipped) { skipped.clear() }
         if (loaded) { model.reset(); scheduleSave() } else io.post { model.reset(); loaded = true; scheduleSave() }
     }
 

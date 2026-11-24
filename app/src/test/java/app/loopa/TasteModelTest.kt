@@ -10,6 +10,26 @@ class TasteModelTest {
     private fun gif(tags: List<String>, user: String = "", dur: Double = 20.0, audio: Boolean = false, desc: String = "") =
         Gif("id", "", "", "", 0, 0, dur, user, tags, audio, 0, 0, description = desc)
 
+    @Test fun oppositeChoicesRankUnseenVideosDifferently() {
+        val dance = f("site:one", "tag:dance")
+        val music = f("site:one", "tag:music")
+        for ((chosen, skipped) in listOf(dance to music, music to dance)) {
+            val model = FmModel(bits = 10)
+            model.learn(f("site:one"), 1f, 1f)
+            val shared = model.logit(f("site:one"))
+            repeat(5) { model.prefer(chosen, skipped) }
+            assertEquals(shared, model.logit(f("site:one")), 0.0)
+            val a = chosen + ("user:new" to 1f)
+            val b = skipped + ("user:new" to 1f)
+            val first = model.bonus(a)
+            assertTrue(first > model.bonus(b))
+            assertEquals(first, model.bonus(a), 0.0)
+            val restored = FmModel(bits = 10)
+            assertTrue(restored.load(model.toBytes()))
+            assertEquals(first, restored.bonus(a), 0.0)
+        }
+    }
+
     @Test fun `пустая модель даёт 0,5`() {
         val m = FmModel()
         assertEquals(0.5, m.predict(f("tag:a", "tag:b")), 1e-3)   // v ~ N(0; 0,01): пары почти не вносят

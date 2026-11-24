@@ -7,6 +7,7 @@ package app.loopa
 object Relevance {
     /** Окончания, с которыми слово ещё «то же самое». */
     private val ENDINGS = setOf("s", "es", "ed", "er", "ers", "ing", "ings", "y", "ies", "d")
+    private val CAMEL_BOUNDARY = Regex("(?<=[\\p{Ll}])(?=[\\p{Lu}])")
     private val SPLIT = Regex("[^\\p{L}0-9]+")
 
 
@@ -29,26 +30,41 @@ object Relevance {
      *  0 — мимо, в выдачу не идёт (пост Reddit с частью слов — 0,1…0,9, ниже всех).
      */
     fun score(g: Gif, q: String, alias: List<String>, synonyms: List<String>): Double {
+        fun tokens(s: String) = s.replace(CAMEL_BOUNDARY, " ").lowercase().split(SPLIT).filter { it.isNotEmpty() }
+        val fields = (g.tags + listOf(g.description, g.sub)).map(::tokens)
+        fun phraseMatch(query: List<String>): Boolean = query.isNotEmpty() && fields.any { field ->
+            field.asSequence().windowed(query.size).any { it == query }
+        }
         val words = Api.words(q).map(::stem).filter { it.length >= 2 }
         val tagsN = g.tags.map { norm(it) }
         val textN = norm(g.description + " " + g.sub)
         val all = tagsN.joinToString(" ") + " " + textN
         // короткие слова («dp», «atp») — только целым словом: иначе ловят что попало внутри других слов
-        val tagTok = g.tags.map { t -> t.lowercase().split(SPLIT).filter { it.isNotEmpty() } }
-        val textTok = (g.description + " " + g.sub).lowercase().split(SPLIT).filter { it.isNotEmpty() }
+        val tagTok = fields.take(g.tags.size)
+        val textTok = fields.takeLast(2).flatten()
         // слово совпадает целым словом с обычным окончанием (twin, twins, twinned) или как начало слитного имени
         // (TwinGirls, 69er) — но не как кусок другого слова («twin» в «twink»)
         fun tokMatch(tok: String, w: String): Boolean {
             if (tok == w) return true
             if (!tok.startsWith(w)) return false
             val rest = tok.substring(w.length)
-            return rest in ENDINGS || rest.length >= 4
+            return rest in ENDINGS || (w.length >= 3 && rest.firstOrNull() == w.last() && rest.drop(1) in ENDINGS)
         }
         fun inTags(w: String) = tagTok.any { ts -> ts.any { tokMatch(it, w) } }
         fun inText(w: String) = textTok.any { tokMatch(it, w) }
-        val synHits = synonyms.count { syn -> norm(syn).let { it.length >= 4 && all.contains(it) } }
+        val synHits = synonyms.count { syn -> phraseMatch(tokens(syn)) }
+        // Literal matches have their own tier, including when the title is the only metadata.
+        val queryTokens = tokens(q)
+        if (phraseMatch(queryTokens)) {
+            val inTag = tagTok.any { field -> field.asSequence().windowed(queryTokens.size).any { it == queryTokens } }
+            return 24.0 + (if (inTag) 0.2 else 0.0) + minOf(0.3, synHits * 0.1)
+        }
+        if (queryTokens.size > 1 && queryTokens.all { token -> fields.any { token in it } }) {
+            val oneTag = tagTok.any { it.containsAll(queryTokens) }
+            return 22.0 + (if (oneTag) 0.5 else 0.0) + minOf(0.3, synHits * 0.1)
+        }
         // запрос — сокращение: его полная фраза равна точному совпадению
-        if (alias.any { a -> norm(a).let { it.length >= 4 && all.contains(it) } }) return 20.0 + minOf(0.9, synHits * 0.1)
+        if (alias.any { a -> phraseMatch(tokens(a)) }) return 20.0 + minOf(0.9, synHits * 0.1)
         val phrase = norm(q)
         var base = 0.0
         var part = 0.0
@@ -69,7 +85,6 @@ object Relevance {
                 }
             }
             else -> {
-                val stemP = phrase.replace(Regex("(ers|er|ing|es|s)$"), "")
                 words.forEach { w ->
                     val root = w.replace(Regex("(ers|er|ing|es)$"), "").takeIf { it.length >= 4 } ?: w
                     when {
@@ -79,8 +94,7 @@ object Relevance {
                     }
                 }
                 base = when {
-                    phrase.length >= 4 && all.contains(phrase) -> 20.0
-                    stemP.length >= 5 && all.contains(stemP) -> 16.0
+                    queryTokens.isNotEmpty() && fields.any { field -> field.asSequence().windowed(queryTokens.size).any { chunk -> chunk.indices.all { tokMatch(chunk[it], stem(queryTokens[it])) } } } -> 16.0
                     tagTok.any { ts -> words.all { w -> ts.any { tokMatch(it, w) } } } -> 12.0
                     found == words.size -> 9.0
                     else -> 0.0
@@ -102,7 +116,7 @@ object Relevance {
      * Уровень оценки (для [order]): 6 — фраза/слово в теге или названии, 5 — все слова в одном теге, 4 — все слова врозь
      * (это точные); 3 — синоним, 2 — похожее (по корню, внутри слова, часть слов), 1 — пост Reddit с частью слов.
      */
-    fun level(s: Double) = when { s >= 16 -> 6; s >= 12 -> 5; s >= 9 -> 4; s >= 4 -> 3; s >= 1 -> 2; s > 0 -> 1; else -> 0 }
+    fun level(s: Double) = when { s >= 24 -> 8; s >= 22 -> 7; s >= 16 -> 6; s >= 12 -> 5; s >= 9 -> 4; s >= 4 -> 3; s >= 1 -> 2; s > 0 -> 1; else -> 0 }
     /** Точное совпадение (уровень ≥ 4). */
     fun exact(s: Double) = level(s) >= 4
 

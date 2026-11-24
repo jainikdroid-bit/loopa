@@ -56,7 +56,11 @@ object Ranker {
     /** Убрать явно не во вкусе ([DISLIKED]); но не больше половины списка — лента не должна пустеть. */
     fun <T> dropDisliked(items: List<Pair<T, Double>>, tasteOf: (T) -> Double): List<Pair<T, Double>> {
         val keep = items.filter { tasteOf(it.first) > DISLIKED }
-        return if (keep.size * 2 >= items.size) keep else items
+        val needed = (items.size + 1) / 2 - keep.size
+        if (needed <= 0) return keep
+        val fallback = items.filter { tasteOf(it.first) <= DISLIKED }
+            .sortedByDescending { tasteOf(it.first) }.take(needed)
+        return keep + fallback
     }
 
     /**

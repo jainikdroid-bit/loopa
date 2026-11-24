@@ -39,9 +39,46 @@ object ForYou {
     private val shown = HashSet<String>()
 
 
+    private val recent = RecentTiles()
+    private val recentLock = Any()
+    private fun skipKey(id: String) = "fy_skips:$id"
+
+    fun dismissed(id: String) = (prefs?.getInt(skipKey(id), 0) ?: 0) >= 4
+
+    fun passed(g: Gif) {
+        val id = g.id
+        val p = prefs ?: return
+        val key = skipKey(id)
+        val count = p.getInt(key, 0)
+        if (count == 3) TasteModel.noteSkip(g)
+        if (count < 4) p.edit().putInt(key, count + 1).apply()
+    }
+
+    fun opened(id: String) {
+        TasteModel.forgetSkip(id)
+        val p = prefs ?: return
+        val key = skipKey(id)
+        if (p.contains(key)) p.edit().remove(key).apply()
+    }
+
+    private const val RECENT_KEY = "fy_recent_tiles"
+
+    fun visible(ids: List<String>) = synchronized(recentLock) {
+        if (recent.update(ids)) prefs?.edit()?.putString(RECENT_KEY, org.json.JSONArray(recent.saved()).toString())?.apply()
+        Unit
+    }
+
+    fun recentOrder() = synchronized(recentLock) { recent.order() }
+
     fun init(ctx: Context) {
         if (prefs != null) return
         prefs = ctx.applicationContext.getSharedPreferences("loopa", Context.MODE_PRIVATE)
+        prefs?.getString(RECENT_KEY, null)?.let { raw ->
+            runCatching {
+                val saved = org.json.JSONArray(raw)
+                synchronized(recentLock) { recent.restore(List(saved.length()) { saved.getString(it) }) }
+            }
+        }
         allOnOnce()
     }
 
@@ -130,11 +167,26 @@ object ForYou {
      * ленте). Источник пуст (не успел, кончился) — его место занимают остальные. Выданное убирается из запасов.
      */
     private fun weighted(src: List<Pair<ArrayList<Gif>, Int>>): List<Gif> {
+        val recency = recentOrder()
+        src.forEach { (buf, _) -> buf.sortBy { recency[it.id] ?: 0 } }
+        val headScores = HashMap<String, Double>()
+        fun preference(g: Gif) = headScores.getOrPut(g.id) { Interests.score(g) * Ranker.norm(g.tags.size) }
         val taken = IntArray(src.size)
         val out = ArrayList<Gif>(PORTION)
         while (out.size < PORTION) {
             var best = -1; var bestR = Double.MAX_VALUE
-            src.forEachIndexed { i, (buf, w) -> if (buf.isNotEmpty() && w > 0) { val r = (taken[i] + 1.0) / w; if (r < bestR) { bestR = r; best = i } } }
+            var bestAge = Int.MAX_VALUE
+            src.forEachIndexed { i, (buf, weight) ->
+                if (buf.isEmpty() || weight <= 0) return@forEachIndexed
+                val age = recency[buf.first().id] ?: 0
+                val ratio = (taken[i] + 1.0) / weight
+                if (age < bestAge || (age == bestAge && (ratio < bestR ||
+                        (ratio == bestR && best >= 0 && preference(buf.first()) > preference(src[best].first.first()))))) {
+                    bestAge = age
+                    bestR = ratio
+                    best = i
+                }
+            }
             if (best < 0) break
             out += src[best].first.removeAt(0); taken[best]++
         }
@@ -305,7 +357,7 @@ object ForYou {
      */
     private fun rank(l: List<Gif>): List<Gif> {
         val taste = HashMap<String, Double>()
-        val scored = l.filter { !Interests.isSeen(it.id) && shown.add(it.hd) }
+        val scored = l.filter { !dismissed(it.id) && !Interests.isSeen(it.id) && shown.add(it.hd) }
             .map { g -> val t = Interests.score(g); taste[g.id] = Interests.damp(t * Ranker.norm(g.tags.size)); g to Ranker.value(t, g.tags.size, g.likes, g.views, Math.random()) }
         return Ranker.diversify(Ranker.dropDisliked(scored) { taste[it.id] ?: 0.0 })
     }

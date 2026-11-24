@@ -16,8 +16,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // -PvCode=1 -PvName=1.0-test — сборка «старой» версии для проверки обновления на эмуляторе
-        versionCode = (project.findProperty("vCode") as String?)?.toInt() ?: 59
-        versionName = (project.findProperty("vName") as String?) ?: "1.30"
+        versionCode = (project.findProperty("vCode") as String?)?.toInt() ?: 60
+        versionName = (project.findProperty("vName") as String?) ?: "1.31"
     }
     signingConfigs {
         if (signing != null) create("release") {
@@ -40,6 +40,15 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+}
+
+android.applicationVariants.all {
+    if (buildType.name == "release") {
+        val installerName = "AdultSpace-${versionName}.apk"
+        outputs.all {
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName = installerName
+        }
+    }
 }
 
 dependencies {

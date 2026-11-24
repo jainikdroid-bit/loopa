@@ -12,7 +12,7 @@ class RelevanceTest {
     private fun score(g: Gif, q: String, syn: List<String> = emptyList(), alias: List<String> = emptyList()) = Relevance.score(g, q, alias, syn)
 
     @Test fun `однословный запрос - слово в теге целым словом или с окончанием`() {
-        assertEquals(6, Relevance.level(score(gif("a", tags = listOf("Twin")), "twin")))
+        assertEquals(8, Relevance.level(score(gif("a", tags = listOf("Twin")), "twin")))
         assertEquals(6, Relevance.level(score(gif("b", tags = listOf("Twins")), "twin")))
     }
 
@@ -56,9 +56,9 @@ class RelevanceTest {
     @Test fun `многословный запрос - все слова врозь ниже всех слов в одном теге`() {
         val oneTag = score(gif("a", tags = listOf("Standing Dildo")), "dildo standing")
         val apart = score(gif("b", tags = listOf("Standing Doggy", "Dildo")), "dildo standing")
-        assertTrue(oneTag >= 12 && apart in 9.0..10.0)
-        assertEquals(5, Relevance.level(oneTag))
-        assertEquals(4, Relevance.level(apart))
+        assertTrue(oneTag > apart && apart >= 22)
+        assertEquals(7, Relevance.level(oneTag))
+        assertEquals(7, Relevance.level(apart))
         assertTrue(Relevance.exact(apart))
     }
 
@@ -84,6 +84,54 @@ class RelevanceTest {
         assertTrue(score(gif("a", title = "горячие близнецы"), "близнецы") > 0)
     }
 
+    @Test fun mixedScriptQueryRequiresBothWords() {
+        val q = "танец sunset"
+        assertFalse(Relevance.exact(score(gif("a", title = "sunset"), q)))
+        assertTrue(Relevance.exact(score(gif("b", title = "танец sunset"), q)))
+    }
+
+    @Test fun unrelatedPrefixAndCrossFieldPhraseDoNotCountAsExactPhrase() {
+        assertFalse(Relevance.exact(score(gif("a", title = "artillery"), "art")))
+        assertTrue(score(gif("b", title = "blue", sub = "sky"), "blue sky") in 22.0..23.9)
+        assertTrue(Relevance.exact(score(gif("c", tags = listOf("BlueSky")), "blue sky")))
+    }
+
+    @Test fun searchPreferencesRespectWordsAndLearnOppositeChoices() {
+        val a = mapOf("site:x" to 0.5, "tag:a" to 0.5)
+        val b = mapOf("site:x" to 0.5, "tag:b" to 0.5)
+        for ((chosen, passed) in listOf(a to b, b to a)) {
+            val profile = QueryProfile()
+            profile.choose(chosen, passed, 2.0)
+            assertTrue(profile.score(chosen) > profile.score(passed))
+            assertEquals(0.0, profile.score(mapOf("site:x" to 1.0)), 0.0)
+            val order = Relevance.order(listOf(gif("partial"), gif("exact"), gif("preferred"))) {
+                when (it.id) {
+                    "partial" -> Relevance.Rank(2.0, 2.0)
+                    "exact" -> Relevance.Rank(20.0, profile.score(passed))
+                    else -> Relevance.Rank(20.0, profile.score(chosen))
+                }
+            }
+            assertEquals(listOf("preferred", "exact", "partial"), order.map { it.id })
+        }
+    }
+
+    @Test fun exactPhraseBeatsFavoriteInflectionAndCrossesSeparateBalancedChoices() {
+        val literal = gif("literal", title = "blue sky")
+        val inflected = gif("inflected", title = "blue skies", site = "other")
+        assertEquals(8, Relevance.level(score(literal, "blue sky")))
+        assertTrue(Relevance.level(score(inflected, "blue sky")) < 7)
+        assertEquals(literal, Relevance.order(listOf(inflected, literal)) {
+            Relevance.Rank(score(it, "blue sky"), if (it == literal) -5.0 else 5.0)
+        }.first())
+        fun example(tag: String, user: String) = SearchTaste.crossed(mapOf("tag:$tag" to 0.5, "user:$user" to 0.5))
+        val profile = QueryProfile()
+        val ax = example("a", "x"); val ay = example("a", "y")
+        val bx = example("b", "x"); val by = example("b", "y")
+        repeat(12) { profile.choose(ax, ay, 1.0); profile.choose(by, bx, 1.0) }
+        assertTrue(profile.score(ax) > profile.score(ay))
+        assertTrue(profile.score(by) > profile.score(bx))
+    }
+
     // --- чередование источников внутри уровня ---
 
     private fun ranks(vararg r: Pair<Gif, Double>): (Gif) -> Relevance.Rank? { val m = r.associate { it.first.id to Relevance.Rank(it.second) }; return { m[it.id] } }
@@ -104,12 +152,12 @@ class RelevanceTest {
         assertEquals(listOf("x", "rg1", "rg2"), out)
     }
 
-    @Test fun `один уровень 16-22 - фраза с окончанием и без чередуются вместе`() {
+    @Test fun `буквальные результаты предшествуют морфологическим с другого сайта`() {
         val rg = gif("rg"); val xv = gif("xv", site = "xvideos")
-        val out = Relevance.order(listOf(rg, xv), ranks(rg to 22.0, xv to 16.0)).map { it.id }
+        val out = Relevance.order(listOf(rg, xv), ranks(rg to 24.2, xv to 16.0)).map { it.id }
         assertEquals(listOf("rg", "xv"), out)
-        val out2 = Relevance.order(listOf(rg, xv, gif("rg2")), ranks(rg to 22.0, xv to 16.0, gif("rg2") to 21.0)).map { it.id }
-        assertEquals(listOf("rg", "xv", "rg2"), out2)
+        val out2 = Relevance.order(listOf(rg, xv, gif("rg2")), ranks(rg to 24.2, xv to 16.0, gif("rg2") to 24.0)).map { it.id }
+        assertEquals(listOf("rg", "rg2", "xv"), out2)
     }
 
     @Test fun `внутри источника при равной оценке популярнее выше`() {

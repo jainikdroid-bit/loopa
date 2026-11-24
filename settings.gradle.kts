@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "loopa"
+rootProject.name = "Adult Space"
 include(":app")

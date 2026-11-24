@@ -37,6 +37,12 @@
   <br><sub>Clips in the screenshots are blurred.</sub>
 </p>
 
+PeerTube supplies explicitly labelled adult videos from Sepia Search to search and For You. **MFC Share ↗** opens the free recordings catalog in your browser, or searches tagged albums when the search box contains text. Access is managed by MFC Share.
+
+For You learns from comparisons between a positive interaction and a recent skip. Features that distinguish the two help rank new videos. Learning runs on the device.
+
+Search learns preferences for each query on the device. With relevance sorting, choosing among matching videos influences future results for the same query. Literal phrases rank first, followed by matches containing every word. Learned combinations of tags, title words and creators help rank matches within each group.
+
 ## Features
 
 - **Ad-free feed** — boosted and promoted videos are filtered out.
@@ -114,7 +120,7 @@ The interface is available in 10 languages (system language by default; change i
 
 ## Install
 
-1. Get `Loopa-<version>.apk` from [Releases](https://github.com/jainikdroid-bit/loopa/releases/latest).
+1. Get `AdultSpace-<version>.apk` from [Releases](https://github.com/jainikdroid-bit/loopa/releases/latest).
 2. Open it on your phone and allow installs from that source.
 3. Optionally verify it against `SHA256SUMS`.
 
@@ -135,7 +141,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.30**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.31**.
 
 | Version | What's new |
 |---|---|
@@ -167,6 +173,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.28 | Previews of Pornhub, YouPorn, RedTube and Tube8 clips show the three hottest moments from the site’s view statistics (peaks above neighbouring segments); other sites use pieces from 10/50/80 % |
 | 1.29 | Preview hot moments — one in each part of the clip (start 5–30 %, middle 35–65 %, end 70–95 %); a part without a clear peak uses 10/50/80 %: pieces never bunch up, so the story shows |
 | 1.30 | Settings → Sources → “Source check”: the status of every site (working / needs a check / temporary error, when it last answered) and a manual check, even without the “!” badge |
+| 1.31 | “For you” remembers the last 240 tiles: one scrolled past 4 times drops lower; the player shows a cache bar and fills gaps; feed and search learn from skipped / watched / liked / downloaded, search puts the exact phrase first; new source PeerTube (explicitly tagged adult posts) |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |

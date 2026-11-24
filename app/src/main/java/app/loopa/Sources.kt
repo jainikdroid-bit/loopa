@@ -47,7 +47,7 @@ object Sources {
     private const val TTL_MS = 30 * 60_000L
 
     /** Все сайты по порядку вкладок. Заполняется в одном месте — здесь. */
-    val ALL: List<Source> by lazy { listOf(Erome, Eporner, XVideos, Xnxx, Pornhub, RedTube, YouPorn, Tube8, XHamster, FikFap, TnaFlix, EmpFlix, YouJizz, PornOne, EroProfile) }
+    val ALL: List<Source> by lazy { listOf(Erome, Eporner, XVideos, Xnxx, Pornhub, RedTube, YouPorn, Tube8, XHamster, FikFap, TnaFlix, EmpFlix, YouJizz, PornOne, EroProfile, PeerTube) }
     fun byId(id: String?): Source? = ALL.firstOrNull { it.id == id }
 
     /**
