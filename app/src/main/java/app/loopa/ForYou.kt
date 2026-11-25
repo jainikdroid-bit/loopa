@@ -95,11 +95,12 @@ object ForYou {
     private const val RECENT_KEY = "fy_recent_tiles"
 
     fun visible(ids: List<String>) = synchronized(recentLock) {
+        if (!TrainingLab.learning) return@synchronized false
         if (recent.update(ids)) dirtyRecent = true
         dirtyRecent
     }.also { if (it) queueSave() }
 
-    fun recentOrder() = synchronized(recentLock) { recent.order() }
+    fun recentOrder() = synchronized(recentLock) { if (TrainingLab.learning) recent.order() else emptyMap() }
 
     fun clearTasteHistory() {
         synchronized(recentLock) {

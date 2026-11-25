@@ -8,7 +8,6 @@ import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.File
-import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import kotlin.math.exp
 import kotlin.math.sqrt
@@ -36,9 +35,9 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
     private val v = FloatArray(n * k)
     private val gv = FloatArray(n * k)
     /** Сколько примеров обучено (с учётом только числа, не весов). */
-    var examples = 0L; private set
+    @Volatile var examples = 0L; private set
     /** Из них примеров по роликам (не по одиночным признакам): по ним считается доля модели в оценке. */
-    var videoExamples = 0L; private set
+    @Volatile var videoExamples = 0L; private set
     /** Корзина → имя признака для последних [MAX_NAMES] признаков (порядок — по давности): для читаемой сводки. */
     private val names = object : LinkedHashMap<Int, String>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, String>) = size > MAX_NAMES
@@ -345,8 +344,9 @@ object TasteModel {
         val chosen = features(g)
         val weightF = weight.toFloat()
         if (!weightF.isFinite() || weightF <= 0f || !label.isFinite() || label !in 0f..1f) return
+        val epoch = TrainingLab.learningEpoch
         io.post {
-            if (!loaded || !TrainingLab.learning) return@post
+            if (!loaded || !TrainingLab.learning || epoch != TrainingLab.learningEpoch) return@post
             if (TrainingLab.enabled) TrainingLab.sample(kind, chosen, label, weightF, model.predict(chosen), true)
             model.learn(chosen, label, weightF)
         if (compare && label == 1f) {
@@ -368,8 +368,9 @@ object TasteModel {
     fun learnFeature(name: String, label: Float = 1f, weight: Double = 1.0) {
         if (!TrainingLab.learning || name.substringAfter(':', "").isBlank()) return
         val f = listOf(name to 1f)
+        val epoch = TrainingLab.learningEpoch
         io.post {
-            if (!loaded || !TrainingLab.learning) return@post
+            if (!loaded || !TrainingLab.learning || epoch != TrainingLab.learningEpoch) return@post
             if (TrainingLab.enabled) TrainingLab.sample("feature", f, label, weight.toFloat(), model.predict(f), false)
             model.learn(f, label, weight.toFloat(), video = false)
             scheduleSave()

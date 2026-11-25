@@ -20,6 +20,7 @@ internal object TrainingLab {
     private const val PREF = "training_lab"
     private var prefs: SharedPreferences? = null
     private var helper: SQLiteOpenHelper? = null
+    private var context: Context? = null
     private val io by lazy { Handler(HandlerThread("training-lab").apply { start() }.looper) }
     @Volatile private var epoch = 0L
     val enabled get() = prefs?.getBoolean("enabled", false) == true
@@ -28,6 +29,7 @@ internal object TrainingLab {
     @Synchronized fun init(ctx: Context) {
         if (prefs != null) return
         val app = ctx.applicationContext
+        context = app
         prefs = app.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         helper = object : SQLiteOpenHelper(app, "training_lab.db", null, 1) {
             override fun onCreate(db: SQLiteDatabase) {
@@ -48,7 +50,10 @@ internal object TrainingLab {
         if (!on) io.post { clearDb() }
     }
 
-    fun setLearning(on: Boolean) {
+    @Volatile var learningEpoch = 0L; private set
+
+    @Synchronized fun setLearning(on: Boolean) {
+        learningEpoch++
         prefs?.edit()?.putBoolean("learning", on)?.apply()
     }
 
@@ -59,13 +64,9 @@ internal object TrainingLab {
 
     private fun clearDb() {
         runCatching {
-            // Close and delete the database, including SQLite journal sidecars.
+            // Android deletes the database and its journal/WAL sidecars.
             helper?.close()
-            val db = helper?.writableDatabase ?: return
-            db.execSQL("PRAGMA secure_delete=ON")
-            db.delete("samples", null, null)
-            db.execSQL("VACUUM")
-            helper?.close()
+            context?.deleteDatabase("training_lab.db")
         }.onFailure { android.util.Log.w("Loopa", "Training journal deletion failed", it) }
     }
 

@@ -70,9 +70,12 @@ export class Store {
     if (!/^[\w-]{8,64}$/.test(iid)) return json({ error: 'iid' }, 400);
     const batch = typeof b.batch === 'string' ? b.batch : '';
     return this.storage.transactionSync(() => {
-      if (batch && this.one('SELECT batch FROM batches WHERE iid=? AND batch=?', iid, batch).batch) return json({ ok: true, batch });
+      // Heartbeats and session-only requests are naturally idempotent. Keep batch receipts
+      // only for non-idempotent event-counter increments.
+      const hasEvents = b.events && typeof b.events === 'object' && Object.keys(b.events).length > 0;
+      if (batch && hasEvents && this.one('SELECT batch FROM batches WHERE iid=? AND batch=?', iid, batch).batch) return json({ ok: true, batch });
       const result = this.applyPing(b, iid);
-      if (batch) this.sql.exec('INSERT INTO batches(iid,batch,at) VALUES(?,?,?)', iid, batch, Date.now());
+      if (batch && hasEvents) this.sql.exec('INSERT INTO batches(iid,batch,at) VALUES(?,?,?)', iid, batch, Date.now());
       return json(batch ? { ok: true, batch } : result);
     });
   }

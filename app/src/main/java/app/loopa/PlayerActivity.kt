@@ -211,7 +211,17 @@ class PlayerActivity : Activity() {
                 override fun onRenderedFirstFrame() {
                     if (!rendered) android.util.Log.i("Loopa", "первый кадр: ${System.currentTimeMillis() - settledAt} мс; видео с диска " +
                         "${(Video.fromCache.get() - cache0) shr 10} КБ, из сети ${(Video.fromNet.get() - net0) shr 10} КБ")
-                    if (!rendered) TrainingLab.event("first_frame")
+                    if (!rendered) {
+                        TrainingLab.event("first_frame")
+                        // Coarse performance buckets only: no media identity, URL or title.
+                        val ms = (System.currentTimeMillis() - settledAt).coerceAtLeast(0)
+                        Stats.event(when {
+                            ms < 500 -> "first_frame_lt500"
+                            ms < 2000 -> "first_frame_lt2000"
+                            ms < 5000 -> "first_frame_lt5000"
+                            else -> "first_frame_ge5000"
+                        })
+                    }
                     rendered = true; holder?.poster?.visibility = View.GONE
                 }
                 // замер: от выбора страницы до начала воспроизведения (в журнал)
@@ -229,6 +239,7 @@ class PlayerActivity : Activity() {
                     if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) introAt(current).takeIf { it > 0 }?.let { player.seekTo(it) }
                 }
                 override fun onPlaybackStateChanged(st: Int) {
+                    if (st == Player.STATE_BUFFERING) TrainingLab.event("buffering")
                     holder?.spin?.visibility = if (st == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
                     bufferingSince = if (st == Player.STATE_BUFFERING) bufferingSince.takeIf { it > 0 } ?: System.currentTimeMillis() else 0L
                     if (st == Player.STATE_READY) { fails = 0; holder?.spin?.text = tr("загрузка…") }
@@ -279,6 +290,7 @@ class PlayerActivity : Activity() {
         backfill.stop()
         super.onPause(); if (!::player.isInitialized) return
         list.getOrNull(current)?.let { CachedExport.touch(it) }; CachedExport.sweep(list.getOrNull(current)?.id)
+        TrainingLab.event("player_background")
         player.pause(); report(allowSkip = false); if (current >= 0) Feed.lastSeen = feedIndex()
     }
     override fun onResume() { super.onResume(); if (::player.isInitialized && current >= 0) { player.play() } }

@@ -37,6 +37,7 @@ object Stats {
     private val prefs get() = app.getSharedPreferences("loopa", Context.MODE_PRIVATE)
     private var started = 0
     private var sending = false
+    private var connection: HttpURLConnection? = null
     private var generation = 0L
     private const val BATCH = "stats_batch_v2"
     private const val ASKED = "stats_asked_v2"
@@ -50,6 +51,8 @@ object Stats {
     fun init(a: Application) {
         if (::app.isInitialized) return
         app = a
+        // Do not upload the old queue under a new consent policy.
+        if (!asked) prefs.edit().remove("stats_pending").remove("stats_events").remove(BATCH).remove("stats_iid").apply()
         a.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) { if (started++ == 0) foreground() }
             override fun onActivityStopped(activity: Activity) { if (--started <= 0) { started = 0; background() } }
@@ -77,6 +80,7 @@ object Stats {
 
     @Synchronized fun setEnabled(on: Boolean) {
         generation++
+        connection?.disconnect()
         prefs.edit().putBoolean("stats_on", on).putBoolean(ASKED, true).apply()
         if (!on) { ui.removeCallbacks(beat); prefs.edit().remove("stats_pending").remove("stats_events").remove(BATCH).apply() }
         else if (started > 0) { sessionStart = System.currentTimeMillis(); ui.removeCallbacks(beat); ui.post(beat) }
@@ -109,6 +113,7 @@ object Stats {
     /** Сброс номера установки: старая статистика с новой не связывается. */
     @Synchronized fun resetId() {
         generation++
+        connection?.disconnect()
         prefs.edit().remove("stats_iid").remove("stats_pending").remove("stats_events").remove(BATCH).apply()
     }
 
@@ -124,10 +129,23 @@ object Stats {
 
     /** Отправка в фоне; не вышло (нет сети) — сеансы остаются в очереди и уйдут при следующем сигнале. */
     private fun send(fg: Long) {
-        val body: String
         val epoch: Long
         synchronized(this) {
             if (!enabled || sending) return
+            sending = true
+            epoch = generation
+        }
+        Thread {
+            try { sendBatch(fg, epoch) }
+            catch (e: Exception) { android.util.Log.w("Loopa", "Telemetry delivery failed", e) }
+            finally { synchronized(this) { connection = null; sending = false } }
+        }.start()
+    }
+
+    private fun sendBatch(fg: Long, epoch: Long) {
+        val body: String
+        synchronized(this) {
+            if (!enabled || generation != epoch) return
             val existing = prefs.getString(BATCH, null)
             if (existing != null) body = existing
             else {
@@ -156,17 +174,17 @@ object Stats {
                     .put("lang", Locale.getDefault().language).put("net", netType())
                     .put("fg", fg).put("sessions", sent).put("events", evSent).toString()
                 // Move only the transmitted chunk into a durable retry envelope.
-                prefs.edit().putString(BATCH, body).putString("stats_pending", left.toString())
-                    .putString("stats_events", evLeft.toString()).apply()
+                if (!prefs.edit().putString(BATCH, body).putString("stats_pending", left.toString())
+                    .putString("stats_events", evLeft.toString()).commit()) return
             }
-            epoch = generation
-            sending = true
         }
-        Thread {
-            val ok = runCatching {
-                if (!synchronized(this) { enabled && generation == epoch }) return@runCatching false
+        val ok = runCatching {
                 val c = URL(URL_PING).openConnection() as HttpURLConnection
                 try {
+                    synchronized(this) {
+                        if (!enabled || generation != epoch) return@runCatching false
+                        connection = c
+                    }
                     c.connectTimeout = 10_000; c.readTimeout = 10_000
                     c.requestMethod = "POST"; c.doOutput = true
                     c.setRequestProperty("x-key", KEY); c.setRequestProperty("content-type", "application/json")
@@ -175,14 +193,12 @@ object Stats {
                         JSONObject(it.readText()).optString("batch") == JSONObject(body).getString("batch")
                     }
                 } finally { c.disconnect() }
-            }.getOrDefault(false)
-            synchronized(this) {
-                if (ok && epoch == generation && prefs.getString(BATCH, null) == body) {
-                    prefs.edit().remove(BATCH).apply()
-                }
-                sending = false
+        }.getOrDefault(false)
+        synchronized(this) {
+            if (ok && epoch == generation && prefs.getString(BATCH, null) == body) {
+                prefs.edit().remove(BATCH).commit()
             }
-        }.start()
+        }
     }
 
     /** Окно согласия при первом запуске (один раз); без ответа статистика остаётся выключенной. */

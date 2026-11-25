@@ -326,7 +326,7 @@ object Interests {
 
     // ---- использование ----
 
-    fun isSeen(id: String) = synchronized(this) { id in seen }
+    fun isSeen(id: String) = synchronized(this) { TrainingLab.learning && id in seen }
 
     /** Насколько ролик в твоём вкусе (0 — ничего не известно); отрицательные — «пропускал такое». */
     fun score(g: Gif): Double = synchronized(this) {
@@ -431,6 +431,7 @@ object Interests {
 
     /** Верх оси по весу. */
     fun top(axis: String, n: Int): List<Pair<String, Double>> = synchronized(this) {
+        if (!TrainingLab.learning) return@synchronized emptyList()
         val pin = pins()
         // закреплённый вес заменяет выученный (и добавляет узел, которого в оси ещё нет)
         val o = data.getJSONObject(axis)
@@ -441,6 +442,7 @@ object Interests {
 
     /** Верх тегов по активации сети — вместе с теми, что сами не лайкались, но всегда рядом с любимыми. */
     fun topNet(n: Int): List<Pair<String, Double>> = synchronized(this) {
+        if (!TrainingLab.learning) return@synchronized emptyList()
         activation().entries.asSequence().filter { it.value > 0.3 && it.key.startsWith("tag:") }.map { it.key.removePrefix("tag:") to it.value }
             .sortedByDescending { it.second }.take(n).toList()
     }
@@ -478,6 +480,7 @@ object Interests {
 
     /** Сабреддиты, найденные для слова/тега (кэш на сутки); null — ещё не искали или устарело. */
     fun mapped(term: String): List<String>? = synchronized(this) {
+        if (!TrainingLab.learning) return@synchronized null
         val m = data.getJSONObject("map").optJSONObject(term) ?: return null
         if (System.currentTimeMillis() - m.optLong("at") > DAY) return null
         val a = m.optJSONArray("subs") ?: return emptyList()
@@ -485,6 +488,7 @@ object Interests {
     }
 
     fun map(term: String, subs: List<String>) = synchronized(this) {
+        if (!TrainingLab.learning) return@synchronized
         data.getJSONObject("map").put(term, JSONObject().put("at", System.currentTimeMillis()).put("subs", JSONArray(subs))); save()
     }
 
