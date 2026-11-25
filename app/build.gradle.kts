@@ -30,8 +30,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            // без keystore.properties релиз подписывается отладочным ключом — для сборки у себя
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            // Never silently sign a release with the debug key.
+            // Explicit local-only compatibility: -PallowDebugReleaseSigning=true
+            signingConfig = signingConfigs.findByName("release")
+                ?: if (project.findProperty("allowDebugReleaseSigning") == "true") signingConfigs.getByName("debug") else null
         }
     }
     buildFeatures { buildConfig = true }

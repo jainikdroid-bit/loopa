@@ -645,9 +645,9 @@ class MainActivity : Activity() {
                 val v = r.ready
                 if (isFinishing || v == null || prefs.getString("upd_asked", null) == v) return@runOnUiThread
                 prefs.edit().putString("upd_asked", v).apply()
-                if (Updater.mode(app) == Updater.AUTO) { Updater.install(app)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() }; return@runOnUiThread }
+                if (Updater.mode(app) == Updater.AUTO) { Updater.installAsync(app) { error -> if (!isFinishing && !isDestroyed && error != null) android.widget.Toast.makeText(this, error, android.widget.Toast.LENGTH_LONG).show() }; return@runOnUiThread }
                 android.app.AlertDialog.Builder(this).setTitle(tr("Доступна версия %s", v)).setMessage(r.notes.take(700).ifBlank { r.message })
-                    .setPositiveButton(tr("Установить")) { _, _ -> Updater.install(app)?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() } }
+                    .setPositiveButton(tr("Установить")) { _, _ -> Updater.installAsync(app) { error -> if (!isFinishing && !isDestroyed && error != null) android.widget.Toast.makeText(this, error, android.widget.Toast.LENGTH_LONG).show() } }
                     .setNegativeButton(tr("Позже"), null).show()
             }
         }.start()
