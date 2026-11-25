@@ -18,8 +18,8 @@ import java.util.Locale
 import java.util.UUID
 
 /**
- * Анонимная статистика — ТОЛЬКО по согласию пользователя (по умолчанию выключена, окно с вопросом при первом запуске,
- * переключатель в Настройки → О приложении). Что уходит: случайный номер установки, версия приложения и Android, модель
+ * Анонимная статистика — включена по умолчанию, но после уведомления при первом запуске (кнопка «Выключить» там же)
+ * и с переключателем в Настройки → О приложении. Что уходит: случайный номер установки, версия приложения и Android, модель
  * устройства, язык, тип сети, время работы приложения на экране (начало/конец сеансов), счётчики открытия функций.
  * Страну и регион сервер берёт из метаданных соединения; IP-адреса не сохраняются. НЕ уходит: поисковые запросы, теги,
  * лайки, история, адреса роликов, содержимое графа вкусов, аккаунты. Сервер — Cloudflare Worker (stats-worker/).
@@ -39,7 +39,8 @@ object Stats {
     private var sessionStart = 0L
     private val beat = object : Runnable { override fun run() { ping(); ui.postDelayed(this, HEARTBEAT_MS) } }
 
-    val enabled get() = ::app.isInitialized && prefs.getBoolean("stats_on", false)
+    /** Включена по умолчанию, но не раньше, чем пользователь увидел уведомление ([askOnce]); выключается там же и в Настройках. */
+    val enabled get() = ::app.isInitialized && prefs.getBoolean("stats_asked", false) && prefs.getBoolean("stats_on", true)
     val asked get() = ::app.isInitialized && prefs.getBoolean("stats_asked", false)
 
     fun init(a: Application) {
@@ -148,16 +149,17 @@ object Stats {
     fun askOnce(a: Activity) {
         if (asked) return
         prefs.edit().putBoolean("stats_asked", true).apply()
+        if (prefs.contains("stats_on")) return
         AlertDialog.Builder(a).setTitle("Анонимная статистика / Anonymous stats")
-            .setMessage(
-                "Помочь развитию? Приложение будет отправлять разработчику анонимные данные: случайный номер установки, версию, модель устройства, " +
+            .setCancelable(false).setMessage(
+                "Приложение отправляет разработчику анонимные данные: случайный номер установки, версию, модель устройства, " +
                     "страну, время работы приложения и счётчики функций. Без IP, запросов, тегов, истории и ссылок. " +
-                    "Выключить можно в Настройки → О приложении.\n\n" +
-                    "Help improve the app? It will send the developer anonymous data: a random install ID, version, device model, country, " +
-                    "time spent in the app and feature counters. No IP, searches, tags, history or links. You can turn it off in Settings → About."
+                    "Это можно выключить сейчас или позже: Настройки → О приложении.\n\n" +
+                    "The app sends the developer anonymous data: a random install ID, version, device model, country, " +
+                    "time spent in the app and feature counters. No IP, searches, tags, history or links. You can turn it off now or later in Settings → About."
             )
-            .setPositiveButton("Разрешить / Allow") { _, _ -> setEnabled(true) }
-            .setNegativeButton("Нет / No") { _, _ -> setEnabled(false) }
+            .setPositiveButton("ОК / OK") { _, _ -> setEnabled(true) }
+            .setNegativeButton("Выключить / Turn off") { _, _ -> setEnabled(false) }
             .show()
     }
 }

@@ -134,7 +134,7 @@ Requires Android 8.0+.
   (`www.pornhub.com/webmasters`, the query text only, nothing about you). The sign-in windows are the exception:
   they show the real sites with everything those sites load.
 - Without sign-in it uses the temporary guest token the service hands to every website visitor.
-- Anonymous stats are sent only if you allow them (a prompt on first launch; off by default; toggle and ID reset in Settings → About): a random install ID, app version, device and Android model, language, network type, time spent in the app and feature counters (graph, player, download). The country comes from connection metadata and the IP is not stored. Searches, tags, likes, history, links and the taste graph are never sent. The server is a Cloudflare Worker, source in `stats-worker/`.
+- Anonymous stats are on by default: the app tells you on first launch, where you can turn them off at once (also via the toggle in Settings → About, which has an ID reset): a random install ID, app version, device and Android model, language, network type, time spent in the app and feature counters (graph, player, download). The country comes from connection metadata and the IP is not stored. Searches, tags, likes, history, links and the taste graph are never sent. The server is a Cloudflare Worker, source in `stats-worker/`.
 - Sign-in happens on the real site page (`redgifs.com`, `reddit.com`, `erome.com`, `eporner.com`) in an embedded window. You type your password into the site; the app
   never sees or stores it — only the session token or cookies are kept, in the app's private storage on your phone.
 - Cloud backup of app data is disabled.
