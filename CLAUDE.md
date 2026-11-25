@@ -24,3 +24,6 @@ Windows: use `gradlew.bat`. On a device/emulator, exercise upgrade from existing
 - Keep existing age controls and source restrictions; test them unchanged.
 - Use local synthetic fixtures for tests, not real user profiles.
 - Report what actually passed, failed, or remains pending. Keep rollback instructions and a reproducible release record.
+
+## Additional owner-selected provider work
+See `docs/CREATOR_SOURCE_REVIEW.md` for the five selected providers and their individual access/authorization blockers. These are not implemented adapters; keep them disabled until the documented release gate is satisfied.
