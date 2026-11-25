@@ -336,14 +336,14 @@ class MainActivity : Activity() {
     }
     private fun savedSubs() = prefs.getString("subs", "")!!.split("\n").filter { it.isNotBlank() }
 
-    override fun onDestroy() { Feed.listeners -= onFeed; SourceHealth.listeners -= onHealth; preview.release(); super.onDestroy() }
+    override fun onDestroy() { shown = false; if (::grid.isInitialized) grid.removeCallbacks(liveLater); Feed.listeners -= onFeed; SourceHealth.listeners -= onHealth; preview.release(); super.onDestroy() }
 
     /** «!» виден, только пока есть включённые источники в NEEDS_ACTION. */
     private fun refreshWarn() { if (::warnBtn.isInitialized) warnBtn.visibility = if (SourceHealth.needsAction().isEmpty()) View.GONE else View.VISIBLE }
     // превью — только пока главный экран на виду: иначе (лента догрузилась, пока открыт плеер) они запускались в фоне
     // и отбирали видеодекодеры у плеера — картинка вставала, а звук шёл дальше
     private var shown = false
-    override fun onPause() { super.onPause(); ForYou.flush(); shown = false; passCandidates.clear(); impressions.clear(); preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch() }
+    override fun onPause() { shown = false; if (::grid.isInitialized) grid.removeCallbacks(liveLater); preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch(); passCandidates.clear(); impressions.clear(); ForYou.flush(); super.onPause() }
     override fun onResume() {
         super.onResume(); shown = true; Prefetch.resume(); if (!WelcomeActivity.needed(prefs)) Stats.askOnce(this)
         if (!::grid.isInitialized) return
@@ -375,7 +375,7 @@ class MainActivity : Activity() {
      * у ячеек, где остановится бросок, — в дисковый кэш; близко к концу — следующая страница ленты заранее.
      */
     private fun ahead(velocity: Float, fling: Int) {
-        if (!::grid.isInitialized || Feed.items.isEmpty()) return
+        if (!shown || isFinishing || isDestroyed || !::grid.isInitialized || Feed.items.isEmpty()) return
         val lm = grid.layoutManager as GridLayoutManager
         val first = lm.findFirstVisibleItemPosition(); val last = lm.findLastVisibleItemPosition()
         val row = grid.getChildAt(0)?.height ?: return
@@ -473,7 +473,7 @@ class MainActivity : Activity() {
 
     /** Обновить живые превью: ячейки, видимые целиком. */
     private fun live() {
-        if (!::grid.isInitialized || isFinishing || !shown) return
+        if (!::grid.isInitialized || isFinishing || isDestroyed || !shown) return
         trackImpressions()
         val lm = grid.layoutManager as GridLayoutManager
         val a = lm.findFirstVisibleItemPosition(); val b = lm.findLastVisibleItemPosition()
@@ -774,7 +774,8 @@ class MainActivity : Activity() {
 
     private inner class GridAdapter : RecyclerView.Adapter<GridAdapter.H>() {
         inner class H(val box: FrameLayout, val img: ImageView, val dur: TextView, val src: TextView, val slot: GridPreview.Slot, val heart: TextView) : RecyclerView.ViewHolder(box)
-        override fun onViewRecycled(h: H) { preview.stop(h.slot) }
+        override fun onViewDetachedFromWindow(h: H) { preview.unbind(h.slot); super.onViewDetachedFromWindow(h) }
+        override fun onViewRecycled(h: H) { preview.unbind(h.slot); h.slot.id = null; h.slot.pos = -1; super.onViewRecycled(h) }
         override fun getItemCount() = Feed.items.size
         override fun onCreateViewHolder(p: ViewGroup, t: Int): H {
             val img = ImageView(p.context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(0xFF1A1D23.toInt()) }
@@ -815,14 +816,14 @@ class MainActivity : Activity() {
             val g = Feed.items[pos]
             h.heart.visibility = if (Likes.has(g.id, Feed.mode == "liked")) View.VISIBLE else View.GONE
             // тот же ролик — живое превью продолжает играть; другой — остановить прежнее
-            if (h.slot.id != g.id) preview.stop(h.slot)
+            if (h.slot.id != g.id) preview.unbind(h.slot)
             h.slot.id = g.id; h.slot.pos = pos
             Thumbs.load(h.img, g.thumb)
             h.dur.text = (if (g.hasAudio) "🔊 " else "") + time(g.duration)
             h.src.text = mark(g); h.src.background = pill(markColor(g))
             // касание — приоритет загрузки превью этой ячейки
             h.box.setOnTouchListener { _, e -> if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) { preview.touched = h.slot; grid.post { live() } }; false }
-            h.box.setOnClickListener { impressions.remove(g.id); preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch(); Net.dropBackground(); startActivity(Intent(this@MainActivity, PlayerActivity::class.java).putExtra("pos", h.bindingAdapterPosition)) }
+            h.box.setOnClickListener { if (h.bindingAdapterPosition == RecyclerView.NO_POSITION) return@setOnClickListener; shown = false; impressions.remove(g.id); preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch(); Net.dropBackground(); startActivity(Intent(this@MainActivity, PlayerActivity::class.java).putExtra("pos", h.bindingAdapterPosition)) }
             h.box.setOnLongClickListener { Downloads.get(this@MainActivity, g); Interests.download(g); true }
         }
     }
