@@ -343,14 +343,7 @@ class MainActivity : Activity() {
     // превью — только пока главный экран на виду: иначе (лента догрузилась, пока открыт плеер) они запускались в фоне
     // и отбирали видеодекодеры у плеера — картинка вставала, а звук шёл дальше
     private var shown = false
-    override fun onPause() {
-        shown = false; posterGraceUntil = 0L
-        if (::grid.isInitialized) {
-            grid.removeCallbacks(liveLater)
-            for (i in 0 until grid.childCount) (grid.getChildViewHolder(grid.getChildAt(i)) as? GridAdapter.H)?.let { Thumbs.stop(it.img) }
-        }
-        preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch(); passCandidates.clear(); impressions.clear(); ForYou.flush(); super.onPause()
-    }
+    override fun onPause() { shown = false; if (::grid.isInitialized) grid.removeCallbacks(liveLater); preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch(); passCandidates.clear(); impressions.clear(); ForYou.flush(); super.onPause() }
     override fun onResume() {
         super.onResume(); shown = true; Prefetch.resume(); if (!WelcomeActivity.needed(prefs)) Stats.askOnce(this)
         if (!::grid.isInitialized) return
@@ -367,9 +360,6 @@ class MainActivity : Activity() {
         Feed.lastSeen = -1
         // лайки могли поменяться в плеере — обновить метки ♥ (только их)
         if (adapter.itemCount > 0) adapter.notifyItemRangeChanged(0, adapter.itemCount, "like")
-        for (i in 0 until grid.childCount) (grid.getChildViewHolder(grid.getChildAt(i)) as? GridAdapter.H)?.let { h ->
-            Feed.items.getOrNull(h.bindingAdapterPosition)?.let { g -> if (h.slot.id == g.id) Thumbs.load(h.img, g.thumb) }
-        }
         grid.postDelayed({ live() }, 300)
     }
 
@@ -414,7 +404,7 @@ class MainActivity : Activity() {
             "кэш видео ${Video.cacheUsed shr 20} из ${Video.cacheLimit shr 20} МБ")
         blanksMax = 0
     }
-    private var posterGraceUntil = 0L
+    private var waits = 0
     private val liveLater = Runnable { live() }
     private var liveAt = 0L
 
@@ -494,23 +484,17 @@ class MainActivity : Activity() {
             val h = grid.findViewHolderForAdapterPosition(p) as? GridAdapter.H ?: return@mapNotNull null
             val v = h.itemView
             val shown = (minOf(v.bottom, grid.height) - maxOf(v.top, 0)).coerceAtLeast(0) / v.height.coerceAtLeast(1).toFloat()
-            Feed.items.getOrNull(p)?.let { g ->
-                if (shown <= 0f) null else Triple(h.slot, g, -shown * 10_000 + kotlin.math.abs((v.top + v.bottom) / 2f - mid))
-            }
+            Feed.items.getOrNull(p)?.let { Triple(h.slot, it, -shown * 10_000 + kotlin.math.abs((v.top + v.bottom) / 2f - mid)) }
         }.sortedBy { it.third }.map { it.first to it.second }
         // сначала картинки: превью запускаем, только когда все видимые картинки догрузились (видео не отнимает у них канал)
         // (не дольше ~4 с: картинка могла не загрузиться вовсе)
         // (кроме ячейки, которой коснулись: её — сразу)
         // на медленной сети — пока грузятся и картинки про запас; превью, целиком лежащие в кэше, сети не просят — их сразу
-        // A missing poster must not repeatedly tear down already attached players.
-        val missing = vis.any { !Thumbs.has(it.second.thumb) }
-        val now = android.os.SystemClock.elapsedRealtime()
-        if (missing && posterGraceUntil == 0L) posterGraceUntil = now + 4_000L
-        if (!missing) posterGraceUntil = 0L
-        if (missing && now < posterGraceUntil) {
-            preview.update(vis.filter { it.first.player != null || it.first === preview.touched })
+        if ((vis.any { !Thumbs.has(it.second.thumb) } || Video.slow && Thumbs.loading) && waits++ < 6) {
+            preview.update(vis.filter { it.first === preview.touched || Video.fullyCached(it.second.sd) })
             grid.removeCallbacks(liveLater); grid.postDelayed(liveLater, 700); return
         }
+        waits = 0
         preview.update(vis)
     }
 
@@ -790,12 +774,8 @@ class MainActivity : Activity() {
 
     private inner class GridAdapter : RecyclerView.Adapter<GridAdapter.H>() {
         inner class H(val box: FrameLayout, val img: ImageView, val dur: TextView, val src: TextView, val slot: GridPreview.Slot, val heart: TextView) : RecyclerView.ViewHolder(box)
-        override fun onViewAttachedToWindow(h: H) {
-            super.onViewAttachedToWindow(h)
-            Feed.items.getOrNull(h.bindingAdapterPosition)?.let { if (h.slot.id == it.id) Thumbs.load(h.img, it.thumb) }
-        }
-        override fun onViewDetachedFromWindow(h: H) { Thumbs.stop(h.img); preview.unbind(h.slot); super.onViewDetachedFromWindow(h) }
-        override fun onViewRecycled(h: H) { Thumbs.stop(h.img); preview.unbind(h.slot); h.slot.id = null; h.slot.pos = -1; super.onViewRecycled(h) }
+        override fun onViewDetachedFromWindow(h: H) { preview.unbind(h.slot); super.onViewDetachedFromWindow(h) }
+        override fun onViewRecycled(h: H) { preview.unbind(h.slot); h.slot.id = null; h.slot.pos = -1; super.onViewRecycled(h) }
         override fun getItemCount() = Feed.items.size
         override fun onCreateViewHolder(p: ViewGroup, t: Int): H {
             val img = ImageView(p.context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setBackgroundColor(0xFF1A1D23.toInt()) }
