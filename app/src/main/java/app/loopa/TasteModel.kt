@@ -38,6 +38,8 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
     @Volatile var examples = 0L; private set
     /** Из них примеров по роликам (не по одиночным признакам): по ним считается доля модели в оценке. */
     @Volatile var videoExamples = 0L; private set
+    /** Weak observations must not grant the same confidence as a full-weight example. */
+    @Volatile var videoEvidence = 0.0; private set
     /** Корзина → имя признака для последних [MAX_NAMES] признаков (порядок — по давности): для читаемой сводки. */
     private val names = object : LinkedHashMap<Int, String>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, String>) = size > MAX_NAMES
@@ -141,7 +143,7 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
                     gv[o] += vg * vg; v[o] -= LR_V * vg / (sqrt(gv[o]) + EPS)
                 }
             }
-            examples++; if (video) videoExamples++
+            examples++; if (video) { videoExamples++; videoEvidence += weight.toDouble().coerceIn(0.0, 1.0) }
         }
     }
 
@@ -165,18 +167,18 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
 
     /** Обнулить: веса, накопители AdaGrad, счётчик и имена; v — снова детерминированное начальное. */
     fun reset() = synchronized(this) {
-        w0 = 0f; gw0 = 0f; w.fill(0f); gw.fill(0f); gv.fill(0f); examples = 0; videoExamples = 0; names.clear(); initFactors()
+        w0 = 0f; gw0 = 0f; w.fill(0f); gw.fill(0f); gv.fill(0f); examples = 0; videoExamples = 0; videoEvidence = 0.0; names.clear(); initFactors()
     }
 
     // ---- хранение: версия формата, w0, w[], v[], накопители, имена ----
-    // v2: после examples — videoExamples (long); v1 читаем (videoExamples = examples). Числа — big-endian, как у DataOutputStream.
+    // v3 adds an evidence double after the name table; v1/v2 are still readable. Big-endian.
 
     /** Копия состояния: под замком — только быстрые copyOf, всё тяжёлое (запись в байты) идёт уже без замка. */
-    private class Snap(val ex: Long, val vex: Long, val w0: Float, val gw0: Float,
+    private class Snap(val ex: Long, val vex: Long, val evidence: Double, val w0: Float, val gw0: Float,
                        val w: FloatArray, val gw: FloatArray, val v: FloatArray, val gv: FloatArray, val names: List<Pair<Int, String>>)
 
     private fun snapshot(): Snap = synchronized(this) {
-        Snap(examples, videoExamples, w0, gw0, w.copyOf(), gw.copyOf(), v.copyOf(), gv.copyOf(), names.entries.map { it.key to it.value })
+        Snap(examples, videoExamples, videoEvidence, w0, gw0, w.copyOf(), gw.copyOf(), v.copyOf(), gv.copyOf(), names.entries.map { it.key to it.value })
     }
 
     fun toBytes(): ByteArray {
@@ -184,10 +186,10 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
         val nb = ByteArrayOutputStream(1024)
         DataOutputStream(nb).use { o -> o.writeInt(s.names.size); s.names.forEach { (b, t) -> o.writeInt(b); o.writeUTF(t) } }
         val nameBytes = nb.toByteArray()
-        val bb = ByteBuffer.allocate(HEADER_BYTES + 4 * (s.w.size + s.gw.size + s.v.size + s.gv.size) + nameBytes.size)
+        val bb = ByteBuffer.allocate(HEADER_BYTES + 4 * (s.w.size + s.gw.size + s.v.size + s.gv.size) + nameBytes.size + 8)
         bb.putInt(MAGIC).putInt(VERSION).putInt(bits).putInt(k).putLong(s.ex).putLong(s.vex).putFloat(s.w0).putFloat(s.gw0)
         for (a in arrayOf(s.w, s.gw, s.v, s.gv)) { bb.asFloatBuffer().put(a); bb.position(bb.position() + a.size * 4) }
-        bb.put(nameBytes)
+        bb.put(nameBytes).putDouble(s.evidence)
         return bb.array()
     }
 
@@ -199,19 +201,29 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
         val bb = ByteBuffer.wrap(bytes)
         if (bb.getInt() != MAGIC) return false
         val ver = bb.getInt()
-        if ((ver != 1 && ver != VERSION) || bb.getInt() != bits || bb.getInt() != k) return false
+        if ((ver !in 1..VERSION) || bb.getInt() != bits || bb.getInt() != k) return false
         val ex = bb.getLong(); val vex = if (ver >= 2) bb.getLong() else ex
+        if (ex < 0 || vex < 0 || vex > ex) return false
         val nw0 = bb.getFloat(); val ngw0 = bb.getFloat()
         fun floats(len: Int) = FloatArray(len).also { bb.asFloatBuffer().get(it); bb.position(bb.position() + len * 4) }
         val nw = floats(n); val ngw = floats(n); val nv = floats(n * k); val ngv = floats(n * k)
         if (!nw0.isFinite() || !ngw0.isFinite() || !finite(nw) || !finite(ngw) || !finite(nv) || !finite(ngv)) return false
+        if (ngw0 < 0f || ngw.any { it < 0f } || ngv.any { it < 0f }) return false
         val nn = LinkedHashMap<Int, String>()
+        var evidence = minOf(vex.toDouble(), 100.0) // conservative migration of old raw counters
         DataInputStream(ByteArrayInputStream(bytes, bb.position(), bb.remaining())).use { i ->
-            repeat(i.readInt().coerceIn(0, MAX_NAMES)) { nn[i.readInt() and mask] = i.readUTF() }
+            val count = i.readInt()
+            if (count !in 0..MAX_NAMES) return false
+            repeat(count) { nn[i.readInt() and mask] = i.readUTF() }
+            if (ver >= 3) {
+                evidence = i.readDouble()
+                if (!evidence.isFinite() || evidence < 0.0 || evidence > vex.toDouble()) return false
+                if (i.available() != 0) return false
+            }
         }
         synchronized(this) {
             w0 = nw0; gw0 = ngw0; nw.copyInto(w); ngw.copyInto(gw); nv.copyInto(v); ngv.copyInto(gv)
-            names.clear(); names.putAll(nn); examples = ex; videoExamples = vex
+            names.clear(); names.putAll(nn); examples = ex; videoExamples = vex; videoEvidence = evidence
         }
         true
     }.getOrDefault(false)
@@ -221,7 +233,7 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
     companion object {
         const val MAX_NAMES = 2000
         private const val MAGIC = 0x54464D31   // «TFM1»
-        private const val VERSION = 2
+        private const val VERSION = 3
         /** Байт до массивов: 4 int + 2 long + 2 float. */
         private const val HEADER_BYTES = 16 + 16 + 8
         /** Масштаб добавки модели (единицы [Interests.score]) и нижний предел её отрицательной части. */
@@ -247,9 +259,9 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
  * «kw:x» (до [KW_WORDS] слов названия), «dur:<10|<30|<120|<600|600+» и «audio». Значение признака — 1/√n, где n — число
  * признаков своей группы: ролик с тридцатью тегами не перевесит ролик с тремя.
  *
- * Сигналы ([Interests] вызывает [learn]): лайк — 1 (вес 3), снят лайк — 0 (вес 2), скачивание — 1 (вес 3), прирост
- * времени просмотра — 1 (вес = прирост), быстрый пропуск — 0 (вес 1 × неожиданность), показ в сетке «Для вас» без открытия — 0
- * (вес [IMPRESSION_WEIGHT]). Переход по тегу, автору,
+ * Сигналы ([Interests] вызывает [learn]): лайк — 1 (вес 3), скачивание — 1 (вес 3), прирост
+ * времени просмотра — 1 (вес = прирост), быстрый пропуск — 0 (вес 1 × неожиданность), показ в сетке без открытия
+ * (только диагностика, без обновления весов). Переход по тегу, автору,
  * сабреддиту или слову поиска — сигнал по одному признаку: [learnFeature] («псевдо-ролик» из него одного, 1, вес 1).
  */
 object TasteModel {
@@ -261,8 +273,6 @@ object TasteModel {
     const val FULL_EXAMPLES = 300
     const val MAX_ALPHA = 0.6
     private const val SAVE_DELAY_MS = 5000L
-    /** Вес примера «был на экране сетки и не открыт»: слабый — ролик мог просто не приглянуться, а мог не успеть. */
-    const val IMPRESSION_WEIGHT = 0.15
 
     private val model = FmModel(BITS, K, lazyFactors = true)
     private var file: File? = null
@@ -288,9 +298,10 @@ object TasteModel {
 
     /** Сколько примеров выучено. */
     val examples get() = model.examples
+    fun diagnostics(): String = "FM v3 | examples: ${model.examples} | effective video evidence: ${"%.1f".format(java.util.Locale.ROOT, model.videoEvidence)} | checkpoint bytes: ${file?.length() ?: 0L}"
 
     /** Доля модели в оценке вкуса: 0 без примеров по роликам (и пока файл не загружен), линейно до [MAX_ALPHA] к [FULL_EXAMPLES]. */
-    fun alpha(): Double = if (!loaded || !TrainingLab.learning) 0.0 else MAX_ALPHA * (model.videoExamples.toDouble() / FULL_EXAMPLES).coerceIn(0.0, 1.0)
+    fun alpha(): Double = if (!loaded || !TrainingLab.learning) 0.0 else MAX_ALPHA * (model.videoEvidence / FULL_EXAMPLES).coerceIn(0.0, 1.0)
 
     fun bucketOfDuration(sec: Double) = when {
         sec < 10 -> "dur:<10"; sec < 30 -> "dur:<30"; sec < 120 -> "dur:<120"; sec < 600 -> "dur:<600"; else -> "dur:600+"
@@ -349,19 +360,19 @@ object TasteModel {
             if (!loaded || !TrainingLab.learning || epoch != TrainingLab.learningEpoch) return@post
             if (TrainingLab.enabled) TrainingLab.sample(kind, chosen, label, weightF, model.predict(chosen), true)
             model.learn(chosen, label, weightF)
-        if (compare && label == 1f) {
-            val now = android.os.SystemClock.elapsedRealtime()
-            val alternative = synchronized(skipped) {
-                skipped.removeAll { it.id == g.id || now - it.at > 10 * 60_000L }
-                skipped.removeLastOrNull()
+            if (compare && label == 1f) {
+                val now = android.os.SystemClock.elapsedRealtime()
+                val alternative = synchronized(skipped) {
+                    skipped.removeAll { it.id == g.id || now - it.at > 10 * 60_000L }
+                    skipped.removeLastOrNull()
+                }
+                alternative?.let { model.prefer(chosen, it.features) }
             }
-            alternative?.let { model.prefer(chosen, it.features) }
-        }
-        scheduleSave()
+            scheduleSave()
         }
     }
 
-    /** Ролик был на экране сетки «Для вас» достаточно долго и не открыт: слабый отрицательный пример ([IMPRESSION_WEIGHT]). */
+    /** Visibility alone is not evidence of a preference. */
     fun learnImpression(g: Gif) { TrainingLab.event("impression_unopened") }
 
     /** Сигнал по одному признаку («tag:x», «user:x», «sub:x») — псевдо-ролик из него одного: открыл тег/автора/сабреддит/запрос. Долю модели не растит. */

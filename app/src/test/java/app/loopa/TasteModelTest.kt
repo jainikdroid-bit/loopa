@@ -154,13 +154,37 @@ class TasteModelTest {
 
     @Test fun `v1 читается, число роликов берётся из общего счётчика`() {
         val m = FmModel(); repeat(5) { m.learn(f("tag:a", "tag:b"), 1f, 1f) }
-        val v2 = m.toBytes()
+        val v3 = m.toBytes()
+        val v2 = v3.copyOf(v3.size - 8).also { java.nio.ByteBuffer.wrap(it).putInt(4, 2) }
         // v1: версия 1 и без поля videoExamples (8 байт после examples)
         val v1 = v2.copyOfRange(0, 24) + v2.copyOfRange(32, v2.size)
         java.nio.ByteBuffer.wrap(v1).putInt(4, 1)
         val r = FmModel(); assertTrue(r.load(v1))
         assertEquals(5L, r.examples); assertEquals(5L, r.videoExamples)
         assertEquals(m.logit(f("tag:a", "tag:b")), r.logit(f("tag:a", "tag:b")), 0.0)
+    }
+
+    @Test fun effectiveEvidenceIsWeightedAndPersists() {
+        val m = FmModel()
+        m.learn(f("tag:a"), 1f, 0.1f)
+        m.learn(f("tag:b"), 0f, 3f)
+        m.learn(f("tag:c"), 1f, 1f, video = false)
+        assertEquals(2L, m.videoExamples)
+        assertEquals(1.1, m.videoEvidence, 1e-6)
+        val copy = FmModel()
+        assertTrue(copy.load(m.toBytes()))
+        assertEquals(m.videoEvidence, copy.videoEvidence, 0.0)
+        copy.reset()
+        assertEquals(0.0, copy.videoEvidence, 0.0)
+    }
+
+    @Test fun invalidTrainingSamplesCannotCorruptCheckpoint() {
+        val m = FmModel()
+        m.learn(f("tag:a"), Float.NaN, 1f)
+        m.learn(f("tag:a"), 1f, Float.POSITIVE_INFINITY)
+        m.learn(listOf("tag:a" to Float.NaN), 1f, 1f)
+        assertEquals(0L, m.examples)
+        assertTrue(m.predict(f("tag:a")).isFinite())
     }
 
     @Test fun `файл с NaN отвергается, модель не тронута`() {

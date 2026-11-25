@@ -10,7 +10,7 @@ import org.json.JSONArray
 import kotlin.math.ln
 
 /**
- * Opt-in local diagnostics. No network API, no video IDs, no search strings.
+ * Opt-in local diagnostics. No network API, no video IDs, no complete query field. Feature names may include words from searches.
  * Feature snapshots can contain personal preferences, so the journal is off by default.
  * Private app storage; bounded history; disabling diagnostics deletes the journal.
  */
@@ -105,7 +105,7 @@ internal object TrainingLab {
                 if (!enabled) return@runCatching "Local diagnostics disabled."
                 val db = helper!!.writableDatabase
                 prune(db)
-                val out = StringBuilder("Local diagnostic journal (30 days / 10,000 rows)\n")
+                val out = StringBuilder("Local diagnostic journal (30 days / 10,000 rows)\n").append(TasteModel.diagnostics()).append('\n')
                 db.rawQuery("SELECT kind,COUNT(*) FROM samples GROUP BY kind ORDER BY kind", null).use { c ->
                     while (c.moveToNext()) out.append(c.getString(0)).append(": ").append(c.getLong(1)).append('\n')
                 }
