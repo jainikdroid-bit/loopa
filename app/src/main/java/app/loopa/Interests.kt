@@ -101,7 +101,8 @@ object Interests {
         if (::file.isInitialized) return
         TasteModel.init(ctx)
         file = File(ctx.filesDir, "interests.json")
-        data = runCatching { JSONObject(file.readText()) }.getOrDefault(JSONObject())
+        data = runCatching { android.util.AtomicFile(file).openRead().bufferedReader().use { JSONObject(it.readText()) } }
+            .recoverCatching { JSONObject(file.readText()) }.getOrDefault(JSONObject())
         net = null
         AXES.forEach { if (!data.has(it)) data.put(it, JSONObject()) }
         COUNTS.forEach { c -> if (!data.has(c)) data.put(c, JSONObject()) }
@@ -250,6 +251,7 @@ object Interests {
      * к ролику считаются, а длинный ролик получает очки за реальное время, а не за досмотр до конца.
      */
     fun watched(g: Gif, sec: Double, allowSkip: Boolean = true) {
+        if (!sec.isFinite() || sec <= 0) return
         val before: Double
         val after: Double
         synchronized(this) {
@@ -274,7 +276,7 @@ object Interests {
             }
             gain > 0.0 -> {
                 if (before < 10 && after >= 10) Feed.searchFor(g)?.let { SearchTaste.choose(it, g, 1.0) }
-                bump(g, gain); TasteModel.learn(g, 1f, gain, compare = after >= 10 && Feed.mode == "foryou") }
+                bump(g, gain); TasteModel.learn(g, 1f, gain, compare = before < 10 && after >= 10 && Feed.mode == "foryou") }
             else -> if (sec >= 2) save()
         }
     }
@@ -500,11 +502,22 @@ object Interests {
     @Synchronized private fun trimSeen() { while (seen.size > MAX_SEEN) seen.remove(seen.first()) }
 
     /** Запись в фоне и не чаще раза в 2 с. */
-    private fun save() {
-        io.removeCallbacksAndMessages(null)
+    private var saveQueued = false
+    @Synchronized private fun save() {
+        // одна отложенная запись на пачку изменений: прежний «сброс и заново» откладывал запись бесконечно при частых сигналах
+        if (saveQueued) return
+        saveQueued = true
         io.postDelayed({
-            val text = synchronized(this) { decay(); data.put("seen", JSONArray(seen.toList())); data.put("wt", JSONObject().also { o -> watchSec.forEach { (k, v) -> o.put(k, v) } }); data.toString() }
-            runCatching { File(file.path + ".tmp").apply { writeText(text) }.renameTo(file) }
+            val text = synchronized(this) {
+                saveQueued = false
+                decay(); data.put("seen", JSONArray(seen.toList())); data.put("wt", JSONObject().also { o -> watchSec.forEach { (k, v) -> o.put(k, v) } }); data.toString()
+            }
+            // AtomicFile: обрыв посреди записи не портит прошлый файл
+            val atomic = android.util.AtomicFile(file)
+            runCatching {
+                val out = atomic.startWrite()
+                try { out.write(text.toByteArray(Charsets.UTF_8)); atomic.finishWrite(out) } catch (e: Exception) { atomic.failWrite(out); throw e }
+            }.onFailure { android.util.Log.w("Loopa", "Interests save failed: ${it.javaClass.simpleName}") }
         }, 2000)
     }
 

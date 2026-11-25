@@ -233,6 +233,7 @@ class PlayerActivity : Activity() {
                     if (st == Player.STATE_READY) { fails = 0; holder?.spin?.text = tr("загрузка…") }
                 }
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
+                    hadPlaybackError = true
                     // сеть: показать и повторить самим; прочее (файл удалён, вместо видео картинка или заглушка) — так и сказать,
                     // но не листать самим: иначе на этот ролик не вернуться — каждый раз уносит к следующему
                     android.util.Log.w("Loopa", "ошибка плеера ${e.errorCodeName}: ${list.getOrNull(current)?.id}")
@@ -337,10 +338,13 @@ class PlayerActivity : Activity() {
 
     private val watchClock = WatchClock()
 
+    /** Ошибка воспроизведения этого ролика: уход с него — не «не понравилось», быстрый пропуск не штрафуем. */
+    private var hadPlaybackError = false
+
     private fun report(allowSkip: Boolean = true) {
         val elapsed = watchClock.take(android.os.SystemClock.elapsedRealtime())
         val g = list.getOrNull(current) ?: return
-        if (elapsed > 0) Interests.watched(g, elapsed / 1000.0, allowSkip)
+        if (elapsed > 0) Interests.watched(g, elapsed / 1000.0, allowSkip && rendered && !hadPlaybackError)
     }
 
     /** Страница выбрана — играть её ролик (источник уже подгружен PreloadManager). */
@@ -354,7 +358,7 @@ class PlayerActivity : Activity() {
         CachedExport.playing = list[pos].id
         CachedExport.sweep(list[pos].id)
         holder?.poster?.visibility = View.VISIBLE
-        holder = h; h.spin.text = tr("загрузка…"); fails = 0; rendered = false
+        holder = h; h.spin.text = tr("загрузка…"); fails = 0; rendered = false; hadPlaybackError = false
         val now = System.currentTimeMillis()
         if (settledAt > 0) { dwells.addLast(now - settledAt); while (dwells.size > 4) dwells.removeFirst() }
         control.dir = if (current >= 0 && pos < current) -1 else 1
@@ -574,7 +578,7 @@ class PlayerActivity : Activity() {
                 // Reddit: лайк — только у себя, для «Для вас» (голос на Reddit не ставим)
                 if (g.reddit || g.ext) { val on = !liked(g.id); setLiked(g.id, on); showLike(); Interests.like(g, on); return@setOnClickListener }
                 if (!Api.loggedIn) { back("login", "1"); return@setOnClickListener }
-                val on = !liked(g.id); setLiked(g.id, on); showLike(); Interests.like(g, on)
+                val on = !liked(g.id); setLiked(g.id, on); showLike()
                 val src = when {
                     Feed.mode == "foryou" -> "for-you"; Feed.mode == "liked" -> "favourites"; Feed.author != null -> "profile"
                     Feed.text.isNotEmpty() -> if (Feed.byTag) "tag-gifs" else "search-gifs"; else -> "trending"
@@ -582,7 +586,8 @@ class PlayerActivity : Activity() {
                 val position = bindingAdapterPosition
                 kotlin.concurrent.thread {
                     val err = runCatching { Api.like(g.id, on, src, position) }.getOrElse { it.message ?: tr(NO_NET) }
-                    if (err != null) ui.post { setLiked(g.id, !on); showLike(); Interests.like(g, !on); android.widget.Toast.makeText(this@PlayerActivity, tr("Лайк не прошёл — %s", err), android.widget.Toast.LENGTH_LONG).show() }
+                    if (err == null) ui.post { Interests.like(g, on) }   // вкус учится только на лайке, который сервер принял
+                    else ui.post { setLiked(g.id, !on); showLike(); android.widget.Toast.makeText(this@PlayerActivity, tr("Лайк не прошёл — %s", err), android.widget.Toast.LENGTH_LONG).show() }
                 }
             }
             sound.text = if (muted) "🔇" else "🔊"

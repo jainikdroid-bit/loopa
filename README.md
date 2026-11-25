@@ -150,7 +150,7 @@ PeerTube добавляет в общий поиск и «Для вас» зап
 
 ## Версии
 
-Последний APK в [Releases](https://github.com/jainikdroid-bit/loopa/releases) — **1.36**.
+Последний APK в [Releases](https://github.com/jainikdroid-bit/loopa/releases) — **1.37**.
 
 | Версия | Что нового |
 |---|---|

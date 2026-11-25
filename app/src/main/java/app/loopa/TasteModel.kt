@@ -120,7 +120,7 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
      * [video] — пример по ролику (считается для доли модели); у примера из одного признака пар нет — v не трогаем.
      */
     fun learn(features: List<Pair<String, Float>>, label: Float, weight: Float, video: Boolean = true) {
-        if (features.isEmpty() || weight <= 0f || weight.isNaN()) return
+        if (features.isEmpty() || weight <= 0f || !weight.isFinite() || !label.isFinite() || label !in 0f..1f || features.any { !it.second.isFinite() }) return
         synchronized(this) {
             val idx = IntArray(features.size) { bucket(features[it].first) }
             val x = FloatArray(features.size) { features[it].second }
