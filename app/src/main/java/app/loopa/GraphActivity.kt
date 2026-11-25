@@ -104,8 +104,8 @@ class GraphActivity : Activity() {
             val extra = when (type) { "user" -> "author"; "sub" -> "sub"; "q", "kw" -> "query"; "site" -> "site"; else -> "tag" }
             runOnUiThread {
                 startActivity(Intent(this@GraphActivity, MainActivity::class.java).putExtra(extra, name)
-                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
-                finish()
+                    // граф остаётся под лентой живым: «назад» из ленты вернёт его в том же положении
+                    .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             }
         }
     }

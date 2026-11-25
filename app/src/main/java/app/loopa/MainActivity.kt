@@ -213,10 +213,15 @@ class MainActivity : Activity() {
     private fun home() {
         search.setText("")
         val fy = Api.loggedIn || ForYou.reddit || !Interests.empty
-        Feed.reset("", homeOrder(), mode = if (fy) "foryou" else null); if (::grid.isInitialized) grid.scrollToPosition(0)
+        val m0 = if (fy) "foryou" else null; Feed.reset("", homeOrder(m0), mode = m0); if (::grid.isInitialized) grid.scrollToPosition(0)
     }
     /** Без поиска релевантности нет — тогда популярное. */
-    private fun homeOrder() = Feed.order.takeIf { it != "score" } ?: "trending"
+    private fun homeOrder(mode: String?): String {
+        // «Для вас» — свой порядок, по умолчанию «По интересам» (релевантность вкусу), пока владелец не выбрал иное
+        if (mode == "foryou") { Feed.desc = prefs.getBoolean("fy_desc", true); return prefs.getString("fy_order", null)?.takeIf { o -> o == "trending" || Feed.SORTS.any { it.id == o && it.dir } } ?: "trending" }
+        Feed.desc = prefs.getBoolean("desc", true)
+        return Feed.order.takeIf { it != "score" } ?: "trending"
+    }
 
     /** Вкладки: общие и по одной на каждый включённый сторонний сайт (галочки в меню 👤). */
     private fun tabList() = TABS + ForYou.onSources.map { it.title to it.id as String? } +
@@ -246,7 +251,7 @@ class MainActivity : Activity() {
         }
         if (m == "liked" && !Api.loggedIn) { pendingTab = m; login(RgSite); return }
         nav()
-        search.setText(""); Feed.reset("", homeOrder(), mode = m); grid.scrollToPosition(0)
+        search.setText(""); Feed.reset("", homeOrder(m), mode = m); grid.scrollToPosition(0)
     }
 
     /** Переход на другую страницу: запомнить текущую (с прокруткой, а из плеера — с роликом, на котором закрыли) для «Назад». */
@@ -582,7 +587,7 @@ class MainActivity : Activity() {
                     // та же сортировка ещё раз — сменить направление; новая — с убывания
                     Feed.desc = if (s.id == Feed.order && s.dir) !Feed.desc else true
                     Feed.reset(Feed.text, s.id, Feed.author, Feed.mode, Feed.byTag && Feed.query == Feed.text)
-                    prefs.edit().putString("order", Feed.order).putBoolean("desc", Feed.desc).apply()
+                    (if (Feed.mode == "foryou") prefs.edit().putString("fy_order", Feed.order).putBoolean("fy_desc", Feed.desc) else prefs.edit().putString("order", Feed.order).putBoolean("desc", Feed.desc)).apply()
                 }
                 else -> return@setOnMenuItemClickListener false
             }
@@ -781,19 +786,22 @@ class MainActivity : Activity() {
             val src = TextView(p.context).apply { setTextColor(Color.WHITE); textSize = 10f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(dp(6), dp(1), dp(6), dp(1)) }
             // ♥ — уже лайкнутый ролик
             val heart = TextView(p.context).apply { text = "♥"; setTextColor(0xFFFF4D5E.toInt()); textSize = 14f; setPadding(dp(6), dp(1), dp(6), dp(2)); background = pill(0xAA000000.toInt()); visibility = View.GONE }
+            // полоса загрузки превью — сверху плитки, тонкая
+            val bar = View(p.context).apply { setBackgroundColor(Theme.accent); visibility = View.GONE }
             val box = object : FrameLayout(p.context) {
                 // ячейка 3:4 — видно больше роликов, чем при 9:16
                 override fun onMeasure(w: Int, h: Int) { super.onMeasure(w, MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(w) * 4 / 3, MeasureSpec.EXACTLY)) }
             }.apply {
                 addView(img, FrameLayout.LayoutParams(-1, -1))
                 addView(tex, FrameLayout.LayoutParams(-1, -1))
+                addView(bar, FrameLayout.LayoutParams(-1, dp(3), Gravity.TOP))
                 addView(dur, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
                 addView(src, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
                 addView(heart, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
                 layoutParams = RecyclerView.LayoutParams(-1, -2).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }
                 clipToOutline = true; background = pill(0xFF1A1D23.toInt(), 10f)
             }
-            return H(box, img, dur, src, GridPreview.Slot(tex), heart)
+            return H(box, img, dur, src, GridPreview.Slot(tex).also { it.bar = bar }, heart)
         }
         // стабильные id: при обновлении ленты ячейки остаются за своими роликами — не мигают и не перезапускают превью
         init { setHasStableIds(true) }

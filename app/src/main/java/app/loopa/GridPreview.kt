@@ -49,7 +49,9 @@ class GridPreview(private val ctx: Context) {
     /** Ячейка, в которой может играть превью. */
     class Slot(val tex: TextureView) { var pos = -1; var player: ExoPlayer? = null
         /** Какой ролик сейчас привязан к ячейке (id) и какой в ней играет — не совпали, значит превью чужое. */
-        var id: String? = null; internal var playing: String? = null }
+        var id: String? = null; internal var playing: String? = null
+        /** Тонкая полоса сверху плитки: сколько превью уже скачано; null — плитка без полосы. */
+        var bar: android.view.View? = null }
 
     private val idle = ArrayList<ExoPlayer>()
     /** Запас плееров с программным декодером и какие из играющих — такие. */
@@ -168,7 +170,27 @@ class GridPreview(private val ctx: Context) {
                 // куска нельзя: seek к ключевому кадру (CLOSEST_SYNC) приземляется чуть раньше
                 if (pos >= c.at[c.i] + c.len || c.looped) { c.looped = false; c.i = (c.i + 1) % c.at.size; if (c.i == 0) c.round = true; p.seekTo(c.at[c.i]) }
             }
-            if (cuts.isNotEmpty()) ui.postDelayed(this, 150)
+            updateBars()
+            if (cuts.isNotEmpty() || active.keys.any { it !in rendered }) ui.postDelayed(this, 150)
+        }
+    }
+
+    /** Полоса загрузки превью: доля скачанного (куски нарезки сыграны / буфер дошёл до конца); скачано — полоса гаснет. */
+    private fun updateBars() {
+        for ((s, p) in active) {
+            val b = s.bar ?: continue
+            val c = cuts[p]
+            val done = s in rendered || (p.playbackState == Player.STATE_READY && loaded(p))
+            val frac = when {
+                done -> 1f
+                c != null -> ((c.i + ((p.currentPosition - c.at[c.i]).toFloat() / c.len).coerceIn(0f, 1f)) / c.at.size).coerceIn(0f, 0.97f)
+                p.duration > 0 -> (p.bufferedPosition.toFloat() / p.duration).coerceIn(0f, 0.97f)
+                else -> 0.05f
+            }
+            b.pivotX = 0f
+            b.scaleX = maxOf(frac, 0.05f)
+            if (done) { if (b.visibility == android.view.View.VISIBLE) b.animate().alpha(0f).setDuration(400).withEndAction { b.visibility = android.view.View.GONE }.start() }
+            else { b.animate().cancel(); b.alpha = 1f; b.visibility = android.view.View.VISIBLE }
         }
     }
 
@@ -275,6 +297,8 @@ class GridPreview(private val ctx: Context) {
         w.listener = fl; p.setVideoFrameMetadataListener(fl)
         ui.removeCallbacks(guard); ui.postDelayed(guard, 1_000)
         s.tex.alpha = 0f
+        s.bar?.let { it.animate().cancel(); it.pivotX = 0f; it.scaleX = 0.05f; it.alpha = 1f; it.visibility = android.view.View.VISIBLE }
+        ui.removeCallbacks(tick); ui.post(tick)
         p.clearVideoSurface()
         p.setVideoTextureView(s.tex)
         p.addListener(object : Player.Listener {
@@ -305,6 +329,7 @@ class GridPreview(private val ctx: Context) {
         cancelPending(s)
         val p = active.remove(s) ?: return
         s.player = null; s.playing = null; s.tex.alpha = 0f
+        s.bar?.let { it.animate().cancel(); it.visibility = android.view.View.GONE }
         listeners.remove(p)?.let { p.removeListener(it) }
         cuts.remove(p); gifs.remove(s); rendered.remove(s)
         watch.remove(p)?.listener?.let { p.clearVideoFrameMetadataListener(it) }

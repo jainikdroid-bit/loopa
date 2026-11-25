@@ -172,11 +172,27 @@
 
   // ---- подписи: HTML поверх сцены, позиции из камеры (без текстур и объектов three.js) ----
   var shown = {}, boxes = {};
+  /** Подписи по взгляду камеры: из узлов, что сейчас в кадре, берём те, что кажутся крупнее (вес / расстояние до камеры). */
+  function viewTop() {
+    var cam = G.camera(), P0 = cam.position, dir = cam.position.clone(), W = window.innerWidth, H = window.innerHeight, list = [];
+    cam.getWorldDirection(dir);
+    nodes.forEach(function (n) {
+      var l = live[n.id];
+      if (!l || l.x === undefined || !drawn[n.id] || !vis(n)) return;
+      if (comm >= 0 && n.c !== comm) return;
+      var dx = l.x - P0.x, dy = l.y - P0.y, dz = l.z - P0.z;
+      if (dx * dir.x + dy * dir.y + dz * dir.z <= 1) return;               // позади камеры
+      var p = G.graph2ScreenCoords(l.x, l.y, l.z);
+      if (p.x < 0 || p.x > W || p.y < 0 || p.y > H) return;                // вне кадра
+      var dist = Math.max(Math.sqrt(dx * dx + dy * dy + dz * dz), 1);
+      list.push([n.id, (0.45 + 2.6 * Math.min(Math.max(n.act, 0) / maxAct, 1.15)) / dist]);
+    });
+    list.sort(function (a, b) { return b[1] - a[1]; });
+    return list.slice(0, P.labels).map(function (e) { return e[0]; });
+  }
   function labelSet() {
     var s = {};
-    var c = 0;
-    if (comm >= 0) nodes.forEach(function (n) { if (n.c === comm && drawn[n.id] && vis(n) && c++ < P.labels) s[n.id] = 1; });
-    else nodes.forEach(function (n) { if (drawn[n.id] && vis(n) && c++ < P.labels) s[n.id] = 1; });
+    viewTop().forEach(function (k) { s[k] = 1; });
     if (sel) { s[sel] = 1; nb[sel].forEach(function (x) { s[x.id] = 1; }); }
     if (found) Object.keys(found).slice(0, 20).forEach(function (k) { if (byId[k] && drawn[k] && vis(byId[k])) s[k] = 1; });
     return s;
@@ -194,8 +210,10 @@
   }
   /** Приоритет подписи: выбранный и найденный — первыми, дальше тяжёлые; наезжающие на уже показанные — прячем. */
   function rank(k) { return (k === sel ? 1e9 : 0) + (found && found[k] ? 1e8 : 0) + (sel && focus && focus[k] ? 1e7 : 0) + byId[k].act; }
+  var lastView = 0;
   function frame(ts) {
     if (probe) probeTick(ts);
+    if (ts - lastView > 250) { lastView = ts; relabel(); }   // камеру повернули или приблизили — подписи по новому кадру
     var cam = G.camera(), dir = cam.position.clone(), P = cam.position;
     cam.getWorldDirection(dir);
     var taken = [];
