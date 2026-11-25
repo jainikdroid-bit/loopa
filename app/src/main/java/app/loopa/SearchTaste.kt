@@ -18,18 +18,27 @@ internal class QueryProfile {
             val delta = (chosen[key] ?: 0.0) - (passed[key] ?: 0.0)
             if (delta != 0.0) weights[key] = ((weights.remove(key) ?: 0.0) + step * delta).coerceIn(-3.0, 3.0)
         }
-        if (weights.size > 160) {
-            val groups = weights.keys.groupBy { it.startsWith("pair:") }
-            for ((pairs, keys) in groups) {
-                val limit = if (pairs) 320 else 160
-                keys.take((keys.size - limit).coerceAtLeast(0)).forEach(weights::remove)
-            }
+        trim()
+    }
+
+    /** Не больше [MAX_SINGLES] весов признаков и [MAX_PAIRS] парных на запрос (~100): уходят давно не менявшиеся. */
+    fun trim() {
+        if (weights.size <= MAX_SINGLES + MAX_PAIRS) return
+        val groups = weights.keys.groupBy { it.startsWith("pair:") }
+        for ((pairs, keys) in groups) {
+            val limit = if (pairs) MAX_PAIRS else MAX_SINGLES
+            keys.take((keys.size - limit).coerceAtLeast(0)).forEach(weights::remove)
         }
+    }
+
+    companion object {
+        const val MAX_SINGLES = 60
+        const val MAX_PAIRS = 40
     }
 }
 
 internal object SearchTaste {
-    private const val STORE = "search_preferences_v1"
+    private const val STORE = TasteStore.SEARCH
     private var prefs: SharedPreferences? = null
     private val profiles = LinkedHashMap<String, QueryProfile>()
     private data class Pass(val id: String, val at: Long, val features: Map<String, Double>)
@@ -48,6 +57,7 @@ internal object SearchTaste {
                 val weights = row.getJSONObject("w")
                 val profile = QueryProfile()
                 weights.keys().forEach { k -> profile.weights[k] = weights.getDouble(k) }
+                profile.trim()
                 profiles[row.getString("q")] = profile
             }
         }

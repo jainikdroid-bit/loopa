@@ -2,6 +2,8 @@ package app.loopa
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 
@@ -41,38 +43,67 @@ object ForYou {
 
     private val recent = RecentTiles()
     private val recentLock = Any()
-    private fun skipKey(id: String) = "fy_skips:$id"
+    /** Пропуски живут в отдельном файле [TasteStore] (не больше 800 записей); пишем отложенно. */
+    private val skips = SkipLog()
+    private var taste: SharedPreferences? = null
+    private val saver = Handler(Looper.getMainLooper())
+    private var saveQueued = false
+    private var dirtySkips = false
+    private var dirtyRecent = false
+    private const val SAVE_DELAY = 5_000L
 
-    fun dismissed(id: String) = (prefs?.getInt(skipKey(id), 0) ?: 0) >= 4
+    fun dismissed(id: String) = synchronized(recentLock) { skips.count(id) } >= 4
 
     fun passed(g: Gif) {
         val id = g.id
-        val p = prefs ?: return
-        val key = skipKey(id)
-        val count = p.getInt(key, 0)
+        val count = synchronized(recentLock) { skips.count(id) }
         if (count == 3) TasteModel.noteSkip(g)
-        if (count < 4) p.edit().putInt(key, count + 1).apply()
+        if (count < 4) {
+            synchronized(recentLock) { skips.bump(id, System.currentTimeMillis()); dirtySkips = true }
+            queueSave()
+        }
     }
 
     fun opened(id: String) {
         TasteModel.forgetSkip(id)
-        val p = prefs ?: return
-        val key = skipKey(id)
-        if (p.contains(key)) p.edit().remove(key).apply()
+        if (synchronized(recentLock) { skips.remove(id).also { if (it) dirtySkips = true } }) queueSave()
+    }
+
+    private fun queueSave() {
+        if (saveQueued) return
+        saveQueued = true
+        saver.postDelayed({ flush() }, SAVE_DELAY)
+    }
+
+    /** Записать накопленное в prefs (раз в 5 с и из onPause). */
+    fun flush() {
+        saver.removeCallbacksAndMessages(null)
+        saveQueued = false
+        val skipJson: String?
+        val recentJson: String?
+        synchronized(recentLock) {
+            skipJson = if (dirtySkips) skips.toJson() else null
+            recentJson = if (dirtyRecent) org.json.JSONArray(recent.saved()).toString() else null
+            dirtySkips = false; dirtyRecent = false
+        }
+        skipJson?.let { taste?.edit()?.putString(TasteStore.SKIPS, it)?.apply() }
+        recentJson?.let { prefs?.edit()?.putString(RECENT_KEY, it)?.apply() }
     }
 
     private const val RECENT_KEY = "fy_recent_tiles"
 
     fun visible(ids: List<String>) = synchronized(recentLock) {
-        if (recent.update(ids)) prefs?.edit()?.putString(RECENT_KEY, org.json.JSONArray(recent.saved()).toString())?.apply()
-        Unit
-    }
+        if (recent.update(ids)) dirtyRecent = true
+        dirtyRecent
+    }.also { if (it) queueSave() }
 
     fun recentOrder() = synchronized(recentLock) { recent.order() }
 
     fun init(ctx: Context) {
         if (prefs != null) return
         prefs = ctx.applicationContext.getSharedPreferences("loopa", Context.MODE_PRIVATE)
+        taste = TasteStore.open(ctx)
+        taste?.getString(TasteStore.SKIPS, null)?.let { raw -> runCatching { synchronized(recentLock) { skips.restore(raw) } } }
         prefs?.getString(RECENT_KEY, null)?.let { raw ->
             runCatching {
                 val saved = org.json.JSONArray(raw)

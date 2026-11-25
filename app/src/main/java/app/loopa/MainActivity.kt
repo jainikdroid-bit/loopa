@@ -64,7 +64,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         // первый запуск — приветствие (до того, как что-то запишется в настройки: по их пустоте узнаём новую установку)
         val welcome = savedInstanceState == null && WelcomeActivity.needed(prefs)
-        I18n.init(this); Theme.init(this); themeKey = Theme.id + I18n.code; Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); SearchTaste.init(prefs); Video.init(this); CachedExport.init(this); Hide.init(this); DeviceTier.warmAvc()
+        I18n.init(this); Theme.init(this); themeKey = Theme.id + I18n.code; Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); SearchTaste.init(TasteStore.open(this)); Video.init(this); CachedExport.init(this); Hide.init(this); DeviceTier.warmAvc()
         @Suppress("DEPRECATION") if (welcome) startActivityForResult(Intent(this, WelcomeActivity::class.java), 4)
         preview.enabled = prefs.getBoolean("live", true)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
@@ -220,7 +220,7 @@ class MainActivity : Activity() {
 
     /** Вкладки: общие и по одной на каждый включённый сторонний сайт (галочки в меню 👤). */
     private fun tabList() = TABS + ForYou.onSources.map { it.title to it.id as String? } +
-        listOfNotNull(("MFC Share ↗" to "mfcshare").takeIf { prefs.getBoolean("mfc_catalog", true) })
+        listOfNotNull(("MFC Share ↗" to "mfcshare").takeIf { prefs.getBoolean("mfc_catalog", false) })
     private var tabsKey = ""
     private fun buildTabs() {
         val l = tabList(); tabsKey = l.joinToString { it.second.orEmpty() }
@@ -338,7 +338,7 @@ class MainActivity : Activity() {
     // превью — только пока главный экран на виду: иначе (лента догрузилась, пока открыт плеер) они запускались в фоне
     // и отбирали видеодекодеры у плеера — картинка вставала, а звук шёл дальше
     private var shown = false
-    override fun onPause() { super.onPause(); shown = false; passCandidates.clear(); impressions.clear(); preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch() }
+    override fun onPause() { super.onPause(); ForYou.flush(); shown = false; passCandidates.clear(); impressions.clear(); preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch() }
     override fun onResume() {
         super.onResume(); shown = true; Prefetch.resume()
         if (!::grid.isInitialized) return

@@ -100,7 +100,7 @@ class SettingsActivity : Activity() {
             val st = SourceCheckActivity.stateText(SourceHealth.status(s.id))
             toggle(s.title, if (warn) st + " — " + tr("требует проверки") else st, ForYou.uses(s), subWarn = warn) { ForYou.setUses(s, it); sourcesChanged() }
         }
-        toggle("MFC Share ↗", null, prefs.getBoolean("mfc_catalog", true)) {
+        toggle("MFC Share ↗", null, prefs.getBoolean("mfc_catalog", false)) {
             prefs.edit().putBoolean("mfc_catalog", it).apply()
             sourcesChanged()
         }

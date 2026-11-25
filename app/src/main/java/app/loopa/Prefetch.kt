@@ -19,6 +19,8 @@ object Prefetch {
     private val pool = Executors.newFixedThreadPool(2)
     private val jobs = ConcurrentHashMap<String, Pair<Future<*>, CacheWriter?>>()
     @Volatile var paused = false
+    /** Идёт ли сейчас предзагрузка начал роликов. */
+    val busy get() = jobs.isNotEmpty()
 
     /** Загрузить начало этих роликов (адрес → байт); остальное, что ещё грузится, отменить. */
     fun video(urls: List<String>, bytes: Long) {

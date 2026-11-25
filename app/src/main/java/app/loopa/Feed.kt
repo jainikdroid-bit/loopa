@@ -90,6 +90,8 @@ object Feed {
     val generation get() = gen
     private var gen = 0
     private val ui = Handler(Looper.getMainLooper())
+    /** Сколько при поиске с профилем держим ответы источников ради общей сортировки, мс. */
+    private const val HOLD_MS = 2_000L
     val listeners = LinkedHashSet<() -> Unit>()
 
     val canMore get() = !loading && page < pages
@@ -233,20 +235,32 @@ object Feed {
             thread {
                 if (p == 1) Search.reset(t)
                 val deferred = ArrayList<Pair<Gif, Double>>()
+                var released = false
                 fun publish(rows: List<Pair<Gif, Double>>) {
                     if (rows.isNotEmpty()) ui.post { if (g == gen) { addLive(rows); changed() } }
                 }
+                /** Удерживаемое отдать в выдачу (по релевантности); дальше всё идёт сразу, как раньше. */
+                fun release() {
+                    val rows = synchronized(deferred) { released = true; deferred.toList().also { deferred.clear() } }
+                    publish(rows.sortedByDescending { it.second })
+                }
+                /** Удержать до конца страницы, но не дольше [HOLD_MS]: к тому времени уже пришедшее показываем. */
+                fun hold(rows: List<Pair<Gif, Double>>) {
+                    val now = synchronized(deferred) { if (released) true else { deferred.addAll(rows); false } }
+                    if (now) publish(rows)
+                }
+                if (compareFirstPage || strictFirst) ui.postDelayed({ release() }, HOLD_MS)
                 val r = runCatching {
                     Search.run(p, ord, searchReddit && Reddit.hadUser) { part ->
-                        if (compareFirstPage) deferred.addAll(part)
+                        if (compareFirstPage) hold(part)
                         else if (strictFirst) {
                             val (literal, rest) = part.partition { Relevance.level(it.second) == 8 }
-                            deferred.addAll(rest)
+                            hold(rest)
                             publish(literal)
                         } else publish(part)
                     }
                 }
-                publish(deferred)
+                release()
                 ui.post {
                     if (g != gen) return@post
                     loading = false
