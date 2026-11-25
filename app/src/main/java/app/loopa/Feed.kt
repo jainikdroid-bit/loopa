@@ -127,7 +127,8 @@ object Feed {
         scoreOf.clear(); seenTo = 0; chaining = false
         items.clear(); page = 0; pages = 1; after = null; loading = false; error = null; fails = 0; chain = 0; stopRetry(); gen++
         ForYou.visible(emptyList())
-        if (mode == "foryou") ForYou.reset()
+        Search.invalidate()
+        ForYou.reset()
         // первый показ ленты после запуска — сразу прошлая лента с диска (без уже просмотренного), свежее допишется
         stale.clear()
         cacheKey()?.takeIf { restored.add(it) }?.let { k ->
@@ -190,8 +191,9 @@ object Feed {
         val g = gen; val p = page + 1; val ord = apiOrder()
         if (mode == "foryou") {
             // «Для вас» — RedGIFs + Reddit по профилю интересов; пусто — источники кончились
+            val session = ForYou.session()
             thread {
-                val r = runCatching { ForYou.page() }
+                val r = runCatching { session.page() }
                 ui.post {
                     if (g != gen) return@post
                     loading = false
@@ -232,8 +234,9 @@ object Feed {
             val t = text
             val strictFirst = p == 1 && localCmp() == null
             val compareFirstPage = strictFirst && SearchTaste.hasProfile(SearchTaste.key(t))
+            val session = if (p == 1) Search.reset(t) else Search.session()
+            val redditEnabled = searchReddit && Reddit.hadUser
             thread {
-                if (p == 1) Search.reset(t)
                 val deferred = ArrayList<Pair<Gif, Double>>()
                 var released = false
                 fun publish(rows: List<Pair<Gif, Double>>) {
@@ -251,7 +254,7 @@ object Feed {
                 }
                 if (compareFirstPage || strictFirst) ui.postDelayed({ release() }, HOLD_MS)
                 val r = runCatching {
-                    Search.run(p, ord, searchReddit && Reddit.hadUser) { part ->
+                    session.run(p, ord, redditEnabled) { part ->
                         if (compareFirstPage) hold(part)
                         else if (strictFirst) {
                             val (literal, rest) = part.partition { Relevance.level(it.second) == 8 }
@@ -434,6 +437,7 @@ object Feed {
     fun back(): Int? {
         val s = history.removeLastOrNull() ?: return null
         stopRetry(); gen++
+        Search.invalidate(); ForYou.reset()   // старая работа не пишет в страницу, на которую вернулись
         text = s.text; query = s.query; byTag = s.byTag; tagOnly = s.tagOnly; exact = s.exact; order = s.order; desc = s.desc
         author = s.author; mode = s.mode; sub = s.sub; rorder = s.rorder; after = s.after; tags = s.tags
         chaining = false; items.clear(); items += s.items; page = s.page; pages = maxOf(s.pages, s.page); loading = false; error = null; fails = 0; chain = 0
