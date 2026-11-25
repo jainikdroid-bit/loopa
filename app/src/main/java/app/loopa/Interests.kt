@@ -164,6 +164,7 @@ object Interests {
     // ---- сигналы ----
 
     private fun bump(g: Gif, w: Double) = synchronized(this) {
+        if (!TrainingLab.learning) return@synchronized
         val f = features(g)
         f.forEach { (axis, terms) -> terms.forEach { add(axis, it, w * when (axis) { "kw" -> 0.5; "pair" -> 0.5 * pairFactor(it); else -> 1.0 }) } }
         if (w > 0) linkTypes(f, w)
@@ -232,6 +233,7 @@ object Interests {
      * просмотренные (есть в watchSec/seen) не считаем.
      */
     fun impression(g: Gif) {
+        if (!TrainingLab.learning) return
         val fresh = synchronized(this) {
             if (g.id in watchSec || g.id in seen || !impressed.add(g.id)) false
             else { while (impressed.size > 3000) impressed.remove(impressed.first()); true }
@@ -239,7 +241,13 @@ object Interests {
         if (fresh) TasteModel.learnImpression(g)
     }
 
-    fun like(g: Gif, on: Boolean) { if (on) Feed.searchFor(g)?.let { SearchTaste.choose(it, g, 2.0) }; bump(g, if (on) 5.0 else -5.0); TasteModel.learn(g, if (on) 1f else 0f, if (on) 3.0 else 2.0, compare = on && Feed.mode == "foryou") }
+    fun like(g: Gif, on: Boolean) {
+        if (!TrainingLab.learning) return
+        if (!on) { TrainingLab.event("like_removed"); return }
+        Feed.searchFor(g)?.let { SearchTaste.choose(it, g, 2.0) }
+        bump(g, 5.0)
+        TasteModel.learn(g, 1f, 3.0, compare = Feed.mode == "foryou", kind = "like")
+    }
     fun download(g: Gif) { Feed.searchFor(g)?.let { SearchTaste.choose(it, g, 2.0) }; bump(g, 4.0); TasteModel.learn(g, 1f, 3.0, compare = Feed.mode == "foryou") }
     /** Лайк, поставленный на Reddit раньше (импорт): слабее свежего — вкус мог измениться. */
     fun imported(g: Gif) { bump(g, 2.5); TasteModel.learn(g, 1f, 1.5) }
@@ -250,6 +258,7 @@ object Interests {
      * к ролику считаются, а длинный ролик получает очки за реальное время, а не за досмотр до конца.
      */
     fun watched(g: Gif, sec: Double, allowSkip: Boolean = true) {
+        if (!TrainingLab.learning || !sec.isFinite() || sec <= 0) return
         val before: Double
         val after: Double
         synchronized(this) {
@@ -270,17 +279,18 @@ object Interests {
                 val surprise = TagNet.surprise(score(g) * Ranker.norm(g.tags.size))
                 Feed.searchFor(g)?.let { SearchTaste.pass(it, g, quick = true) }
                 if (Feed.mode == "foryou") TasteModel.noteSkip(g)
-                bump(g, -0.4 * surprise); TasteModel.learn(g, 0f, surprise)
+                bump(g, -0.4 * surprise); TasteModel.learn(g, 0f, surprise, kind = "quick_exit")
             }
             gain > 0.0 -> {
                 if (before < 10 && after >= 10) Feed.searchFor(g)?.let { SearchTaste.choose(it, g, 1.0) }
-                bump(g, gain); TasteModel.learn(g, 1f, gain, compare = after >= 10 && Feed.mode == "foryou") }
+                bump(g, gain); TasteModel.learn(g, 1f, gain, compare = before < 10 && after >= 10 && Feed.mode == "foryou", kind = "watch") }
             else -> if (sec >= 2) save()
         }
     }
 
     /** Поиск: слова запроса — как теги и как слова. */
     fun search(q: String) = synchronized(this) {
+        if (!TrainingLab.learning) return@synchronized
         val ws = words(q).map(::key).filter { it.isNotEmpty() }.distinct()
         ws.forEach { add("tag", it, 3.0); add("kw", it, 1.5) }
         // слова одного запроса связаны между собой (как теги одного ролика)
@@ -291,14 +301,15 @@ object Interests {
         ws.take(4).forEach { TasteModel.learnFeature("tag:$it") }
         save()
     }
-    fun openTag(t: String) = synchronized(this) { add("tag", key(t), 3.0); TasteModel.learnFeature("tag:" + key(t)); lastQuery = listOf(key(t)).filter { it.isNotEmpty() }; lastQueryFull = null; lastQueryAt = System.currentTimeMillis(); save() }
-    fun openSub(s: String) = synchronized(this) { s.split("+").filter { it.isNotBlank() && !it.startsWith("u/") }.forEach { add("sub", it.lowercase(), 3.0); TasteModel.learnFeature("sub:" + it.lowercase()) }; save() }
+    fun openTag(t: String) = synchronized(this) { if (!TrainingLab.learning) return@synchronized; add("tag", key(t), 3.0); TasteModel.learnFeature("tag:" + key(t)); lastQuery = listOf(key(t)).filter { it.isNotEmpty() }; lastQueryFull = null; lastQueryAt = System.currentTimeMillis(); save() }
+    fun openSub(s: String) = synchronized(this) { if (!TrainingLab.learning) return@synchronized; s.split("+").filter { it.isNotBlank() && !it.startsWith("u/") }.forEach { add("sub", it.lowercase(), 3.0); TasteModel.learnFeature("sub:" + it.lowercase()) }; save() }
 
     /**
      * Открыта лента автора (в сетке, в плеере, из графа): +3 автору, связь «автор — сайт» и сигнал модели вкуса по
      * признаку «user:имя». site — сайт ролика («redgifs», «reddit», «erome»…), пусто — не знаем.
      */
     fun openAuthor(user: String, site: String) = synchronized(this) {
+        if (!TrainingLab.learning) return@synchronized
         val u = user.trim().lowercase().removePrefix("u/")
         if (u.isEmpty() || u == "[deleted]") return@synchronized
         add("user", u, 3.0)
@@ -309,6 +320,7 @@ object Interests {
 
     fun reset() = synchronized(this) {
         SearchTaste.reset()
+        ForYou.clearTasteHistory()
         AXES.forEach { data.put(it, JSONObject()) }; COUNTS.forEach { data.put(it, JSONObject()) }; data.put("map", JSONObject()); data.put("pin", JSONObject()); seen.clear(); watchSec.clear(); impressed.clear(); net = null; lastQuery = emptyList(); lastQueryFull = null; TasteModel.reset(); save()
     }
 
@@ -318,6 +330,7 @@ object Interests {
 
     /** Насколько ролик в твоём вкусе (0 — ничего не известно); отрицательные — «пропускал такое». */
     fun score(g: Gif): Double = synchronized(this) {
+        if (!TrainingLab.learning) return@synchronized 0.0
         val a = TasteModel.alpha()
         val own = netScore(g)
         // сеть вкуса (веса осей и соседей) плюс α·добавка факторизационной машины (сочетания признаков); без примеров — одна сеть

@@ -12,6 +12,7 @@ internal class SkipLog(private val capacity: Int = 800) {
     private class Entry(val count: Int, val at: Long)
     private val map = LinkedHashMap<String, Entry>()
 
+    fun clear() = map.clear()
     val size get() = map.size
     fun count(id: String) = map[id]?.count ?: 0
 

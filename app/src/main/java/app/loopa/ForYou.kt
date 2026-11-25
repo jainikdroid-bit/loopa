@@ -52,9 +52,10 @@ object ForYou {
     private var dirtyRecent = false
     private const val SAVE_DELAY = 5_000L
 
-    fun dismissed(id: String) = synchronized(recentLock) { skips.count(id) } >= 4
+    fun dismissed(id: String) = TrainingLab.learning && synchronized(recentLock) { skips.count(id) } >= 4
 
     fun passed(g: Gif) {
+        if (!TrainingLab.learning) return
         val id = g.id
         val count = synchronized(recentLock) { skips.count(id) }
         if (count == 3) TasteModel.noteSkip(g)
@@ -65,6 +66,7 @@ object ForYou {
     }
 
     fun opened(id: String) {
+        if (!TrainingLab.learning) return
         TasteModel.forgetSkip(id)
         if (synchronized(recentLock) { skips.remove(id).also { if (it) dirtySkips = true } }) queueSave()
     }
@@ -98,6 +100,15 @@ object ForYou {
     }.also { if (it) queueSave() }
 
     fun recentOrder() = synchronized(recentLock) { recent.order() }
+
+    fun clearTasteHistory() {
+        synchronized(recentLock) {
+            skips.clear()
+            recent.restore(emptyList())
+            dirtySkips = true; dirtyRecent = true
+        }
+        flush()
+    }
 
     fun init(ctx: Context) {
         if (prefs != null) return

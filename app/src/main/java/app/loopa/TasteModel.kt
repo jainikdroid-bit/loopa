@@ -274,6 +274,7 @@ object TasteModel {
     /** Загрузка — в фоне, чтобы не держать запуск: пока не готово, [alpha] = 0. Начальные v считаем, только если файла нет. */
     @Synchronized fun init(ctx: Context) {
         if (file != null) return
+        TrainingLab.init(ctx)
         val f = File(ctx.filesDir, "taste_fm.bin"); file = f
         io.post {
             var ok = false
@@ -290,7 +291,7 @@ object TasteModel {
     val examples get() = model.examples
 
     /** Доля модели в оценке вкуса: 0 без примеров по роликам (и пока файл не загружен), линейно до [MAX_ALPHA] к [FULL_EXAMPLES]. */
-    fun alpha(): Double = if (!loaded) 0.0 else MAX_ALPHA * (model.videoExamples.toDouble() / FULL_EXAMPLES).coerceIn(0.0, 1.0)
+    fun alpha(): Double = if (!loaded || !TrainingLab.learning) 0.0 else MAX_ALPHA * (model.videoExamples.toDouble() / FULL_EXAMPLES).coerceIn(0.0, 1.0)
 
     fun bucketOfDuration(sec: Double) = when {
         sec < 10 -> "dur:<10"; sec < 30 -> "dur:<30"; sec < 120 -> "dur:<120"; sec < 600 -> "dur:<600"; else -> "dur:600+"
@@ -321,13 +322,13 @@ object TasteModel {
      * Добавка к оценке вкуса ([FmModel.bonus]): итоговая оценка — `сеть + α·добавка`. Относительно скользящего среднего
      * по недавним роликам: «во вкусе» — плюс (до [FmModel.BONUS_SCALE]), хуже обычного — небольшой минус (не ниже −0,8).
      */
-    fun bonus(g: Gif): Double = if (!loaded) 0.0 else model.bonus(features(g))
+    fun bonus(g: Gif): Double = if (!loaded || !TrainingLab.learning) 0.0 else model.bonus(features(g))
 
     private data class Skipped(val id: String, val at: Long, val features: List<Pair<String, Float>>)
     private val skipped = ArrayDeque<Skipped>()
 
     fun noteSkip(g: Gif) {
-        if (!loaded) return
+        if (!loaded || !TrainingLab.learning) return
         val item = Skipped(g.id, android.os.SystemClock.elapsedRealtime(), features(g))
         synchronized(skipped) {
             skipped.removeAll { it.id == g.id }
@@ -339,10 +340,15 @@ object TasteModel {
     fun forgetSkip(id: String) { synchronized(skipped) { skipped.removeAll { it.id == id } } }
 
     /** Обучить на ролике: label 1 — понравилось, 0 — нет; weight — вес примера. */
-    fun learn(g: Gif, label: Float, weight: Double, compare: Boolean = false) {
-        if (!loaded) return
+    fun learn(g: Gif, label: Float, weight: Double, compare: Boolean = false, kind: String = "interaction") {
+        if (!TrainingLab.learning) return
         val chosen = features(g)
-        model.learn(chosen, label, weight.toFloat())
+        val weightF = weight.toFloat()
+        if (!weightF.isFinite() || weightF <= 0f || !label.isFinite() || label !in 0f..1f) return
+        io.post {
+            if (!loaded || !TrainingLab.learning) return@post
+            if (TrainingLab.enabled) TrainingLab.sample(kind, chosen, label, weightF, model.predict(chosen), true)
+            model.learn(chosen, label, weightF)
         if (compare && label == 1f) {
             val now = android.os.SystemClock.elapsedRealtime()
             val alternative = synchronized(skipped) {
@@ -352,21 +358,28 @@ object TasteModel {
             alternative?.let { model.prefer(chosen, it.features) }
         }
         scheduleSave()
+        }
     }
 
     /** Ролик был на экране сетки «Для вас» достаточно долго и не открыт: слабый отрицательный пример ([IMPRESSION_WEIGHT]). */
-    fun learnImpression(g: Gif) = learn(g, 0f, IMPRESSION_WEIGHT)
+    fun learnImpression(g: Gif) { TrainingLab.event("impression_unopened") }
 
     /** Сигнал по одному признаку («tag:x», «user:x», «sub:x») — псевдо-ролик из него одного: открыл тег/автора/сабреддит/запрос. Долю модели не растит. */
     fun learnFeature(name: String, label: Float = 1f, weight: Double = 1.0) {
-        if (!loaded || name.substringAfter(':', "").isBlank()) return
-        model.learn(listOf(name to 1f), label, weight.toFloat(), video = false); scheduleSave()
+        if (!TrainingLab.learning || name.substringAfter(':', "").isBlank()) return
+        val f = listOf(name to 1f)
+        io.post {
+            if (!loaded || !TrainingLab.learning) return@post
+            if (TrainingLab.enabled) TrainingLab.sample("feature", f, label, weight.toFloat(), model.predict(f), false)
+            model.learn(f, label, weight.toFloat(), video = false)
+            scheduleSave()
+        }
     }
 
     /** Сброс: если файл ещё грузится — после загрузки (очередь одного потока), иначе сразу. */
     fun reset() {
         synchronized(skipped) { skipped.clear() }
-        if (loaded) { model.reset(); scheduleSave() } else io.post { model.reset(); loaded = true; scheduleSave() }
+        io.post { model.reset(); TrainingLab.clear(); loaded = true; scheduleSave() }
     }
 
     /** Читаемое имя признака для сводки. */

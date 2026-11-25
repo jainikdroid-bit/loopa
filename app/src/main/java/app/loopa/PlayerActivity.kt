@@ -211,6 +211,7 @@ class PlayerActivity : Activity() {
                 override fun onRenderedFirstFrame() {
                     if (!rendered) android.util.Log.i("Loopa", "первый кадр: ${System.currentTimeMillis() - settledAt} мс; видео с диска " +
                         "${(Video.fromCache.get() - cache0) shr 10} КБ, из сети ${(Video.fromNet.get() - net0) shr 10} КБ")
+                    if (!rendered) TrainingLab.event("first_frame")
                     rendered = true; holder?.poster?.visibility = View.GONE
                 }
                 // замер: от выбора страницы до начала воспроизведения (в журнал)
@@ -233,6 +234,9 @@ class PlayerActivity : Activity() {
                     if (st == Player.STATE_READY) { fails = 0; holder?.spin?.text = tr("загрузка…") }
                 }
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
+                    hadPlaybackError = true
+                    TrainingLab.event("playback_error")
+                    Stats.event("playback_error")
                     // сеть: показать и повторить самим; прочее (файл удалён, вместо видео картинка или заглушка) — так и сказать,
                     // но не листать самим: иначе на этот ролик не вернуться — каждый раз уносит к следующему
                     android.util.Log.w("Loopa", "ошибка плеера ${e.errorCodeName}: ${list.getOrNull(current)?.id}")
@@ -336,11 +340,12 @@ class PlayerActivity : Activity() {
     }
 
     private val watchClock = WatchClock()
+    private var hadPlaybackError = false
 
     private fun report(allowSkip: Boolean = true) {
         val elapsed = watchClock.take(android.os.SystemClock.elapsedRealtime())
         val g = list.getOrNull(current) ?: return
-        if (elapsed > 0) Interests.watched(g, elapsed / 1000.0, allowSkip)
+        if (elapsed > 0) Interests.watched(g, elapsed / 1000.0, allowSkip && rendered && !hadPlaybackError)
     }
 
     /** Страница выбрана — играть её ролик (источник уже подгружен PreloadManager). */
@@ -354,7 +359,8 @@ class PlayerActivity : Activity() {
         CachedExport.playing = list[pos].id
         CachedExport.sweep(list[pos].id)
         holder?.poster?.visibility = View.VISIBLE
-        holder = h; h.spin.text = tr("загрузка…"); fails = 0; rendered = false
+        holder = h; h.spin.text = tr("загрузка…"); fails = 0; rendered = false; hadPlaybackError = false
+        TrainingLab.event("player_open")
         val now = System.currentTimeMillis()
         if (settledAt > 0) { dwells.addLast(now - settledAt); while (dwells.size > 4) dwells.removeFirst() }
         control.dir = if (current >= 0 && pos < current) -1 else 1

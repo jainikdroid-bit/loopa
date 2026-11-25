@@ -23,7 +23,6 @@ internal class QueryProfile {
 
     /** Не больше [MAX_SINGLES] весов признаков и [MAX_PAIRS] парных на запрос (~100): уходят давно не менявшиеся. */
     fun trim() {
-        if (weights.size <= MAX_SINGLES + MAX_PAIRS) return
         val groups = weights.keys.groupBy { it.startsWith("pair:") }
         for ((pairs, keys) in groups) {
             val limit = if (pairs) MAX_PAIRS else MAX_SINGLES
@@ -98,14 +97,16 @@ internal object SearchTaste {
     private val scores = object : LinkedHashMap<Pair<String, String>, Double>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<String, String>, Double>) = size > 2048
     }
-    @Synchronized fun hasProfile(q: String) = q in profiles
+    @Synchronized fun hasProfile(q: String) = TrainingLab.learning && q in profiles
 
     @Synchronized fun bonus(q: String, g: Gif): Double {
+        if (!TrainingLab.learning) return 0.0
         val profile = profiles[q] ?: return 0.0
         return scores.getOrPut(q to g.id) { 2 * tanh(profile.score(features(g))) }
     }
 
     @Synchronized fun pass(q: String, g: Gif, quick: Boolean = false) {
+        if (!TrainingLab.learning) return
         val id = q to g.id
         val count = ((counts.remove(id) ?: 0) + 1).coerceAtMost(4)
         counts[id] = count
@@ -123,6 +124,7 @@ internal object SearchTaste {
     }
 
     @Synchronized fun choose(q: String, g: Gif, strength: Double) {
+        if (!TrainingLab.learning) return
         val pass = passes.remove(q)?.takeIf { it.id != g.id && SystemClock.elapsedRealtime() - it.at <= 600_000L }
         val profile = profiles.remove(q) ?: QueryProfile()
         profile.choose(features(g), pass?.features.orEmpty(), strength)

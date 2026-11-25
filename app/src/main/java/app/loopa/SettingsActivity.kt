@@ -123,6 +123,27 @@ class SettingsActivity : Activity() {
                 .setNeutralButton(tr("3D-граф")) { _, _ -> startActivity(Intent(this, GraphActivity::class.java)) }.show()
         }
         action(tr("Граф интересов…"), null) { startActivity(Intent(this, GraphActivity::class.java)) }
+        toggle("Персонализация / Personalization", "Pause learning and score-based personalization", TrainingLab.learning) {
+            TrainingLab.setLearning(it); reload()
+        }
+        toggle("Локальная диагностика / Local diagnostics", "Optional sensitive local samples; no uploads; 30 days / 10,000 rows. Off deletes journal.", TrainingLab.enabled) {
+            TrainingLab.setEnabled(it); render()
+        }
+        action("Training Lab", "Local counts and pre-update metrics", TrainingLab.enabled) {
+            TrainingLab.report { message -> runOnUiThread {
+                if (!isFinishing) AlertDialog.Builder(this).setTitle("Training Lab").setMessage(message)
+                    .setPositiveButton("OK", null).show()
+            } }
+        }
+        action("Replay evaluation", "Chronological holdout; does not replace live model", TrainingLab.enabled) {
+            TrainingLab.evaluate { message -> runOnUiThread {
+                if (!isFinishing) AlertDialog.Builder(this).setTitle("Replay evaluation").setMessage(message)
+                    .setPositiveButton("OK", null).show()
+            } }
+        }
+        action("Clear local diagnostics", null, TrainingLab.enabled) {
+            TrainingLab.clear()
+        }
         val rd = Reddit.hadUser
         action(tr("Взять лайки с Reddit"), if (rd) null else tr("сначала войдите в Reddit"), rd) { importRedditLikes() }
         action(tr("Сбросить интересы"), null) {
