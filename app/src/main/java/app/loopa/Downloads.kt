@@ -48,7 +48,7 @@ object Downloads {
 
     /** Поставить mp4 в системную очередь скачивания; заголовки — сайта (Referer и т. п.), у Erome — его Referer. */
     private fun enqueue(ctx: Context, name: String, r: Resolved) {
-        val rq = DownloadManager.Request(Uri.parse(r.url))
+        Stats.event("download"); val rq = DownloadManager.Request(Uri.parse(r.url))
             .setTitle(name)
             .setDescription("Loopa")
             .apply {

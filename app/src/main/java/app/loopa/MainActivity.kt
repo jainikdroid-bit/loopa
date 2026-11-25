@@ -64,7 +64,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         // первый запуск — приветствие (до того, как что-то запишется в настройки: по их пустоте узнаём новую установку)
         val welcome = savedInstanceState == null && WelcomeActivity.needed(prefs)
-        I18n.init(this); Theme.init(this); themeKey = Theme.id + I18n.code; Api.init(this); Net.init(this); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); SearchTaste.init(TasteStore.open(this)); Video.init(this); CachedExport.init(this); Hide.init(this); DeviceTier.warmAvc()
+        I18n.init(this); Theme.init(this); themeKey = Theme.id + I18n.code; Api.init(this); Net.init(this); Stats.init(application); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); SearchTaste.init(TasteStore.open(this)); Video.init(this); CachedExport.init(this); Hide.init(this); DeviceTier.warmAvc()
         @Suppress("DEPRECATION") if (welcome) startActivityForResult(Intent(this, WelcomeActivity::class.java), 4)
         preview.enabled = prefs.getBoolean("live", true)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
@@ -345,7 +345,7 @@ class MainActivity : Activity() {
     private var shown = false
     override fun onPause() { super.onPause(); ForYou.flush(); shown = false; passCandidates.clear(); impressions.clear(); preview.stopAll(); Prefetch.pause(); Thumbs.stopPrefetch() }
     override fun onResume() {
-        super.onResume(); shown = true; Prefetch.resume()
+        super.onResume(); shown = true; Prefetch.resume(); if (!WelcomeActivity.needed(prefs)) Stats.askOnce(this)
         if (!::grid.isInitialized) return
         refreshWarn()
         // тему или язык сменили в настройках — перестроить экран; живые превью включили или выключили — применить

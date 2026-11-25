@@ -12,7 +12,7 @@ import android.widget.Toast
 class ShareActivity : Activity() {
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
-        I18n.init(this); Api.init(this); Net.init(this); Reddit.init(this)
+        I18n.init(this); Api.init(this); Net.init(this); Stats.init(application); Reddit.init(this)
         val text = listOfNotNull(intent.getStringExtra(Intent.EXTRA_TEXT), intent.dataString).joinToString(" ")
         val link = ShareLink.find(text)
         android.util.Log.i("Loopa", "поделиться: ссылка ${link ?: "не распознана"}")

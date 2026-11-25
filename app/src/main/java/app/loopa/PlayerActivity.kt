@@ -188,7 +188,7 @@ class PlayerActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.statusBarColor = Color.BLACK; window.navigationBarColor = Color.BLACK
         Video.init(this); Interests.init(this); Likes.init(this)
-        Net.init(this); CachedExport.init(this)
+        Net.init(this); Stats.init(application); Stats.event("player"); CachedExport.init(this)
         // Android 8–9: запись в публичные Загрузки требует разрешения — спросить один раз
         if (android.os.Build.VERSION.SDK_INT < 29 && CachedExport.enabled && !prefs.getBoolean("cx_perm_asked", false) &&
             checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {

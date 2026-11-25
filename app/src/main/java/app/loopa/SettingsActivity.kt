@@ -32,7 +32,7 @@ class SettingsActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        I18n.init(this); Theme.init(this); Api.init(this); Reddit.init(this); Ext.init(this); ForYou.init(this); Interests.init(this); Hide.init(this); Net.init(this); Video.init(this); CachedExport.init(this)
+        I18n.init(this); Theme.init(this); Api.init(this); Reddit.init(this); Ext.init(this); ForYou.init(this); Interests.init(this); Hide.init(this); Net.init(this); Stats.init(application); Video.init(this); CachedExport.init(this)
         page = savedInstanceState?.getString("page")
         Theme.bars(this)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Theme.bg) }
@@ -259,6 +259,8 @@ class SettingsActivity : Activity() {
         note("Adult Space\n" + tr("Версия %s", Updater.current(this)))
         action("GitHub", "github.com/jainikdroid-bit/loopa") { open("https://github.com/jainikdroid-bit/loopa") }
         action(tr("Сайт"), "jainikdroid-bit.github.io/loopa") { open("https://jainikdroid-bit.github.io/loopa/") }
+        toggle("Анонимная статистика / Anonymous stats", "Номер установки, версия, устройство, страна, время в приложении; без IP, запросов и истории. Off by default.", Stats.enabled) { Stats.setEnabled(it) }
+        action("Сбросить номер установки / Reset install ID", null) { Stats.resetId() }
         note(tr("Лицензия: MIT — свободное открытое ПО."))
         note(tr("Неофициальное приложение: к сервисам, ролики которых показывает, отношения не имеет. Только для совершеннолетних, 18+."))
     }
