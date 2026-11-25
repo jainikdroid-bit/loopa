@@ -1,0 +1,1798 @@
+{
+  "schema": 1,
+  "origin": "Original synthetic neutral educational catalog; generated manually for testing only",
+  "documents": [
+    {
+      "id": "garden-0",
+      "topic": "garden",
+      "title": "garden: overview",
+      "labels": {
+        "en": "garden",
+        "ru": "сад",
+        "pl": "ogród"
+      },
+      "tags": [
+        "soil",
+        "seedlings",
+        "garden"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "garden-1",
+      "topic": "garden",
+      "title": "garden: beginner guide",
+      "labels": {
+        "en": "garden",
+        "ru": "сад",
+        "pl": "ogród"
+      },
+      "tags": [
+        "seedlings",
+        "compost",
+        "garden"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "garden-2",
+      "topic": "garden",
+      "title": "garden: practical example",
+      "labels": {
+        "en": "garden",
+        "ru": "сад",
+        "pl": "ogród"
+      },
+      "tags": [
+        "compost",
+        "watering",
+        "garden"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "garden-3",
+      "topic": "garden",
+      "title": "garden: equipment",
+      "labels": {
+        "en": "garden",
+        "ru": "сад",
+        "pl": "ogród"
+      },
+      "tags": [
+        "watering",
+        "soil",
+        "garden"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "garden-4",
+      "topic": "garden",
+      "title": "garden: history",
+      "labels": {
+        "en": "garden",
+        "ru": "сад",
+        "pl": "ogród"
+      },
+      "tags": [
+        "soil",
+        "seedlings",
+        "garden"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "garden-5",
+      "topic": "garden",
+      "title": "garden: reference",
+      "labels": {
+        "en": "garden",
+        "ru": "сад",
+        "pl": "ogród"
+      },
+      "tags": [
+        "seedlings",
+        "compost",
+        "garden"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "bread-0",
+      "topic": "bread",
+      "title": "bread: overview",
+      "labels": {
+        "en": "bread",
+        "ru": "хлеб",
+        "pl": "chleb"
+      },
+      "tags": [
+        "flour",
+        "yeast",
+        "bread"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "bread-1",
+      "topic": "bread",
+      "title": "bread: beginner guide",
+      "labels": {
+        "en": "bread",
+        "ru": "хлеб",
+        "pl": "chleb"
+      },
+      "tags": [
+        "yeast",
+        "dough",
+        "bread"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "bread-2",
+      "topic": "bread",
+      "title": "bread: practical example",
+      "labels": {
+        "en": "bread",
+        "ru": "хлеб",
+        "pl": "chleb"
+      },
+      "tags": [
+        "dough",
+        "oven",
+        "bread"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "bread-3",
+      "topic": "bread",
+      "title": "bread: equipment",
+      "labels": {
+        "en": "bread",
+        "ru": "хлеб",
+        "pl": "chleb"
+      },
+      "tags": [
+        "oven",
+        "flour",
+        "bread"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "bread-4",
+      "topic": "bread",
+      "title": "bread: history",
+      "labels": {
+        "en": "bread",
+        "ru": "хлеб",
+        "pl": "chleb"
+      },
+      "tags": [
+        "flour",
+        "yeast",
+        "bread"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "bread-5",
+      "topic": "bread",
+      "title": "bread: reference",
+      "labels": {
+        "en": "bread",
+        "ru": "хлеб",
+        "pl": "chleb"
+      },
+      "tags": [
+        "yeast",
+        "dough",
+        "bread"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "astronomy-0",
+      "topic": "astronomy",
+      "title": "astronomy: overview",
+      "labels": {
+        "en": "astronomy",
+        "ru": "астрономия",
+        "pl": "astronomia"
+      },
+      "tags": [
+        "moon",
+        "planets",
+        "astronomy"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "astronomy-1",
+      "topic": "astronomy",
+      "title": "astronomy: beginner guide",
+      "labels": {
+        "en": "astronomy",
+        "ru": "астрономия",
+        "pl": "astronomia"
+      },
+      "tags": [
+        "planets",
+        "telescope",
+        "astronomy"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "astronomy-2",
+      "topic": "astronomy",
+      "title": "astronomy: practical example",
+      "labels": {
+        "en": "astronomy",
+        "ru": "астрономия",
+        "pl": "astronomia"
+      },
+      "tags": [
+        "telescope",
+        "stars",
+        "astronomy"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "astronomy-3",
+      "topic": "astronomy",
+      "title": "astronomy: equipment",
+      "labels": {
+        "en": "astronomy",
+        "ru": "астрономия",
+        "pl": "astronomia"
+      },
+      "tags": [
+        "stars",
+        "moon",
+        "astronomy"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "astronomy-4",
+      "topic": "astronomy",
+      "title": "astronomy: history",
+      "labels": {
+        "en": "astronomy",
+        "ru": "астрономия",
+        "pl": "astronomia"
+      },
+      "tags": [
+        "moon",
+        "planets",
+        "astronomy"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "astronomy-5",
+      "topic": "astronomy",
+      "title": "astronomy: reference",
+      "labels": {
+        "en": "astronomy",
+        "ru": "астрономия",
+        "pl": "astronomia"
+      },
+      "tags": [
+        "planets",
+        "telescope",
+        "astronomy"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "cycling-0",
+      "topic": "cycling",
+      "title": "bicycle: overview",
+      "labels": {
+        "en": "bicycle",
+        "ru": "велосипед",
+        "pl": "rower"
+      },
+      "tags": [
+        "brakes",
+        "chain",
+        "cycling"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "cycling-1",
+      "topic": "cycling",
+      "title": "bicycle: beginner guide",
+      "labels": {
+        "en": "bicycle",
+        "ru": "велосипед",
+        "pl": "rower"
+      },
+      "tags": [
+        "chain",
+        "wheel",
+        "cycling"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "cycling-2",
+      "topic": "cycling",
+      "title": "bicycle: practical example",
+      "labels": {
+        "en": "bicycle",
+        "ru": "велосипед",
+        "pl": "rower"
+      },
+      "tags": [
+        "wheel",
+        "repair",
+        "cycling"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "cycling-3",
+      "topic": "cycling",
+      "title": "bicycle: equipment",
+      "labels": {
+        "en": "bicycle",
+        "ru": "велосипед",
+        "pl": "rower"
+      },
+      "tags": [
+        "repair",
+        "brakes",
+        "cycling"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "cycling-4",
+      "topic": "cycling",
+      "title": "bicycle: history",
+      "labels": {
+        "en": "bicycle",
+        "ru": "велосипед",
+        "pl": "rower"
+      },
+      "tags": [
+        "brakes",
+        "chain",
+        "cycling"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "cycling-5",
+      "topic": "cycling",
+      "title": "bicycle: reference",
+      "labels": {
+        "en": "bicycle",
+        "ru": "велосипед",
+        "pl": "rower"
+      },
+      "tags": [
+        "chain",
+        "wheel",
+        "cycling"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "painting-0",
+      "topic": "painting",
+      "title": "painting: overview",
+      "labels": {
+        "en": "painting",
+        "ru": "живопись",
+        "pl": "malarstwo"
+      },
+      "tags": [
+        "brush",
+        "canvas",
+        "painting"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "painting-1",
+      "topic": "painting",
+      "title": "painting: beginner guide",
+      "labels": {
+        "en": "painting",
+        "ru": "живопись",
+        "pl": "malarstwo"
+      },
+      "tags": [
+        "canvas",
+        "pigment",
+        "painting"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "painting-2",
+      "topic": "painting",
+      "title": "painting: practical example",
+      "labels": {
+        "en": "painting",
+        "ru": "живопись",
+        "pl": "malarstwo"
+      },
+      "tags": [
+        "pigment",
+        "colour",
+        "painting"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "painting-3",
+      "topic": "painting",
+      "title": "painting: equipment",
+      "labels": {
+        "en": "painting",
+        "ru": "живопись",
+        "pl": "malarstwo"
+      },
+      "tags": [
+        "colour",
+        "brush",
+        "painting"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "painting-4",
+      "topic": "painting",
+      "title": "painting: history",
+      "labels": {
+        "en": "painting",
+        "ru": "живопись",
+        "pl": "malarstwo"
+      },
+      "tags": [
+        "brush",
+        "canvas",
+        "painting"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "painting-5",
+      "topic": "painting",
+      "title": "painting: reference",
+      "labels": {
+        "en": "painting",
+        "ru": "живопись",
+        "pl": "malarstwo"
+      },
+      "tags": [
+        "canvas",
+        "pigment",
+        "painting"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "music-0",
+      "topic": "music",
+      "title": "music: overview",
+      "labels": {
+        "en": "music",
+        "ru": "музыка",
+        "pl": "muzyka"
+      },
+      "tags": [
+        "rhythm",
+        "piano",
+        "music"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "music-1",
+      "topic": "music",
+      "title": "music: beginner guide",
+      "labels": {
+        "en": "music",
+        "ru": "музыка",
+        "pl": "muzyka"
+      },
+      "tags": [
+        "piano",
+        "melody",
+        "music"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "music-2",
+      "topic": "music",
+      "title": "music: practical example",
+      "labels": {
+        "en": "music",
+        "ru": "музыка",
+        "pl": "muzyka"
+      },
+      "tags": [
+        "melody",
+        "notation",
+        "music"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "music-3",
+      "topic": "music",
+      "title": "music: equipment",
+      "labels": {
+        "en": "music",
+        "ru": "музыка",
+        "pl": "muzyka"
+      },
+      "tags": [
+        "notation",
+        "rhythm",
+        "music"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "music-4",
+      "topic": "music",
+      "title": "music: history",
+      "labels": {
+        "en": "music",
+        "ru": "музыка",
+        "pl": "muzyka"
+      },
+      "tags": [
+        "rhythm",
+        "piano",
+        "music"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "music-5",
+      "topic": "music",
+      "title": "music: reference",
+      "labels": {
+        "en": "music",
+        "ru": "музыка",
+        "pl": "muzyka"
+      },
+      "tags": [
+        "piano",
+        "melody",
+        "music"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "geology-0",
+      "topic": "geology",
+      "title": "geology: overview",
+      "labels": {
+        "en": "geology",
+        "ru": "геология",
+        "pl": "geologia"
+      },
+      "tags": [
+        "rocks",
+        "minerals",
+        "geology"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "geology-1",
+      "topic": "geology",
+      "title": "geology: beginner guide",
+      "labels": {
+        "en": "geology",
+        "ru": "геология",
+        "pl": "geologia"
+      },
+      "tags": [
+        "minerals",
+        "erosion",
+        "geology"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "geology-2",
+      "topic": "geology",
+      "title": "geology: practical example",
+      "labels": {
+        "en": "geology",
+        "ru": "геология",
+        "pl": "geologia"
+      },
+      "tags": [
+        "erosion",
+        "strata",
+        "geology"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "geology-3",
+      "topic": "geology",
+      "title": "geology: equipment",
+      "labels": {
+        "en": "geology",
+        "ru": "геология",
+        "pl": "geologia"
+      },
+      "tags": [
+        "strata",
+        "rocks",
+        "geology"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "geology-4",
+      "topic": "geology",
+      "title": "geology: history",
+      "labels": {
+        "en": "geology",
+        "ru": "геология",
+        "pl": "geologia"
+      },
+      "tags": [
+        "rocks",
+        "minerals",
+        "geology"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "geology-5",
+      "topic": "geology",
+      "title": "geology: reference",
+      "labels": {
+        "en": "geology",
+        "ru": "геология",
+        "pl": "geologia"
+      },
+      "tags": [
+        "minerals",
+        "erosion",
+        "geology"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "birdwatching-0",
+      "topic": "birdwatching",
+      "title": "birds: overview",
+      "labels": {
+        "en": "birds",
+        "ru": "птицы",
+        "pl": "ptaki"
+      },
+      "tags": [
+        "feathers",
+        "migration",
+        "birdwatching"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "birdwatching-1",
+      "topic": "birdwatching",
+      "title": "birds: beginner guide",
+      "labels": {
+        "en": "birds",
+        "ru": "птицы",
+        "pl": "ptaki"
+      },
+      "tags": [
+        "migration",
+        "habitat",
+        "birdwatching"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "birdwatching-2",
+      "topic": "birdwatching",
+      "title": "birds: practical example",
+      "labels": {
+        "en": "birds",
+        "ru": "птицы",
+        "pl": "ptaki"
+      },
+      "tags": [
+        "habitat",
+        "binoculars",
+        "birdwatching"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "birdwatching-3",
+      "topic": "birdwatching",
+      "title": "birds: equipment",
+      "labels": {
+        "en": "birds",
+        "ru": "птицы",
+        "pl": "ptaki"
+      },
+      "tags": [
+        "binoculars",
+        "feathers",
+        "birdwatching"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "birdwatching-4",
+      "topic": "birdwatching",
+      "title": "birds: history",
+      "labels": {
+        "en": "birds",
+        "ru": "птицы",
+        "pl": "ptaki"
+      },
+      "tags": [
+        "feathers",
+        "migration",
+        "birdwatching"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "birdwatching-5",
+      "topic": "birdwatching",
+      "title": "birds: reference",
+      "labels": {
+        "en": "birds",
+        "ru": "птицы",
+        "pl": "ptaki"
+      },
+      "tags": [
+        "migration",
+        "habitat",
+        "birdwatching"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "woodwork-0",
+      "topic": "woodwork",
+      "title": "woodwork: overview",
+      "labels": {
+        "en": "woodwork",
+        "ru": "столярное дело",
+        "pl": "stolarstwo"
+      },
+      "tags": [
+        "wood",
+        "saw",
+        "woodwork"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "woodwork-1",
+      "topic": "woodwork",
+      "title": "woodwork: beginner guide",
+      "labels": {
+        "en": "woodwork",
+        "ru": "столярное дело",
+        "pl": "stolarstwo"
+      },
+      "tags": [
+        "saw",
+        "joinery",
+        "woodwork"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "woodwork-2",
+      "topic": "woodwork",
+      "title": "woodwork: practical example",
+      "labels": {
+        "en": "woodwork",
+        "ru": "столярное дело",
+        "pl": "stolarstwo"
+      },
+      "tags": [
+        "joinery",
+        "sanding",
+        "woodwork"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "woodwork-3",
+      "topic": "woodwork",
+      "title": "woodwork: equipment",
+      "labels": {
+        "en": "woodwork",
+        "ru": "столярное дело",
+        "pl": "stolarstwo"
+      },
+      "tags": [
+        "sanding",
+        "wood",
+        "woodwork"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "woodwork-4",
+      "topic": "woodwork",
+      "title": "woodwork: history",
+      "labels": {
+        "en": "woodwork",
+        "ru": "столярное дело",
+        "pl": "stolarstwo"
+      },
+      "tags": [
+        "wood",
+        "saw",
+        "woodwork"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "woodwork-5",
+      "topic": "woodwork",
+      "title": "woodwork: reference",
+      "labels": {
+        "en": "woodwork",
+        "ru": "столярное дело",
+        "pl": "stolarstwo"
+      },
+      "tags": [
+        "saw",
+        "joinery",
+        "woodwork"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "weather-0",
+      "topic": "weather",
+      "title": "weather: overview",
+      "labels": {
+        "en": "weather",
+        "ru": "погода",
+        "pl": "pogoda"
+      },
+      "tags": [
+        "clouds",
+        "rain",
+        "weather"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "weather-1",
+      "topic": "weather",
+      "title": "weather: beginner guide",
+      "labels": {
+        "en": "weather",
+        "ru": "погода",
+        "pl": "pogoda"
+      },
+      "tags": [
+        "rain",
+        "wind",
+        "weather"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "weather-2",
+      "topic": "weather",
+      "title": "weather: practical example",
+      "labels": {
+        "en": "weather",
+        "ru": "погода",
+        "pl": "pogoda"
+      },
+      "tags": [
+        "wind",
+        "forecast",
+        "weather"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "weather-3",
+      "topic": "weather",
+      "title": "weather: equipment",
+      "labels": {
+        "en": "weather",
+        "ru": "погода",
+        "pl": "pogoda"
+      },
+      "tags": [
+        "forecast",
+        "clouds",
+        "weather"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "weather-4",
+      "topic": "weather",
+      "title": "weather: history",
+      "labels": {
+        "en": "weather",
+        "ru": "погода",
+        "pl": "pogoda"
+      },
+      "tags": [
+        "clouds",
+        "rain",
+        "weather"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "weather-5",
+      "topic": "weather",
+      "title": "weather: reference",
+      "labels": {
+        "en": "weather",
+        "ru": "погода",
+        "pl": "pogoda"
+      },
+      "tags": [
+        "rain",
+        "wind",
+        "weather"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "knitting-0",
+      "topic": "knitting",
+      "title": "knitting: overview",
+      "labels": {
+        "en": "knitting",
+        "ru": "вязание",
+        "pl": "dzierganie"
+      },
+      "tags": [
+        "yarn",
+        "needles",
+        "knitting"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "knitting-1",
+      "topic": "knitting",
+      "title": "knitting: beginner guide",
+      "labels": {
+        "en": "knitting",
+        "ru": "вязание",
+        "pl": "dzierganie"
+      },
+      "tags": [
+        "needles",
+        "stitches",
+        "knitting"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "knitting-2",
+      "topic": "knitting",
+      "title": "knitting: practical example",
+      "labels": {
+        "en": "knitting",
+        "ru": "вязание",
+        "pl": "dzierganie"
+      },
+      "tags": [
+        "stitches",
+        "pattern",
+        "knitting"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "knitting-3",
+      "topic": "knitting",
+      "title": "knitting: equipment",
+      "labels": {
+        "en": "knitting",
+        "ru": "вязание",
+        "pl": "dzierganie"
+      },
+      "tags": [
+        "pattern",
+        "yarn",
+        "knitting"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "knitting-4",
+      "topic": "knitting",
+      "title": "knitting: history",
+      "labels": {
+        "en": "knitting",
+        "ru": "вязание",
+        "pl": "dzierganie"
+      },
+      "tags": [
+        "yarn",
+        "needles",
+        "knitting"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "knitting-5",
+      "topic": "knitting",
+      "title": "knitting: reference",
+      "labels": {
+        "en": "knitting",
+        "ru": "вязание",
+        "pl": "dzierganie"
+      },
+      "tags": [
+        "needles",
+        "stitches",
+        "knitting"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "photography-0",
+      "topic": "photography",
+      "title": "photography: overview",
+      "labels": {
+        "en": "photography",
+        "ru": "фотография",
+        "pl": "fotografia"
+      },
+      "tags": [
+        "lens",
+        "exposure",
+        "photography"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "photography-1",
+      "topic": "photography",
+      "title": "photography: beginner guide",
+      "labels": {
+        "en": "photography",
+        "ru": "фотография",
+        "pl": "fotografia"
+      },
+      "tags": [
+        "exposure",
+        "lighting",
+        "photography"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "photography-2",
+      "topic": "photography",
+      "title": "photography: practical example",
+      "labels": {
+        "en": "photography",
+        "ru": "фотография",
+        "pl": "fotografia"
+      },
+      "tags": [
+        "lighting",
+        "composition",
+        "photography"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "photography-3",
+      "topic": "photography",
+      "title": "photography: equipment",
+      "labels": {
+        "en": "photography",
+        "ru": "фотография",
+        "pl": "fotografia"
+      },
+      "tags": [
+        "composition",
+        "lens",
+        "photography"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "photography-4",
+      "topic": "photography",
+      "title": "photography: history",
+      "labels": {
+        "en": "photography",
+        "ru": "фотография",
+        "pl": "fotografia"
+      },
+      "tags": [
+        "lens",
+        "exposure",
+        "photography"
+      ],
+      "source": "synthetic"
+    },
+    {
+      "id": "photography-5",
+      "topic": "photography",
+      "title": "photography: reference",
+      "labels": {
+        "en": "photography",
+        "ru": "фотография",
+        "pl": "fotografia"
+      },
+      "tags": [
+        "exposure",
+        "lighting",
+        "photography"
+      ],
+      "source": "synthetic"
+    }
+  ],
+  "queries": [
+    {
+      "id": "garden-en",
+      "language": "en",
+      "query": "garden",
+      "grades": {
+        "garden-0": 3,
+        "garden-1": 3,
+        "garden-2": 2,
+        "garden-3": 2,
+        "garden-4": 1,
+        "garden-5": 1
+      }
+    },
+    {
+      "id": "garden-ru",
+      "language": "ru",
+      "query": "сад",
+      "grades": {
+        "garden-0": 3,
+        "garden-1": 3,
+        "garden-2": 2,
+        "garden-3": 2,
+        "garden-4": 1,
+        "garden-5": 1
+      }
+    },
+    {
+      "id": "garden-pl",
+      "language": "pl",
+      "query": "ogród",
+      "grades": {
+        "garden-0": 3,
+        "garden-1": 3,
+        "garden-2": 2,
+        "garden-3": 2,
+        "garden-4": 1,
+        "garden-5": 1
+      }
+    },
+    {
+      "id": "bread-en",
+      "language": "en",
+      "query": "bread",
+      "grades": {
+        "bread-0": 3,
+        "bread-1": 3,
+        "bread-2": 2,
+        "bread-3": 2,
+        "bread-4": 1,
+        "bread-5": 1
+      }
+    },
+    {
+      "id": "bread-ru",
+      "language": "ru",
+      "query": "хлеб",
+      "grades": {
+        "bread-0": 3,
+        "bread-1": 3,
+        "bread-2": 2,
+        "bread-3": 2,
+        "bread-4": 1,
+        "bread-5": 1
+      }
+    },
+    {
+      "id": "bread-pl",
+      "language": "pl",
+      "query": "chleb",
+      "grades": {
+        "bread-0": 3,
+        "bread-1": 3,
+        "bread-2": 2,
+        "bread-3": 2,
+        "bread-4": 1,
+        "bread-5": 1
+      }
+    },
+    {
+      "id": "astronomy-en",
+      "language": "en",
+      "query": "astronomy",
+      "grades": {
+        "astronomy-0": 3,
+        "astronomy-1": 3,
+        "astronomy-2": 2,
+        "astronomy-3": 2,
+        "astronomy-4": 1,
+        "astronomy-5": 1
+      }
+    },
+    {
+      "id": "astronomy-ru",
+      "language": "ru",
+      "query": "астрономия",
+      "grades": {
+        "astronomy-0": 3,
+        "astronomy-1": 3,
+        "astronomy-2": 2,
+        "astronomy-3": 2,
+        "astronomy-4": 1,
+        "astronomy-5": 1
+      }
+    },
+    {
+      "id": "astronomy-pl",
+      "language": "pl",
+      "query": "astronomia",
+      "grades": {
+        "astronomy-0": 3,
+        "astronomy-1": 3,
+        "astronomy-2": 2,
+        "astronomy-3": 2,
+        "astronomy-4": 1,
+        "astronomy-5": 1
+      }
+    },
+    {
+      "id": "cycling-en",
+      "language": "en",
+      "query": "bicycle",
+      "grades": {
+        "cycling-0": 3,
+        "cycling-1": 3,
+        "cycling-2": 2,
+        "cycling-3": 2,
+        "cycling-4": 1,
+        "cycling-5": 1
+      }
+    },
+    {
+      "id": "cycling-ru",
+      "language": "ru",
+      "query": "велосипед",
+      "grades": {
+        "cycling-0": 3,
+        "cycling-1": 3,
+        "cycling-2": 2,
+        "cycling-3": 2,
+        "cycling-4": 1,
+        "cycling-5": 1
+      }
+    },
+    {
+      "id": "cycling-pl",
+      "language": "pl",
+      "query": "rower",
+      "grades": {
+        "cycling-0": 3,
+        "cycling-1": 3,
+        "cycling-2": 2,
+        "cycling-3": 2,
+        "cycling-4": 1,
+        "cycling-5": 1
+      }
+    },
+    {
+      "id": "painting-en",
+      "language": "en",
+      "query": "painting",
+      "grades": {
+        "painting-0": 3,
+        "painting-1": 3,
+        "painting-2": 2,
+        "painting-3": 2,
+        "painting-4": 1,
+        "painting-5": 1
+      }
+    },
+    {
+      "id": "painting-ru",
+      "language": "ru",
+      "query": "живопись",
+      "grades": {
+        "painting-0": 3,
+        "painting-1": 3,
+        "painting-2": 2,
+        "painting-3": 2,
+        "painting-4": 1,
+        "painting-5": 1
+      }
+    },
+    {
+      "id": "painting-pl",
+      "language": "pl",
+      "query": "malarstwo",
+      "grades": {
+        "painting-0": 3,
+        "painting-1": 3,
+        "painting-2": 2,
+        "painting-3": 2,
+        "painting-4": 1,
+        "painting-5": 1
+      }
+    },
+    {
+      "id": "music-en",
+      "language": "en",
+      "query": "music",
+      "grades": {
+        "music-0": 3,
+        "music-1": 3,
+        "music-2": 2,
+        "music-3": 2,
+        "music-4": 1,
+        "music-5": 1
+      }
+    },
+    {
+      "id": "music-ru",
+      "language": "ru",
+      "query": "музыка",
+      "grades": {
+        "music-0": 3,
+        "music-1": 3,
+        "music-2": 2,
+        "music-3": 2,
+        "music-4": 1,
+        "music-5": 1
+      }
+    },
+    {
+      "id": "music-pl",
+      "language": "pl",
+      "query": "muzyka",
+      "grades": {
+        "music-0": 3,
+        "music-1": 3,
+        "music-2": 2,
+        "music-3": 2,
+        "music-4": 1,
+        "music-5": 1
+      }
+    },
+    {
+      "id": "geology-en",
+      "language": "en",
+      "query": "geology",
+      "grades": {
+        "geology-0": 3,
+        "geology-1": 3,
+        "geology-2": 2,
+        "geology-3": 2,
+        "geology-4": 1,
+        "geology-5": 1
+      }
+    },
+    {
+      "id": "geology-ru",
+      "language": "ru",
+      "query": "геология",
+      "grades": {
+        "geology-0": 3,
+        "geology-1": 3,
+        "geology-2": 2,
+        "geology-3": 2,
+        "geology-4": 1,
+        "geology-5": 1
+      }
+    },
+    {
+      "id": "geology-pl",
+      "language": "pl",
+      "query": "geologia",
+      "grades": {
+        "geology-0": 3,
+        "geology-1": 3,
+        "geology-2": 2,
+        "geology-3": 2,
+        "geology-4": 1,
+        "geology-5": 1
+      }
+    },
+    {
+      "id": "birdwatching-en",
+      "language": "en",
+      "query": "birds",
+      "grades": {
+        "birdwatching-0": 3,
+        "birdwatching-1": 3,
+        "birdwatching-2": 2,
+        "birdwatching-3": 2,
+        "birdwatching-4": 1,
+        "birdwatching-5": 1
+      }
+    },
+    {
+      "id": "birdwatching-ru",
+      "language": "ru",
+      "query": "птицы",
+      "grades": {
+        "birdwatching-0": 3,
+        "birdwatching-1": 3,
+        "birdwatching-2": 2,
+        "birdwatching-3": 2,
+        "birdwatching-4": 1,
+        "birdwatching-5": 1
+      }
+    },
+    {
+      "id": "birdwatching-pl",
+      "language": "pl",
+      "query": "ptaki",
+      "grades": {
+        "birdwatching-0": 3,
+        "birdwatching-1": 3,
+        "birdwatching-2": 2,
+        "birdwatching-3": 2,
+        "birdwatching-4": 1,
+        "birdwatching-5": 1
+      }
+    },
+    {
+      "id": "woodwork-en",
+      "language": "en",
+      "query": "woodwork",
+      "grades": {
+        "woodwork-0": 3,
+        "woodwork-1": 3,
+        "woodwork-2": 2,
+        "woodwork-3": 2,
+        "woodwork-4": 1,
+        "woodwork-5": 1
+      }
+    },
+    {
+      "id": "woodwork-ru",
+      "language": "ru",
+      "query": "столярное дело",
+      "grades": {
+        "woodwork-0": 3,
+        "woodwork-1": 3,
+        "woodwork-2": 2,
+        "woodwork-3": 2,
+        "woodwork-4": 1,
+        "woodwork-5": 1
+      }
+    },
+    {
+      "id": "woodwork-pl",
+      "language": "pl",
+      "query": "stolarstwo",
+      "grades": {
+        "woodwork-0": 3,
+        "woodwork-1": 3,
+        "woodwork-2": 2,
+        "woodwork-3": 2,
+        "woodwork-4": 1,
+        "woodwork-5": 1
+      }
+    },
+    {
+      "id": "weather-en",
+      "language": "en",
+      "query": "weather",
+      "grades": {
+        "weather-0": 3,
+        "weather-1": 3,
+        "weather-2": 2,
+        "weather-3": 2,
+        "weather-4": 1,
+        "weather-5": 1
+      }
+    },
+    {
+      "id": "weather-ru",
+      "language": "ru",
+      "query": "погода",
+      "grades": {
+        "weather-0": 3,
+        "weather-1": 3,
+        "weather-2": 2,
+        "weather-3": 2,
+        "weather-4": 1,
+        "weather-5": 1
+      }
+    },
+    {
+      "id": "weather-pl",
+      "language": "pl",
+      "query": "pogoda",
+      "grades": {
+        "weather-0": 3,
+        "weather-1": 3,
+        "weather-2": 2,
+        "weather-3": 2,
+        "weather-4": 1,
+        "weather-5": 1
+      }
+    },
+    {
+      "id": "knitting-en",
+      "language": "en",
+      "query": "knitting",
+      "grades": {
+        "knitting-0": 3,
+        "knitting-1": 3,
+        "knitting-2": 2,
+        "knitting-3": 2,
+        "knitting-4": 1,
+        "knitting-5": 1
+      }
+    },
+    {
+      "id": "knitting-ru",
+      "language": "ru",
+      "query": "вязание",
+      "grades": {
+        "knitting-0": 3,
+        "knitting-1": 3,
+        "knitting-2": 2,
+        "knitting-3": 2,
+        "knitting-4": 1,
+        "knitting-5": 1
+      }
+    },
+    {
+      "id": "knitting-pl",
+      "language": "pl",
+      "query": "dzierganie",
+      "grades": {
+        "knitting-0": 3,
+        "knitting-1": 3,
+        "knitting-2": 2,
+        "knitting-3": 2,
+        "knitting-4": 1,
+        "knitting-5": 1
+      }
+    },
+    {
+      "id": "photography-en",
+      "language": "en",
+      "query": "photography",
+      "grades": {
+        "photography-0": 3,
+        "photography-1": 3,
+        "photography-2": 2,
+        "photography-3": 2,
+        "photography-4": 1,
+        "photography-5": 1
+      }
+    },
+    {
+      "id": "photography-ru",
+      "language": "ru",
+      "query": "фотография",
+      "grades": {
+        "photography-0": 3,
+        "photography-1": 3,
+        "photography-2": 2,
+        "photography-3": 2,
+        "photography-4": 1,
+        "photography-5": 1
+      }
+    },
+    {
+      "id": "photography-pl",
+      "language": "pl",
+      "query": "fotografia",
+      "grades": {
+        "photography-0": 3,
+        "photography-1": 3,
+        "photography-2": 2,
+        "photography-3": 2,
+        "photography-4": 1,
+        "photography-5": 1
+      }
+    }
+  ],
+  "tag_clouds": [
+    {
+      "topic": "garden",
+      "labels": {
+        "en": "garden",
+        "ru": "сад",
+        "pl": "ogród"
+      },
+      "tags": [
+        "soil",
+        "seedlings",
+        "compost",
+        "watering"
+      ]
+    },
+    {
+      "topic": "bread",
+      "labels": {
+        "en": "bread",
+        "ru": "хлеб",
+        "pl": "chleb"
+      },
+      "tags": [
+        "flour",
+        "yeast",
+        "dough",
+        "oven"
+      ]
+    },
+    {
+      "topic": "astronomy",
+      "labels": {
+        "en": "astronomy",
+        "ru": "астрономия",
+        "pl": "astronomia"
+      },
+      "tags": [
+        "moon",
+        "planets",
+        "telescope",
+        "stars"
+      ]
+    },
+    {
+      "topic": "cycling",
+      "labels": {
+        "en": "bicycle",
+        "ru": "велосипед",
+        "pl": "rower"
+      },
+      "tags": [
+        "brakes",
+        "chain",
+        "wheel",
+        "repair"
+      ]
+    },
+    {
+      "topic": "painting",
+      "labels": {
+        "en": "painting",
+        "ru": "живопись",
+        "pl": "malarstwo"
+      },
+      "tags": [
+        "brush",
+        "canvas",
+        "pigment",
+        "colour"
+      ]
+    },
+    {
+      "topic": "music",
+      "labels": {
+        "en": "music",
+        "ru": "музыка",
+        "pl": "muzyka"
+      },
+      "tags": [
+        "rhythm",
+        "piano",
+        "melody",
+        "notation"
+      ]
+    },
+    {
+      "topic": "geology",
+      "labels": {
+        "en": "geology",
+        "ru": "геология",
+        "pl": "geologia"
+      },
+      "tags": [
+        "rocks",
+        "minerals",
+        "erosion",
+        "strata"
+      ]
+    },
+    {
+      "topic": "birdwatching",
+      "labels": {
+        "en": "birds",
+        "ru": "птицы",
+        "pl": "ptaki"
+      },
+      "tags": [
+        "feathers",
+        "migration",
+        "habitat",
+        "binoculars"
+      ]
+    },
+    {
+      "topic": "woodwork",
+      "labels": {
+        "en": "woodwork",
+        "ru": "столярное дело",
+        "pl": "stolarstwo"
+      },
+      "tags": [
+        "wood",
+        "saw",
+        "joinery",
+        "sanding"
+      ]
+    },
+    {
+      "topic": "weather",
+      "labels": {
+        "en": "weather",
+        "ru": "погода",
+        "pl": "pogoda"
+      },
+      "tags": [
+        "clouds",
+        "rain",
+        "wind",
+        "forecast"
+      ]
+    },
+    {
+      "topic": "knitting",
+      "labels": {
+        "en": "knitting",
+        "ru": "вязание",
+        "pl": "dzierganie"
+      },
+      "tags": [
+        "yarn",
+        "needles",
+        "stitches",
+        "pattern"
+      ]
+    },
+    {
+      "topic": "photography",
+      "labels": {
+        "en": "photography",
+        "ru": "фотография",
+        "pl": "fotografia"
+      },
+      "tags": [
+        "lens",
+        "exposure",
+        "lighting",
+        "composition"
+      ]
+    }
+  ]
+}

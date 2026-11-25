@@ -35,3 +35,4 @@ jobs:
         working-directory: stats-worker
       - run: node --test tools/neutral-lab/*.test.mjs
       - run: node tools/neutral-lab/run.mjs
+      - run: python3 -m unittest discover -s tools/neutral-lab -p 'test_*.py'

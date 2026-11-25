@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "scope": "Neutral research datasets; no live or personal catalog integration",
+  "sources": [
+    {
+      "id": "scifact",
+      "url": "https://github.com/allenai/scifact",
+      "download": "https://scifact.s3-us-west-2.amazonaws.com/release/latest/data.tar.gz",
+      "sha256": "11c621288d41ac144d29b13b0f8503b3820b7d6e8b1f6ff24dff335c196d76be",
+      "checksum_source": "https://huggingface.co/datasets/allenai/scifact/blob/main/dataset_infos.json",
+      "license_url": "https://github.com/allenai/scifact/blob/master/LICENSE.md",
+      "license": "CC BY 4.0 claims/evidence; ODC-By 1.0 abstracts",
+      "status": "Optional checksum-verified local research audit"
+    },
+    {
+      "id": "miracl",
+      "url": "https://project-miracl.github.io/",
+      "license_url": "https://huggingface.co/datasets/miracl/miracl",
+      "status": "Reference only; review corpus and annotation licenses separately"
+    },
+    {
+      "id": "oewn",
+      "url": "https://en-word.net/downloads",
+      "license": "CC BY 4.0; derived WordNet notices apply",
+      "status": "Reference only"
+    },
+    {
+      "id": "agrovoc",
+      "url": "https://aims.fao.org/standards/agrovoc/access-agrovoc",
+      "license": "CC BY IGO 3.0 for FAO-language terms; other languages may differ",
+      "status": "Reference only"
+    },
+    {
+      "id": "movielens-tag-genome",
+      "url": "https://grouplens.org/datasets/movielens/tag-genome/",
+      "license_url": "https://grouplens.org/datasets/movielens/",
+      "status": "Reference only; check exact distribution's terms and obtain permission for commercial use where required"
+    }
+  ]
+}
