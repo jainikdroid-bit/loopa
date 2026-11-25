@@ -4,113 +4,214 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.LruCache
 import android.widget.ImageView
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.LinkedBlockingDeque
-import java.util.concurrent.ThreadPoolExecutor
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * Превью для сетки: память (~1/8 памяти приложения, LRU) и диск (128 МБ…1 ГБ, кэш OkHttp [Net.img] — превью храним, даже
- * если сервер не разрешил). Картинка декодируется под ширину ячейки ([width]), а не целиком.
- *
- * Два потока работ. Видимое ([load]) — 6 потоков, очередь «последним пришёл — первым загружен»: на медленной сети
- * сначала то, что на экране сейчас. Прогноз ([prefetch]) — ещё 4 потока в порядке важности из [Forecaster]: то, что
- * окажется на экране после броска, грузится заранее и при прокрутке уже лежит в памяти; новый прогноз отменяет то, что
- * из него выпало. По HTTP/2 все запросы к одному серверу идут по одному соединению — на канале с пингом 800 мс
- * параллельность важнее числа соединений.
- */
+/** UI-owned bounded scheduler. HTTP and bitmap decoding run on workers; no worker waits for another. */
 object Thumbs {
-    private class LifoQueue : LinkedBlockingDeque<Runnable>() { override fun offer(e: Runnable) = offerFirst(e) }
-    private val pool = ThreadPoolExecutor(6, 6, 30, TimeUnit.SECONDS, LifoQueue())
-    private val ahead = ThreadPoolExecutor(4, 4, 30, TimeUnit.SECONDS, LinkedBlockingDeque())
+    private const val VISIBLE_WORKERS = 6
+    private const val AHEAD_WORKERS = 2
+    private const val MAX_PENDING = 64
+    private const val MAX_BYTES = 8 * 1024 * 1024
+    private const val MAX_PIXELS = 4_000_000L
+    private val pool = Executors.newFixedThreadPool(VISIBLE_WORKERS + AHEAD_WORKERS)
+    private val cancelPool = Executors.newSingleThreadExecutor()
     private val ui = Handler(Looper.getMainLooper())
-    private val cache = object : LruCache<String, Bitmap>((Runtime.getRuntime().maxMemory() / 8).toInt()) {
+    private val cache = object : LruCache<String, Bitmap>((Runtime.getRuntime().maxMemory() / 8).coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
-    /** Ширина, под которую декодировать, px (ширина ячейки сетки; задаёт экран). */
     @Volatile var width = 360
-    /** Что сейчас грузится (видимым или прогнозом) — один адрес не качать дважды. */
-    private val inFlight = ConcurrentHashMap.newKeySet<String>()
-    /** Номер прогноза: работа из устаревшего прогноза пропускается. */
-    @Volatile private var gen = 0
-    @Volatile private var wanted: Set<String> = emptySet()
+    private val queue = GridWorkQueue<String>(MAX_PENDING)
+    private class Job(val url: String) {
+        val views = LinkedHashSet<ImageView>()
+        var running = false
+        var speculative = false
+        @Volatile var cancelled = false
+        @Volatile var call: okhttp3.Call? = null
+    }
+    private val jobs = HashMap<String, Job>()
+    private val bindings = HashMap<ImageView, Job>()
+    private var wanted: Set<String> = emptySet()
+    private var activeVisible = 0
+    private var activeAhead = 0
+    @Volatile private var visibleBusy = false
+    @Volatile private var allBusy = false
+    private val retryAfter = LinkedHashMap<String, Long>()
+    private val fromMem = AtomicInteger()
+    private val fromDisk = AtomicInteger()
+    private val fromNet = AtomicInteger()
+    private val failures = AtomicInteger()
+    private val cancellations = AtomicInteger()
+    private val evicted = AtomicInteger()
+    private val peakPending = AtomicInteger()
+    private val client by lazy { Net.img.newBuilder().callTimeout(18, TimeUnit.SECONDS).build() }
 
-    /** Картинка уже в памяти — ячейка показана, можно запускать живое превью. */
     fun has(url: String) = url.isEmpty() || cache.get(url) != null
+    val busy get() = visibleBusy
+    val loading get() = allBusy
+    private fun publishBusy() {
+        visibleBusy = activeVisible > 0 || jobs.values.any { it.views.isNotEmpty() }
+        allBusy = visibleBusy || activeAhead > 0 || queue.size > 0
+    }
 
     fun load(iv: ImageView, url: String) {
-        // та же картинка уже на месте (ячейку перепривязали к тому же ролику) — не трогать: иначе мигает заглушкой
         if (iv.tag == url && iv.drawable != null) return
+        val previous = bindings[iv]
+        if (previous?.url == url && !previous.cancelled) return
+        stop(iv)
+        if (iv.tag != url) iv.setImageDrawable(null)
         iv.tag = url
+        if (url.isBlank()) return
         cache.get(url)?.let { fromMem.incrementAndGet(); iv.setImageBitmap(it); return }
-        iv.setImageDrawable(null)
-        pool.execute {
-            if (iv.tag != url) return@execute       // ячейку уже переиспользовали
-            var bm = cache.get(url) ?: runCatching { Net.retry { if (iv.tag != url) throw IllegalStateException("не нужна"); fetch(url) } }.getOrNull()
-            // её уже грузит прогноз — дождаться его, а не качать второй раз
-            val end = System.currentTimeMillis() + 30_000
-            while (bm == null && url in inFlight && iv.tag == url && System.currentTimeMillis() < end) { Thread.sleep(50); bm = cache.get(url) }
-            if (bm == null && iv.tag == url) bm = runCatching { Net.retry { fetch(url) } }.getOrNull()   // прогноз не смог — сами
-            if (bm == null) return@execute
-            ui.post { if (iv.tag == url) iv.setImageBitmap(bm) }
-        }
+        if (SystemClock.elapsedRealtime() < (retryAfter[url] ?: 0L)) return
+        val job = jobs.getOrPut(url) { Job(url) }
+        job.views.add(iv)
+        bindings[iv] = job
+        if (!job.running) enqueue(job, true)
+        pump()
     }
 
-    /**
-     * Заранее загрузить в память и на диск картинки прогноза — в порядке важности. Прежний прогноз отменяется: его
-     * ещё не начатые картинки, которых нет в новом, пропускаются.
-     */
+    fun stop(iv: ImageView) {
+        val job = bindings.remove(iv) ?: return
+        job.views.remove(iv)
+        if (job.views.isEmpty() && job.url !in wanted) cancel(job)
+        publishBusy()
+    }
+
     fun prefetch(urls: List<String>) {
-        val list = urls.filter { it.isNotEmpty() && cache.get(it) == null }
-        val g = ++gen; wanted = list.toHashSet()
-        list.forEach { u ->
-            ahead.execute {
-                // видимое — первым: пока на экране что-то грузится, прогноз ждёт (на медленном канале не делит его)
-                while (pool.activeCount > 0 || pool.queue.isNotEmpty()) {
-                    if (gen != g && u !in wanted) return@execute
-                    Thread.sleep(30)
-                }
-                if (gen != g && u !in wanted) return@execute   // прогноз сменился, а в новом её нет
-                if (cache.get(u) != null || u in inFlight) return@execute
-                runCatching { fetch(u) }
+        wanted = urls.asSequence().filter { it.isNotBlank() }.distinct().take(MAX_PENDING).toSet()
+        jobs.values.toList().filter { it.views.isEmpty() && it.url !in wanted }.forEach(::cancel)
+        wanted.forEach { url ->
+            if (cache.get(url) == null && SystemClock.elapsedRealtime() >= (retryAfter[url] ?: 0L)) {
+                val job = jobs.getOrPut(url) { Job(url) }
+                if (!job.running && job.views.isEmpty()) enqueue(job, false)
+            }
+        }
+        pump()
+    }
+
+    fun stopPrefetch() {
+        wanted = emptySet()
+        jobs.values.toList().filter { it.views.isEmpty() }.forEach(::cancel)
+        publishBusy()
+    }
+
+    private fun enqueue(job: Job, visible: Boolean) {
+        queue.offer(job.url, visible).forEach { key ->
+            jobs[key]?.let { evicted.incrementAndGet(); cancel(it) }
+        }
+        peakPending.updateAndGet { maxOf(it, queue.size) }
+    }
+
+    private fun cancel(job: Job) {
+        if (jobs[job.url] !== job) return
+        jobs.remove(job.url)
+        queue.remove(job.url)
+        job.views.forEach { if (bindings[it] === job) bindings.remove(it) }
+        job.views.clear()
+        job.cancelled = true
+        cancellations.incrementAndGet()
+        job.call?.let { call -> cancelPool.execute { call.cancel() } }
+    }
+
+    private fun pump() {
+        while (activeVisible < VISIBLE_WORKERS) {
+            val key = queue.poll(true) ?: break
+            val job = jobs[key] ?: continue
+            if (job.views.isEmpty()) {
+                if (job.url in wanted) enqueue(job, false) else cancel(job)
+                continue
+            }
+            start(job, false)
+        }
+        while (activeAhead < AHEAD_WORKERS && activeVisible == 0 && jobs.values.none { it.views.isNotEmpty() }) {
+            val key = queue.poll(false) ?: break
+            val job = jobs[key] ?: continue
+            if (job.url !in wanted) { cancel(job); continue }
+            start(job, true)
+        }
+        publishBusy()
+    }
+
+    private fun start(job: Job, speculative: Boolean) {
+        job.running = true
+        job.speculative = speculative
+        if (speculative) activeAhead++ else activeVisible++
+        val target = width.coerceIn(64, 1024)
+        pool.execute {
+            var bitmap: Bitmap? = null
+            try {
+                if (!job.cancelled) bitmap = cache.get(job.url) ?: fetch(job, target)
+            } catch (_: Exception) {
+                // Leave the placeholder unchanged on failure.
+            } finally {
+                ui.post { finish(job, bitmap) }
             }
         }
     }
 
-    /** Грузятся картинки, которые сейчас на экране, — видео заранее пусть подождёт ([Prefetch]). */
-    val busy get() = pool.activeCount > 0 || pool.queue.isNotEmpty()
-    /** Грузятся любые картинки — и на экране, и про запас: видео из сети начинаем после них. */
-    val loading get() = busy || ahead.activeCount > 0 || ahead.queue.isNotEmpty()
-
-    /** Счётчики для журнала: картинки из памяти, с диска, из сети (с запуска). */
-    private val fromMem = java.util.concurrent.atomic.AtomicInteger()
-    private val fromDisk = java.util.concurrent.atomic.AtomicInteger()
-    private val fromNet = java.util.concurrent.atomic.AtomicInteger()
-    fun stats() = "картинки: из памяти ${fromMem.get()}, с диска ${fromDisk.get()}, из сети ${fromNet.get()}"
-
-    /** Отменить ещё не начатое из прогноза (ушли в плеер — канал ролику). */
-    fun stopPrefetch() { gen++; wanted = emptySet() }
-
-    /** Загрузить и декодировать под [width]; в память. Повторы — снаружи. */
-    private fun fetch(url: String): Bitmap? {
-        cache.get(url)?.let { return it }
-        if (!inFlight.add(url)) return null
-        try {
-            val rq = okhttp3.Request.Builder().url(url).header("User-Agent", Api.UA).build()
-            val bytes = Net.img.newCall(rq).execute().use { r ->
-                if (!r.isSuccessful) throw HttpError(r.code)
-                (if (r.networkResponse == null) fromDisk else fromNet).incrementAndGet()
-                r.body?.bytes() ?: return null
+    private fun finish(job: Job, bitmap: Bitmap?) {
+        if (job.speculative) activeAhead-- else activeVisible--
+        if (jobs[job.url] === job) {
+            jobs.remove(job.url)
+            if (!job.cancelled && bitmap != null) {
+                cache.put(job.url, bitmap)
+                retryAfter.remove(job.url)
+            } else if (!job.cancelled) {
+                failures.incrementAndGet()
+                retryAfter.remove(job.url)
+                retryAfter[job.url] = SystemClock.elapsedRealtime() + 3_000L
+                while (retryAfter.size > 256) retryAfter.remove(retryAfter.keys.first())
             }
-            val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
-            var s = 1; val w = width.coerceAtLeast(64)
-            while (o.outWidth / (s * 2) >= w) s *= 2
-            val bm = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = s }) ?: return null
-            cache.put(url, bm)
-            return bm
-        } finally { inFlight.remove(url) }
+            job.views.forEach { view ->
+                if (bindings[view] === job) {
+                    bindings.remove(view)
+                    if (!job.cancelled && bitmap != null && view.tag == job.url)
+                        view.setImageBitmap(bitmap)
+                }
+            }
+            job.views.clear()
+        }
+        pump()
     }
+
+    private fun fetch(job: Job, target: Int): Bitmap? {
+        val rq = okhttp3.Request.Builder().url(job.url).header("User-Agent", Api.UA).build()
+        val call = client.newCall(rq)
+        job.call = call
+        if (job.cancelled) { call.cancel(); return null }
+        val bytes = call.execute().use { response ->
+            if (!response.isSuccessful) return null
+            val body = response.body ?: return null
+            if (body.contentLength() > MAX_BYTES) return null
+            (if (response.networkResponse == null) fromDisk else fromNet).incrementAndGet()
+            val out = ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            body.byteStream().use { input ->
+                while (!job.cancelled) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    if (out.size() + n > MAX_BYTES) return null
+                    out.write(buffer, 0, n)
+                }
+            }
+            if (job.cancelled) return null
+            out.toByteArray()
+        }
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0 || job.cancelled) return null
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= target && sample < (1 shl 20)) sample *= 2
+        while ((bounds.outWidth.toLong() / sample) * (bounds.outHeight.toLong() / sample) > MAX_PIXELS && sample < (1 shl 20)) sample *= 2
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+    }
+
+    fun stats() = "images: memory=" + fromMem.get() + " disk=" + fromDisk.get() + " network=" + fromNet.get() +
+        " failed=" + failures.get() + " cancelled=" + cancellations.get() + " evicted=" + evicted.get() + " pending_peak=" + peakPending.get()
 }
