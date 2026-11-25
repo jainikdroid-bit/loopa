@@ -33,3 +33,5 @@ jobs:
           node-version: '22'
       - run: npm test
         working-directory: stats-worker
+      - run: node --test tools/neutral-lab/*.test.mjs
+      - run: node tools/neutral-lab/run.mjs

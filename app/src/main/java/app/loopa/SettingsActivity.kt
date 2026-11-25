@@ -141,6 +141,17 @@ class SettingsActivity : Activity() {
                     .setPositiveButton("OK", null).show()
             } }
         }
+        action("Export technical diagnostics", "Preview aggregate counts before sharing; no queries or model features", TrainingLab.enabled) {
+            TrainingLab.exportTechnical { payload -> runOnUiThread {
+                if (!isFinishing && !isDestroyed && TrainingLab.enabled && payload != null) {
+                    AlertDialog.Builder(this).setTitle("Technical diagnostics").setMessage(payload)
+                        .setPositiveButton("Share") { _, _ ->
+                            if (TrainingLab.enabled) startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND)
+                                .setType("application/json").putExtra(Intent.EXTRA_TEXT, payload), "Technical diagnostics"))
+                        }.setNegativeButton("Cancel", null).show()
+                }
+            } }
+        }
         action("Clear local diagnostics", null, TrainingLab.enabled) {
             TrainingLab.clear()
         }

@@ -23,6 +23,9 @@ internal object TrainingLab {
     private var context: Context? = null
     private val io by lazy { Handler(HandlerThread("training-lab").apply { start() }.looper) }
     @Volatile private var epoch = 0L
+    private val evaluating = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val evaluationWorker by lazy { Handler(HandlerThread("training-evaluation").apply { start() }.looper) }
+    private val maxEvaluationRows = 2000
     val enabled get() = prefs?.getBoolean("enabled", false) == true
     val learning get() = prefs?.getBoolean("learning", true) != false
 
@@ -76,7 +79,7 @@ internal object TrainingLab {
     }
 
     private fun enqueue(kind: String, y: Float?, weight: Float?, p: Double?, video: Boolean?, features: String?) {
-        if (!enabled) return
+        if (!enabled || !DiagnosticPolicy.validKind(kind)) return
         val generation = epoch
         io.post {
             if (!enabled || generation != epoch) return@post
@@ -92,8 +95,7 @@ internal object TrainingLab {
     fun event(kind: String) = enqueue(kind, null, null, null, null, null)
 
     fun sample(kind: String, features: List<Pair<String, Float>>, y: Float, weight: Float, p: Double, video: Boolean) {
-        if (!enabled || !weight.isFinite() || weight <= 0f || !y.isFinite() || y !in 0f..1f || !p.isFinite()) return
-        if (features.any { !it.second.isFinite() || it.first.length > 512 }) return
+        if (!enabled || !DiagnosticPolicy.validSample(features, y, weight, p)) return
         val rows = JSONArray()
         features.forEach { (name, x) -> rows.put(JSONArray().put(name).put(x.toDouble())) }
         enqueue(kind, y, weight, p, video, rows.toString())
@@ -126,28 +128,68 @@ internal object TrainingLab {
         }
     }
 
-    /** Replay a separate candidate against a chronological holdout. Never replaces the live model. */
-    fun evaluate(callback: (String) -> Unit) {
+    /** Export operational totals only, explicitly requested by the user. No feature strings or event rows. */
+    fun exportTechnical(callback: (String?) -> Unit) {
         val generation = epoch
         io.post {
             val result = runCatching {
-                if (!enabled || generation != epoch) return@runCatching "Local diagnostics disabled."
+                if (!enabled || generation != epoch) return@runCatching null
                 val db = helper!!.writableDatabase
                 prune(db)
-                val rows = ArrayList<ReplaySample>()
-                db.rawQuery("SELECT features,y,w,video FROM samples WHERE features IS NOT NULL ORDER BY id", null).use { c ->
-                    while (c.moveToNext()) {
-                        val a = JSONArray(c.getString(0))
-                        val f = List(a.length()) { i -> a.getJSONArray(i).let { it.getString(0) to it.getDouble(1).toFloat() } }
-                        rows += ReplaySample(f, c.getFloat(1), c.getFloat(2), c.getInt(3) != 0)
+                val counts = org.json.JSONObject()
+                DiagnosticPolicy.technicalKinds.sorted().forEach { kind ->
+                    db.rawQuery("SELECT COUNT(*) FROM samples WHERE kind=? AND features IS NULL", arrayOf(kind)).use { c ->
+                        if (c.moveToFirst()) counts.put(kind, c.getLong(0))
                     }
                 }
-                val metrics = ReplayEvaluator.run(rows) { enabled && generation == epoch }
-                    ?: return@runCatching "Need at least 100 recorded samples; validation must contain both labels, or evaluation was cancelled."
-                "Diagnostic replay only (not deployed)\nTrain: ${metrics.train} | Test: ${metrics.test}\n" +
-                    "Candidate log loss: %.4f\nConstant baseline: %.4f\nCandidate Brier: %.4f".format(java.util.Locale.ROOT, metrics.loss, metrics.baseline, metrics.brier)
-            }.getOrElse { "Replay unavailable: " + it.javaClass.simpleName }
+                if (!enabled || generation != epoch) null else org.json.JSONObject()
+                    .put("schema", 1).put("window_days", 30).put("counts", counts).toString(2)
+            }.getOrNull()
             callback(result)
         }
     }
+
+    /** Replay stays isolated, bounded, cancellable, and never replaces the live checkpoint. */
+    fun evaluate(callback: (String) -> Unit) {
+        val generation = epoch
+        if (!enabled) { callback("Local diagnostics disabled."); return }
+        if (!evaluating.compareAndSet(false, true)) { callback("Evaluation already running."); return }
+        evaluationWorker.post {
+            val result = try {
+                // Reading and pruning are serialized with the journal; model work is not.
+                val snapshot = java.util.concurrent.FutureTask {
+                    if (!enabled || generation != epoch) return@FutureTask emptyList<ReplaySample>()
+                    val db = helper!!.writableDatabase
+                    prune(db)
+                    val rows = ArrayList<ReplaySample>()
+                    db.rawQuery("SELECT features,y,w,video,p FROM (SELECT id,features,y,w,video,p FROM samples WHERE features IS NOT NULL ORDER BY id DESC LIMIT ?) ORDER BY id", arrayOf(maxEvaluationRows.toString())).use { c ->
+                        while (c.moveToNext() && enabled && generation == epoch) {
+                            runCatching {
+                                val a = JSONArray(c.getString(0))
+                                if (a.length() > 128) return@runCatching
+                                val f = List(a.length()) { i -> a.getJSONArray(i).let { it.getString(0) to it.getDouble(1).toFloat() } }
+                                val y = c.getFloat(1); val w = c.getFloat(2)
+                                if (DiagnosticPolicy.validSample(f, y, w, c.getDouble(4)))
+                                    rows += ReplaySample(f, y, w, c.getInt(3) != 0)
+                            }
+                        }
+                    }
+                    rows.toList()
+                }
+                io.post(snapshot)
+                val rows = snapshot.get(15, java.util.concurrent.TimeUnit.SECONDS)
+                val began = android.os.SystemClock.elapsedRealtime()
+                val metrics = ReplayEvaluator.run(rows) {
+                    enabled && generation == epoch && android.os.SystemClock.elapsedRealtime() - began < 20_000
+                }
+                if (metrics == null) "Not enough valid samples, missing labels, cancelled or time budget exceeded."
+                else "Diagnostic replay only (not deployed)\nTrain: ${metrics.train} | Test: ${metrics.test}\n" +
+                    "Candidate log loss: %.4f\nConstant baseline: %.4f\nCandidate Brier: %.4f\nElapsed: %d ms".format(
+                        java.util.Locale.ROOT, metrics.loss, metrics.baseline, metrics.brier, android.os.SystemClock.elapsedRealtime() - began)
+            } catch (e: Exception) { "Replay unavailable: " + e.javaClass.simpleName }
+            finally { evaluating.set(false) }
+            callback(if (enabled && generation == epoch) result else "Evaluation cancelled.")
+        }
+    }
+
 }
