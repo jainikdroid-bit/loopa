@@ -45,3 +45,15 @@ Verified references:
 - MakeLoveNotPorn founder discussion of licensing and withdrawal: https://creativitysquared.com/podcast/ep43-cindy-gallop-sex-a-i-the-human-condition/
 
 Release gate: only after authorization, documented API contract, synthetic fixtures and approved end-to-end tests should a provider be enabled. Until then, keep production source registry unchanged. Never publish credentials in this public repository.
+
+## Offline parser foundation and test result
+
+Added PublicPageMetadata.kt and tools/parser-check/ParserCheck.kt. The same Kotlin source and standalone test harness were compiled and executed locally using kotlinc/JVM: 10/10 synthetic checks passed (attribute order, HTML entity decoding, relative canonical links, comment/script exclusion, origin/port/scheme/userinfo checks, missing titles, and input length limit). This small offline helper handles page titles and canonical URLs, **not media streams, login, or provider-specific catalogue extraction**. It is not registered in Sources.ALL. It is not a full standards-compliant HTML parser; review malformed/untrusted inputs before production integration.
+
+Reproduce from repository root:
+```sh
+kotlinc app/src/main/java/app/loopa/PublicPageMetadata.kt tools/parser-check/ParserCheck.kt -include-runtime -d /tmp/loopa-parser-check.jar
+java -jar /tmp/loopa-parser-check.jar
+```
+
+Live access: local container cannot resolve github.com or use external networking. Public web retrieval of robots.txt for MakeLoveNotPorn, APClips and ManyVids failed; Fansly robots.txt permits general crawling apart from /redirect/, but its terms separately restrict substantial scraping. Fanvue explicitly prohibits unauthorized automated extraction; its approved API is the route. None of the five providers was playback-tested. No live adapters added. Require approved public HTML fixtures / authorized endpoints before implementing site-specific behavior.
