@@ -1,7 +1,7 @@
 # Loopa: handoff to Claude agent
 
 ## Mission
-Finish the work on branch `prepare/claude-release-training`, verify it on Android, review privacy, and prepare an owner-approved release. Do not merge or publish blindly. The base was main at `6e8c55246b491e00594deff5d1839a46ff6ecaa8` (version 1.34 / code 63). Changes were made through the GitHub API; no Android SDK or network clone was available to the author. No tests have yet been run against the changed repository. Treat this branch as an unverified draft.
+Finish the work on branch `prepare/claude-release-training`, verify it on Android, review privacy, and prepare an owner-approved release. Do not merge or publish blindly. The base was main at `6e8c55246b491e00594deff5d1839a46ff6ecaa8` (version 1.34 / code 63). Changes were made through the GitHub API; no Android SDK or network clone was available to the author. Subsequent GitHub Actions runs passed Android unit tests, lint, debug assembly and worker tests for earlier commits (including the preview lifecycle commit 3ab457e). Always verify the latest head independently; device tests and release signing remain pending. Treat this branch as a draft.
 
 ## Start here
 1. Fetch latest main; inspect the diff, check for conflicts and any upstream changes. Do not rewrite main or use force push.
@@ -27,3 +27,6 @@ Windows: use `gradlew.bat`. On a device/emulator, exercise upgrade from existing
 
 ## Additional owner-selected provider work
 See `docs/CREATOR_SOURCE_REVIEW.md` for the five selected providers and their individual access/authorization blockers. These are not implemented adapters; keep them disabled until the documented release gate is satisfied.
+
+## Technical reports / offline experiments
+See `tools/neutral-lab/TECHNICAL_ARCHIVE.md` for the strict local technical-report importer and archive. Run the Python and Node tests in addition to Android/worker checks. Never commit real report exports or private data. The neutral fixture remains isolated from production; external dataset import and production ranking changes are not delivered by this work.
