@@ -79,6 +79,27 @@ class SettingsActivity : Activity() {
 
     private fun feed() {
         toggle(tr("Живые превью в сетке"), null, prefs.getBoolean("live", true)) { prefs.edit().putBoolean("live", it).apply(); touch() }
+        caption(tr("Плитки сетки"))
+        val tiles = GridTileStyle.read(prefs)
+        choice(tr("Столбцы — вертикально"), GridTileStyle.PORTRAIT_COLUMNS.map { it.toString() },
+            GridTileStyle.PORTRAIT_COLUMNS.indexOf(tiles.portrait)) {
+            prefs.edit().putInt(GridTileStyle.KEY_PORTRAIT, GridTileStyle.PORTRAIT_COLUMNS[it]).apply(); touch()
+        }
+        choice(tr("Столбцы — горизонтально"), GridTileStyle.LANDSCAPE_COLUMNS.map { it.toString() },
+            GridTileStyle.LANDSCAPE_COLUMNS.indexOf(tiles.landscape)) {
+            prefs.edit().putInt(GridTileStyle.KEY_LANDSCAPE, GridTileStyle.LANDSCAPE_COLUMNS[it]).apply(); touch()
+        }
+        choice(tr("Пропорции плиток"), TileRatio.values().map { it.label }, tiles.ratio.ordinal) {
+            prefs.edit().putString(GridTileStyle.KEY_RATIO, TileRatio.values()[it].name).apply(); touch()
+        }
+        choice(tr("Отступ плитки"), GridTileStyle.SPACING.map { "$it dp" }, GridTileStyle.SPACING.indexOf(tiles.spacing)) {
+            prefs.edit().putInt(GridTileStyle.KEY_SPACING, GridTileStyle.SPACING[it]).apply(); touch()
+        }
+        action(tr("Сбросить вид сетки"), null) {
+            prefs.edit().remove(GridTileStyle.KEY_PORTRAIT).remove(GridTileStyle.KEY_LANDSCAPE)
+                .remove(GridTileStyle.KEY_RATIO).remove(GridTileStyle.KEY_SPACING).apply()
+            touch(); render()
+        }
         val hide = if (Hide.active) tr("(вкл.)") + Hide.custom.takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty() else null
         action(tr("Скрывать…"), hide) { hideDialog() }
         val rd = Reddit.hadUser
