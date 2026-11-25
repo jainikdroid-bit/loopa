@@ -39,4 +39,30 @@ class UpdaterTest {
         assertFalse(Updater.trusted("https://evil.example/jainikdroid-bit/loopa/releases/download/x.apk"))
         assertFalse(Updater.trusted("https://github.com/jainikdroid-bit/loopa/releases/download/../../x.apk"))
     }
+
+    @Test fun invalidVersionsCannotBecomePaths() {
+        assertTrue(Updater.validVersion("v1.34"))
+        assertTrue(Updater.validVersion("1.34.2"))
+        assertFalse(Updater.validVersion("../1.34"))
+        assertFalse(Updater.validVersion("1.999999999999999999999"))
+        assertFalse(Updater.validVersion("v1.34-test"))
+        Updater.parts("99999999999999999999999")
+    }
+
+    @Test fun rejectAmbiguousAssetPaths() {
+        val prefix = "https://github.com/jainikdroid-bit/loopa/releases/download/"
+        assertFalse(Updater.trusted(prefix + "v1.34/%2e%2e.apk"))
+        assertFalse(Updater.trusted(prefix + "v1.34/a.apk?other=1"))
+        assertFalse(Updater.trusted(prefix + "v1.34/extra/a.apk"))
+        assertFalse(Updater.trusted(prefix + "v1.34/a.apk#fragment"))
+        assertTrue(Updater.trusted(prefix + "v1.34/SHA256SUMS"))
+    }
+
+    @Test fun onlyCanonicalSha256IsAccepted() {
+        assertTrue(Updater.validDigest("ab".repeat(32)))
+        assertFalse(Updater.validDigest(null))
+        assertFalse(Updater.validDigest("a".repeat(63)))
+        assertFalse(Updater.validDigest("G".repeat(64)))
+        assertFalse(Updater.validDigest("A".repeat(64)))
+    }
 }

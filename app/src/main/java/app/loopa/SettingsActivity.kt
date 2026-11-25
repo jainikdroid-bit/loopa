@@ -236,7 +236,7 @@ class SettingsActivity : Activity() {
         action(tr("Проверить сейчас"), null) { checkNow() }
     }
 
-    private fun install() { Updater.install(applicationContext)?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() } }
+    private fun install() { Updater.installAsync(applicationContext) { error -> if (!isFinishing && !isDestroyed && error != null) Toast.makeText(this, error, Toast.LENGTH_LONG).show() } }
 
     /** «Проверить сейчас»: с сообщением; нашлась новая версия — вопрос «Установить?». */
     private fun checkNow() {
