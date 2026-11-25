@@ -28,6 +28,11 @@ object Updater {
     private val installing = java.util.concurrent.atomic.AtomicBoolean(false)
     private val versionPattern = Regex("v?[0-9]{1,9}(\\.[0-9]{1,9}){0,3}")
     internal fun validVersion(v: String): Boolean = versionPattern.matches(v)
+    internal fun validDigest(value: String?): Boolean =
+        value != null && Regex("[0-9a-f]{64}").matches(value)
+    private fun digestFor(ctx: Context, version: String): String? = p(ctx).let {
+        if (it.getString("upd_ready", null) == version) it.getString("upd_digest", null)?.takeIf(::validDigest) else null
+    }
     const val ACTION = "app.loopa.INSTALL_RESULT"
 
     class Release(val version: String, val notes: String, val apkUrl: String, val apkName: String, val sumsUrl: String)
@@ -84,7 +89,7 @@ object Updater {
     /** Скачанная и проверенная версия, готовая к установке; null — нет. */
     fun ready(ctx: Context): String? {
         val v = p(ctx).getString("upd_ready", null) ?: return null
-        return v.takeIf { validVersion(it) && installer(ctx, it).isFile && isNewer(current(ctx), it) }
+        return v.takeIf { validVersion(it) && digestFor(ctx, it) != null && installer(ctx, it).isFile && isNewer(current(ctx), it) }
     }
 
     /** Итог проверки: версия, готовая к установке (или null), и текст сообщения. */
@@ -104,18 +109,23 @@ object Updater {
             return Result(ready(ctx), tr("Не удалось проверить обновления: %s", e.message ?: e.javaClass.simpleName))
         }
         sp.edit().putLong("upd_checked", System.currentTimeMillis()).apply()
-        if (!isNewer(current(ctx), rel.version)) { sp.edit().remove("upd_ready").apply(); return Result(null, tr("У вас последняя версия")) }
+        if (!isNewer(current(ctx), rel.version)) { sp.edit().remove("upd_ready").remove("upd_digest").apply(); return Result(null, tr("У вас последняя версия")) }
         val file = installer(ctx, rel.version)
-        if (!(file.exists() && sp.getString("upd_ready", null) == rel.version)) {
+        if (!(file.isFile && digestFor(ctx, rel.version) != null)) {
             // сеть с экономией трафика — автоматически не качаем (вручную — качаем)
             if (!force && Video.net() == NetKind.SAVER) return Result(null, tr("Доступна версия %s", rel.version), rel.notes)
             android.util.Log.i("Loopa", "обновление: скачиваю ${rel.version}")
-            try { download(ctx, rel, file) } catch (e: Exception) {
+            sp.edit().remove("upd_ready").remove("upd_digest").apply()
+            val digest = try { download(ctx, rel, file) } catch (e: Exception) {
                 file.delete(); File(file.path + ".part").delete()
                 android.util.Log.w("Loopa", "Update download failed: " + e.javaClass.simpleName)
                 return Result(null, e.message ?: e.javaClass.simpleName, rel.notes)
             }
-            sp.edit().putString("upd_ready", rel.version).apply()
+            if (!sp.edit().putString("upd_ready", rel.version).putString("upd_digest", digest).commit()) {
+                file.delete()
+                sp.edit().remove("upd_ready").remove("upd_digest").apply()
+                return Result(null, tr("Не удалось проверить обновления: %s", "checkpoint write failed"))
+            }
         }
         dir(ctx).listFiles()?.filter { it.name != file.name }?.forEach { it.delete() }   // старые версии не копим
         return Result(rel.version, tr("Версия %s скачана и проверена — можно ставить", rel.version), rel.notes)
@@ -161,7 +171,7 @@ object Updater {
     }
 
     /** Скачать APK и сверить SHA-256 с SHA256SUMS; не совпало — исключение, файл удалён. */
-    private fun download(ctx: Context, r: Release, out: File) {
+    private fun download(ctx: Context, r: Release, out: File): String {
         val want = sumFor(get(r.sumsUrl), r.apkName) ?: throw RuntimeException("в SHA256SUMS нет ${r.apkName}")
         val part = File(out.path + ".part"); val md = MessageDigest.getInstance("SHA-256")
         val c = Net.open(r.apkUrl); c.readTimeout = 60_000
@@ -184,6 +194,7 @@ object Updater {
         val got = md.digest().joinToString("") { "%02x".format(it) }
         if (got != want) { part.delete(); throw RuntimeException(tr("Контрольная сумма не совпала — файл отброшен")) }
         if (!part.renameTo(out)) throw RuntimeException("не сохранить ${out.name}")
+        return got
     }
 
     /** The APK copy and PackageInstaller session must never block the UI. */
@@ -198,21 +209,56 @@ object Updater {
         }
     }
 
+    private fun invalidateReady(ctx: Context, file: File) {
+        p(ctx).edit().remove("upd_ready").remove("upd_digest").remove("upd_asked").apply()
+        file.delete()
+    }
+
     /** Поставить скачанную версию через установщик Android; null — запущено, иначе текст ошибки. */
     private fun install(ctx: Context): String? {
         val v = ready(ctx) ?: return tr("Не удалось установить: %s", "нет скачанной версии")
         val f = installer(ctx, v)
+        val want = digestFor(ctx, v) ?: return tr("Не удалось установить: %s", "missing checksum")
         if (!ctx.packageManager.canRequestPackageInstalls()) {
             ctx.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             return tr("Разрешите Adult Space устанавливать приложения: откроются настройки")
         }
         return try {
-            val pi = ctx.packageManager.packageInstaller
+            val pm = ctx.packageManager
+            val archive = pm.getPackageArchiveInfo(f.absolutePath, 0)
+            val installed = pm.getPackageInfo(ctx.packageName, 0)
+            fun code(info: android.content.pm.PackageInfo): Long =
+                if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
+            if (archive == null || archive.packageName != ctx.packageName || code(archive) <= code(installed) ||
+                f.length() !in 1L..MAX_APK_BYTES) {
+                invalidateReady(ctx, f)
+                return tr("Не удалось установить: %s", "invalid package or version")
+            }
+            val pi = pm.packageInstaller
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            params.setAppPackageName(ctx.packageName)
             if (Build.VERSION.SDK_INT >= 31) params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
             val id = pi.createSession(params)
             try { pi.openSession(id).use { s ->
-                f.inputStream().use { i -> s.openWrite("AdultSpace.apk", 0, f.length()).use { o -> i.copyTo(o); s.fsync(o) } }
+                val md = MessageDigest.getInstance("SHA-256")
+                f.inputStream().use { i -> s.openWrite("AdultSpace.apk", 0, f.length()).use { o ->
+                    val buffer = ByteArray(64 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val n = i.read(buffer)
+                        if (n < 0) break
+                        total += n
+                        if (total > MAX_APK_BYTES) throw java.io.IOException("APK too large")
+                        md.update(buffer, 0, n)
+                        o.write(buffer, 0, n)
+                    }
+                    s.fsync(o)
+                } }
+                val got = md.digest().joinToString("") { "%02x".format(it) }
+                if (got != want) {
+                    invalidateReady(ctx, f)
+                    throw java.io.IOException(tr("Контрольная сумма не совпала — файл отброшен"))
+                }
                 val it = Intent(ctx, UpdateReceiver::class.java).setAction(ACTION)
                 val pend = PendingIntent.getBroadcast(ctx, id, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
                 s.commit(pend.intentSender)

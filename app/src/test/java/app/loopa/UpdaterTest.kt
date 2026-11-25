@@ -57,4 +57,12 @@ class UpdaterTest {
         assertFalse(Updater.trusted(prefix + "v1.34/a.apk#fragment"))
         assertTrue(Updater.trusted(prefix + "v1.34/SHA256SUMS"))
     }
+
+    @Test fun onlyCanonicalSha256IsAccepted() {
+        assertTrue(Updater.validDigest("ab".repeat(32)))
+        assertFalse(Updater.validDigest(null))
+        assertFalse(Updater.validDigest("a".repeat(63)))
+        assertFalse(Updater.validDigest("G".repeat(64)))
+        assertFalse(Updater.validDigest("A".repeat(64)))
+    }
 }

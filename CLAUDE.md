@@ -30,3 +30,6 @@ See `docs/CREATOR_SOURCE_REVIEW.md` for the five selected providers and their in
 
 ## Technical reports / offline experiments
 See `tools/neutral-lab/TECHNICAL_ARCHIVE.md` for the strict local technical-report importer and archive. Run the Python and Node tests in addition to Android/worker checks. Never commit real report exports or private data. The neutral fixture remains isolated from production; external dataset import and production ranking changes are not delivered by this work.
+
+## Release update verification
+Release APKs are no longer debug-signed implicitly. For local-only update tests use the explicit `-PallowDebugReleaseSigning=true` opt-in; never distribute that artifact. Real releases must use the owner key. Validate installed package/versionCode, SHA256SUMS and the actual release APK, then test interrupted download, missing digest on upgrade, corrupt cache, denied install permission and installer result callbacks. Do not publish from this draft without approval.
