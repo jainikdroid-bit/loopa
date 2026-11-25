@@ -52,6 +52,7 @@ class MainActivity : Activity() {
     /** Значок «!»: есть включённые источники, которым нужна проверка (капча, возрастное окно) — нажатие открывает [SourceCheckActivity]. */
     private lateinit var warnBtn: TextView
     private val onHealth: () -> Unit = { refreshWarn() }
+    private var tileStyle = GridTileStyle()
     private val adapter = GridAdapter()
     /** Что сейчас показано в сетке (id по порядку) — чтобы не перерисовывать без нужды. */
     private var shownIds: List<String> = emptyList()
@@ -67,6 +68,7 @@ class MainActivity : Activity() {
         I18n.init(this); Theme.init(this); themeKey = Theme.id + I18n.code; Api.init(this); Net.init(this); Stats.init(application); Reddit.init(this); Ext.init(this); Interests.init(this); Likes.init(this); FeedCache.init(this); ForYou.init(this); SearchTaste.init(TasteStore.open(this)); Video.init(this); CachedExport.init(this); Hide.init(this); DeviceTier.warmAvc()
         @Suppress("DEPRECATION") if (welcome) startActivityForResult(Intent(this, WelcomeActivity::class.java), 4)
         preview.enabled = prefs.getBoolean("live", true)
+        tileStyle = GridTileStyle.read(prefs)
         if (savedInstanceState == null && Feed.items.isEmpty()) {
             Feed.duration = prefs.getString("duration", "any")!!; Feed.audioOnly = prefs.getBoolean("audio", false)
             Feed.desc = prefs.getBoolean("desc", true); Feed.searchReddit = prefs.getBoolean("search_reddit", true)
@@ -352,6 +354,7 @@ class MainActivity : Activity() {
         Theme.init(this)
         if (themeKey != Theme.id + I18n.code) { recreate(); return }
         prefs.getBoolean("live", true).let { if (it != preview.enabled) { preview.enabled = it; if (!it) preview.stopAll() } }
+        applyGridStyle()
         // из плеера: ролик, на котором закрыли, — на экране (листали дальше — сетка за ним)
         Feed.lastSeen.takeIf { it in Feed.items.indices }?.let { p ->
             val lm = grid.layoutManager as GridLayoutManager
@@ -535,7 +538,22 @@ class MainActivity : Activity() {
         else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
-    private fun cols() = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 4 else 2
+    private fun cols() = tileStyle.columns(resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
+
+    /** Layout only: preserve the loaded feed and its scroll anchor when settings change. */
+    private fun applyGridStyle() {
+        val next = GridTileStyle.read(prefs)
+        if (next == tileStyle) return
+        val lm = grid.layoutManager as GridLayoutManager
+        val first = lm.findFirstVisibleItemPosition()
+        val offset = lm.findViewByPosition(first)?.let { lm.getDecoratedTop(it) - grid.paddingTop } ?: 0
+        tileStyle = next
+        lm.spanCount = cols()
+        if (grid.width > 0) Thumbs.width = grid.width / cols()
+        if (adapter.itemCount > 0) adapter.notifyItemRangeChanged(0, adapter.itemCount, "tile_style")
+        if (first in 0 until adapter.itemCount) lm.scrollToPositionWithOffset(first, offset)
+        grid.requestLayout()
+    }
 
     private fun go(q: String, tag: Boolean = false) {
         (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(search.windowToken, 0)
@@ -789,8 +807,9 @@ class MainActivity : Activity() {
             // полоса загрузки превью — сверху плитки, тонкая
             val bar = View(p.context).apply { setBackgroundColor(Theme.accent); visibility = View.GONE }
             val box = object : FrameLayout(p.context) {
-                // ячейка 3:4 — видно больше роликов, чем при 9:16
-                override fun onMeasure(w: Int, h: Int) { super.onMeasure(w, MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(w) * 4 / 3, MeasureSpec.EXACTLY)) }
+                override fun onMeasure(w: Int, h: Int) {
+                    super.onMeasure(w, MeasureSpec.makeMeasureSpec(tileStyle.ratio.height(MeasureSpec.getSize(w)), MeasureSpec.EXACTLY))
+                }
             }.apply {
                 addView(img, FrameLayout.LayoutParams(-1, -1))
                 addView(tex, FrameLayout.LayoutParams(-1, -1))
@@ -798,7 +817,9 @@ class MainActivity : Activity() {
                 addView(dur, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
                 addView(src, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
                 addView(heart, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
-                layoutParams = RecyclerView.LayoutParams(-1, -2).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }
+                layoutParams = RecyclerView.LayoutParams(-1, -2).apply {
+                    val gap = dp(tileStyle.spacing); setMargins(gap, gap, gap, gap)
+                }
                 clipToOutline = true; background = pill(0xFF1A1D23.toInt(), 10f)
             }
             return H(box, img, dur, src, GridPreview.Slot(tex).also { it.bar = bar }, heart)
@@ -809,10 +830,21 @@ class MainActivity : Activity() {
         /** Только метка лайка (вернулись из плеера) — плитку не перерисовываем, превью не трогаем. */
         override fun onBindViewHolder(h: H, pos: Int, payloads: MutableList<Any>) {
             if (payloads.isEmpty()) return onBindViewHolder(h, pos)
+            if ("tile_style" in payloads) applyTileLayout(h)
             Feed.items.getOrNull(pos)?.let { h.heart.visibility = if (Likes.has(it.id, Feed.mode == "liked")) View.VISIBLE else View.GONE }
+        }
+        private fun applyTileLayout(h: H) {
+            val lp = h.box.layoutParams as? RecyclerView.LayoutParams ?: return
+            val gap = dp(tileStyle.spacing)
+            if (lp.leftMargin != gap || lp.topMargin != gap || lp.rightMargin != gap || lp.bottomMargin != gap) {
+                lp.setMargins(gap, gap, gap, gap)
+                h.box.layoutParams = lp
+            }
+            h.box.requestLayout()
         }
         override fun onBindViewHolder(h: H, pos: Int) {
             val g = Feed.items[pos]
+            applyTileLayout(h)
             h.heart.visibility = if (Likes.has(g.id, Feed.mode == "liked")) View.VISIBLE else View.GONE
             // тот же ролик — живое превью продолжает играть; другой — остановить прежнее
             if (h.slot.id != g.id) preview.stop(h.slot)

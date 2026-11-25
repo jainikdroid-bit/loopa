@@ -311,6 +311,12 @@ object I18nTables {
         "%d ч назад" to "%d h ago",
         "Проверка источников" to "Source check",
         "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Status of each site; pass a captcha or age gate manually",
+        "Плитки сетки" to "Grid tiles",
+        "Столбцы — вертикально" to "Columns — portrait",
+        "Столбцы — горизонтально" to "Columns — landscape",
+        "Пропорции плиток" to "Tile aspect ratio",
+        "Отступ плитки" to "Tile margin",
+        "Сбросить вид сетки" to "Reset grid appearance",
     ) }
     private val ES by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Ya descargado: Descargas/Loopa/%s",
@@ -620,6 +626,12 @@ object I18nTables {
         "%d ч назад" to "hace %d h",
         "Проверка источников" to "Comprobar fuentes",
         "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Estado de cada sitio; pasar un captcha o aviso de edad a mano",
+        "Плитки сетки" to "Cuadrícula",
+        "Столбцы — вертикально" to "Columnas — vertical",
+        "Столбцы — горизонтально" to "Columnas — horizontal",
+        "Пропорции плиток" to "Proporción de las celdas",
+        "Отступ плитки" to "Margen de celda",
+        "Сбросить вид сетки" to "Restablecer cuadrícula",
     ) }
     private val PT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Já baixado: Downloads/Loopa/%s",
@@ -929,6 +941,12 @@ object I18nTables {
         "%d ч назад" to "há %d h",
         "Проверка источников" to "Verificar fontes",
         "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Estado de cada site; passar captcha ou aviso de idade manualmente",
+        "Плитки сетки" to "Células da grade",
+        "Столбцы — вертикально" to "Colunas — retrato",
+        "Столбцы — горизонтально" to "Colunas — paisagem",
+        "Пропорции плиток" to "Proporção das células",
+        "Отступ плитки" to "Margem da célula",
+        "Сбросить вид сетки" to "Redefinir aparência da grade",
     ) }
     private val DE by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Bereits geladen: Downloads/Loopa/%s",
@@ -1238,6 +1256,12 @@ object I18nTables {
         "%d ч назад" to "vor %d Std.",
         "Проверка источников" to "Quellen prüfen",
         "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Status jeder Seite; Captcha oder Altersabfrage selbst bestehen",
+        "Плитки сетки" to "Rasterkacheln",
+        "Столбцы — вертикально" to "Spalten — Hochformat",
+        "Столбцы — горизонтально" to "Spalten — Querformat",
+        "Пропорции плиток" to "Kachel-Seitenverhältnis",
+        "Отступ плитки" to "Kachelabstand",
+        "Сбросить вид сетки" to "Rasteransicht zurücksetzen",
     ) }
     private val FR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1547,6 +1571,12 @@ object I18nTables {
         "%d ч назад" to "il y a %d h",
         "Проверка источников" to "Vérifier les sources",
         "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "État de chaque site ; passer un captcha ou une vérification d’âge à la main",
+        "Плитки сетки" to "Vignettes de la grille",
+        "Столбцы — вертикально" to "Colonnes — portrait",
+        "Столбцы — горизонтально" to "Colonnes — paysage",
+        "Пропорции плиток" to "Format des vignettes",
+        "Отступ плитки" to "Marge des vignettes",
+        "Сбросить вид сетки" to "Réinitialiser la grille",
     ) }
     private val IT by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Già scaricato: Download/Loopa/%s",
@@ -1856,6 +1886,12 @@ object I18nTables {
         "%d ч назад" to "%d h fa",
         "Проверка источников" to "Verifica fonti",
         "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Stato di ogni sito; superare a mano captcha o verifica dell’età",
+        "Плитки сетки" to "Riquadri della griglia",
+        "Столбцы — вертикально" to "Colonne — verticale",
+        "Столбцы — горизонтально" to "Colonne — orizzontale",
+        "Пропорции плиток" to "Proporzioni dei riquadri",
+        "Отступ плитки" to "Margine del riquadro",
+        "Сбросить вид сетки" to "Ripristina griglia",
     ) }
     private val TR by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -2165,6 +2201,12 @@ object I18nTables {
         "%d ч назад" to "%d sa önce",
         "Проверка источников" to "Kaynak kontrolü",
         "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Her sitenin durumu; captcha veya yaş onayını elle geç",
+        "Плитки сетки" to "Izgara kutucukları",
+        "Столбцы — вертикально" to "Sütunlar — dikey",
+        "Столбцы — горизонтально" to "Sütunlar — yatay",
+        "Пропорции плиток" to "Kutucuk en boy oranı",
+        "Отступ плитки" to "Kutucuk kenar boşluğu",
+        "Сбросить вид сетки" to "Izgara görünümünü sıfırla",
     ) }
     private val PL by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Już pobrano: Pobrane/Loopa/%s",
@@ -2474,6 +2516,12 @@ object I18nTables {
         "%d ч назад" to "%d godz. temu",
         "Проверка источников" to "Sprawdzanie źródeł",
         "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Stan każdej strony; ręcznie przejdź captchę lub weryfikację wieku",
+        "Плитки сетки" to "Kafelki siatki",
+        "Столбцы — вертикально" to "Kolumny — pionowo",
+        "Столбцы — горизонтально" to "Kolumny — poziomo",
+        "Пропорции плиток" to "Proporcje kafelków",
+        "Отступ плитки" to "Margines kafelka",
+        "Сбросить вид сетки" to "Resetuj wygląd siatki",
     ) }
     private val UK by lazy { mapOf(
         "Уже скачано: Загрузки/Loopa/%s" to "Уже завантажено: Завантаження/Loopa/%s",
@@ -2783,6 +2831,12 @@ object I18nTables {
         "%d ч назад" to "%d год тому",
         "Проверка источников" to "Перевірка джерел",
         "Состояние каждого сайта; пройти капчу или возрастное окно вручную" to "Стан кожного сайту; пройти капчу або вікно віку вручну",
+        "Плитки сетки" to "Плитки сітки",
+        "Столбцы — вертикально" to "Стовпці — вертикально",
+        "Столбцы — горизонтально" to "Стовпці — горизонтально",
+        "Пропорции плиток" to "Пропорції плиток",
+        "Отступ плитки" to "Відступ плитки",
+        "Сбросить вид сетки" to "Скинути вигляд сітки",
     ) }
 
     fun of(code: String): Map<String, String> = when (code) {

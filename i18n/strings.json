@@ -307,7 +307,13 @@
   "%d мин назад",
   "%d ч назад",
   "Проверка источников",
-  "Состояние каждого сайта; пройти капчу или возрастное окно вручную"
+  "Состояние каждого сайта; пройти капчу или возрастное окно вручную",
+  "Плитки сетки",
+  "Столбцы — вертикально",
+  "Столбцы — горизонтально",
+  "Пропорции плиток",
+  "Отступ плитки",
+  "Сбросить вид сетки"
  ],
  "en": [
   "Already downloaded: Downloads/Loopa/%s",
@@ -616,7 +622,13 @@
   "%d min ago",
   "%d h ago",
   "Source check",
-  "Status of each site; pass a captcha or age gate manually"
+  "Status of each site; pass a captcha or age gate manually",
+  "Grid tiles",
+  "Columns — portrait",
+  "Columns — landscape",
+  "Tile aspect ratio",
+  "Tile margin",
+  "Reset grid appearance"
  ],
  "es": [
   "Ya descargado: Descargas/Loopa/%s",
@@ -925,7 +937,13 @@
   "hace %d min",
   "hace %d h",
   "Comprobar fuentes",
-  "Estado de cada sitio; pasar un captcha o aviso de edad a mano"
+  "Estado de cada sitio; pasar un captcha o aviso de edad a mano",
+  "Cuadrícula",
+  "Columnas — vertical",
+  "Columnas — horizontal",
+  "Proporción de las celdas",
+  "Margen de celda",
+  "Restablecer cuadrícula"
  ],
  "pt": [
   "Já baixado: Downloads/Loopa/%s",
@@ -1234,7 +1252,13 @@
   "há %d min",
   "há %d h",
   "Verificar fontes",
-  "Estado de cada site; passar captcha ou aviso de idade manualmente"
+  "Estado de cada site; passar captcha ou aviso de idade manualmente",
+  "Células da grade",
+  "Colunas — retrato",
+  "Colunas — paisagem",
+  "Proporção das células",
+  "Margem da célula",
+  "Redefinir aparência da grade"
  ],
  "de": [
   "Bereits geladen: Downloads/Loopa/%s",
@@ -1543,7 +1567,13 @@
   "vor %d Min.",
   "vor %d Std.",
   "Quellen prüfen",
-  "Status jeder Seite; Captcha oder Altersabfrage selbst bestehen"
+  "Status jeder Seite; Captcha oder Altersabfrage selbst bestehen",
+  "Rasterkacheln",
+  "Spalten — Hochformat",
+  "Spalten — Querformat",
+  "Kachel-Seitenverhältnis",
+  "Kachelabstand",
+  "Rasteransicht zurücksetzen"
  ],
  "fr": [
   "Déjà téléchargé : Téléchargements/Loopa/%s",
@@ -1852,7 +1882,13 @@
   "il y a %d min",
   "il y a %d h",
   "Vérifier les sources",
-  "État de chaque site ; passer un captcha ou une vérification d’âge à la main"
+  "État de chaque site ; passer un captcha ou une vérification d’âge à la main",
+  "Vignettes de la grille",
+  "Colonnes — portrait",
+  "Colonnes — paysage",
+  "Format des vignettes",
+  "Marge des vignettes",
+  "Réinitialiser la grille"
  ],
  "it": [
   "Già scaricato: Download/Loopa/%s",
@@ -2161,7 +2197,13 @@
   "%d min fa",
   "%d h fa",
   "Verifica fonti",
-  "Stato di ogni sito; superare a mano captcha o verifica dell’età"
+  "Stato di ogni sito; superare a mano captcha o verifica dell’età",
+  "Riquadri della griglia",
+  "Colonne — verticale",
+  "Colonne — orizzontale",
+  "Proporzioni dei riquadri",
+  "Margine del riquadro",
+  "Ripristina griglia"
  ],
  "tr": [
   "Zaten indirildi: İndirilenler/Loopa/%s",
@@ -2470,7 +2512,13 @@
   "%d dk önce",
   "%d sa önce",
   "Kaynak kontrolü",
-  "Her sitenin durumu; captcha veya yaş onayını elle geç"
+  "Her sitenin durumu; captcha veya yaş onayını elle geç",
+  "Izgara kutucukları",
+  "Sütunlar — dikey",
+  "Sütunlar — yatay",
+  "Kutucuk en boy oranı",
+  "Kutucuk kenar boşluğu",
+  "Izgara görünümünü sıfırla"
  ],
  "pl": [
   "Już pobrano: Pobrane/Loopa/%s",
@@ -2779,7 +2827,13 @@
   "%d min temu",
   "%d godz. temu",
   "Sprawdzanie źródeł",
-  "Stan każdej strony; ręcznie przejdź captchę lub weryfikację wieku"
+  "Stan każdej strony; ręcznie przejdź captchę lub weryfikację wieku",
+  "Kafelki siatki",
+  "Kolumny — pionowo",
+  "Kolumny — poziomo",
+  "Proporcje kafelków",
+  "Margines kafelka",
+  "Resetuj wygląd siatki"
  ],
  "uk": [
   "Уже завантажено: Завантаження/Loopa/%s",
@@ -3088,6 +3142,12 @@
   "%d хв тому",
   "%d год тому",
   "Перевірка джерел",
-  "Стан кожного сайту; пройти капчу або вікно віку вручну"
+  "Стан кожного сайту; пройти капчу або вікно віку вручну",
+  "Плитки сітки",
+  "Стовпці — вертикально",
+  "Стовпці — горизонтально",
+  "Пропорції плиток",
+  "Відступ плитки",
+  "Скинути вигляд сітки"
  ]
 }
