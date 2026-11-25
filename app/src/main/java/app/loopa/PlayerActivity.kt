@@ -574,7 +574,7 @@ class PlayerActivity : Activity() {
                 // Reddit: лайк — только у себя, для «Для вас» (голос на Reddit не ставим)
                 if (g.reddit || g.ext) { val on = !liked(g.id); setLiked(g.id, on); showLike(); Interests.like(g, on); return@setOnClickListener }
                 if (!Api.loggedIn) { back("login", "1"); return@setOnClickListener }
-                val on = !liked(g.id); setLiked(g.id, on); showLike(); Interests.like(g, on)
+                val on = !liked(g.id); setLiked(g.id, on); showLike()
                 val src = when {
                     Feed.mode == "foryou" -> "for-you"; Feed.mode == "liked" -> "favourites"; Feed.author != null -> "profile"
                     Feed.text.isNotEmpty() -> if (Feed.byTag) "tag-gifs" else "search-gifs"; else -> "trending"
@@ -582,7 +582,8 @@ class PlayerActivity : Activity() {
                 val position = bindingAdapterPosition
                 kotlin.concurrent.thread {
                     val err = runCatching { Api.like(g.id, on, src, position) }.getOrElse { it.message ?: tr(NO_NET) }
-                    if (err != null) ui.post { setLiked(g.id, !on); showLike(); Interests.like(g, !on); android.widget.Toast.makeText(this@PlayerActivity, tr("Лайк не прошёл — %s", err), android.widget.Toast.LENGTH_LONG).show() }
+                    if (err == null) Interests.like(g, on)
+                    else ui.post { setLiked(g.id, !on); showLike(); android.widget.Toast.makeText(this@PlayerActivity, tr("Лайк не прошёл — %s", err), android.widget.Toast.LENGTH_LONG).show() }
                 }
             }
             sound.text = if (muted) "🔇" else "🔊"

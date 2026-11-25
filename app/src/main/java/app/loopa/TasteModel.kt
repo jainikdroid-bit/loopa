@@ -120,7 +120,7 @@ class FmModel(val bits: Int = 15, val k: Int = 8, lazyFactors: Boolean = false) 
      * [video] — пример по ролику (считается для доли модели); у примера из одного признака пар нет — v не трогаем.
      */
     fun learn(features: List<Pair<String, Float>>, label: Float, weight: Float, video: Boolean = true) {
-        if (features.isEmpty() || weight <= 0f || weight.isNaN()) return
+        if (features.isEmpty() || weight <= 0f || !weight.isFinite() || !label.isFinite() || label !in 0f..1f || features.any { !it.second.isFinite() }) return
         synchronized(this) {
             val idx = IntArray(features.size) { bucket(features[it].first) }
             val x = FloatArray(features.size) { features[it].second }
@@ -278,7 +278,7 @@ object TasteModel {
         io.post {
             var ok = false
             if (f.exists()) {
-                ok = runCatching { model.load(f.readBytes()) }.getOrDefault(false)
+                ok = runCatching { model.load(android.util.AtomicFile(f).readFully()) }.getOrDefault(false)
                 if (!ok) android.util.Log.w("Loopa", "taste_fm.bin отвергнут (чужая версия, обрезан или NaN/Inf) — модель вкуса с нуля")
             }
             if (!ok) model.initFactors()
@@ -395,11 +395,11 @@ object TasteModel {
             savePending = false
             val bytes = model.toBytes()   // под замком модели — только копия массивов; запись в байты и на диск — здесь, в фоне
             runCatching {
-                val tmp = File(f.path + ".tmp")
-                // sync до rename: после сбоя питания не должно остаться пустого файла вместо старого
-                FileOutputStream(tmp).use { it.write(bytes); it.flush(); it.fd.sync() }
-                if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
-            }
+                val atomic = android.util.AtomicFile(f)
+                val stream = atomic.startWrite()
+                try { stream.write(bytes); atomic.finishWrite(stream) }
+                catch (e: Exception) { atomic.failWrite(stream); throw e }
+            }.onFailure { android.util.Log.w("Loopa", "Model checkpoint failed", it) }
         }, SAVE_DELAY_MS)
     }
 }

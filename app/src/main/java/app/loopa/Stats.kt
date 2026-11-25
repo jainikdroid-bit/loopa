@@ -18,14 +18,14 @@ import java.util.Locale
 import java.util.UUID
 
 /**
- * Анонимная статистика — включена по умолчанию, но после уведомления при первом запуске (кнопка «Выключить» там же)
+ * Анонимная статистика — выключена до явного согласия при первом запуске
  * и с переключателем в Настройки → О приложении. Что уходит: случайный номер установки, версия приложения и Android, модель
  * устройства, язык, тип сети, время работы приложения на экране (начало/конец сеансов), счётчики открытия функций.
  * Страну и регион сервер берёт из метаданных соединения; IP-адреса не сохраняются. НЕ уходит: поисковые запросы, теги,
  * лайки, история, адреса роликов, содержимое графа вкусов, аккаунты. Сервер — Cloudflare Worker (stats-worker/).
  */
 object Stats {
-    private const val URL_PING = "https://loopa-stats.dom-dcbb13.workers.dev/v1/ping"
+    private const val URL_PING = "https://loopa-stats.dom-dcbb13.workers.dev/v2/ping"
     /** Ключ приёма: только отсекает случайный мусор, читать им статистику нельзя. */
     private const val KEY = "DK_12z4Qu_USvFxkXBCiKA"
     private const val HEARTBEAT_MS = 60_000L
@@ -36,12 +36,16 @@ object Stats {
     private lateinit var app: Application
     private val prefs get() = app.getSharedPreferences("loopa", Context.MODE_PRIVATE)
     private var started = 0
+    private var sending = false
+    private var generation = 0L
+    private const val BATCH = "stats_batch_v2"
+    private const val ASKED = "stats_asked_v2"
     private var sessionStart = 0L
     private val beat = object : Runnable { override fun run() { ping(); ui.postDelayed(this, HEARTBEAT_MS) } }
 
-    /** Включена по умолчанию, но не раньше, чем пользователь увидел уведомление ([askOnce]); выключается там же и в Настройках. */
-    val enabled get() = ::app.isInitialized && prefs.getBoolean("stats_asked", false) && prefs.getBoolean("stats_on", true)
-    val asked get() = ::app.isInitialized && prefs.getBoolean("stats_asked", false)
+    /** Включается только после явного согласия; выключается в Настройках. */
+    val enabled get() = ::app.isInitialized && prefs.getBoolean(ASKED, false) && prefs.getBoolean("stats_on", false)
+    val asked get() = ::app.isInitialized && prefs.getBoolean(ASKED, false)
 
     fun init(a: Application) {
         if (::app.isInitialized) return
@@ -71,9 +75,10 @@ object Stats {
         send(fg = 0L)
     }
 
-    fun setEnabled(on: Boolean) {
-        prefs.edit().putBoolean("stats_on", on).putBoolean("stats_asked", true).apply()
-        if (!on) { ui.removeCallbacks(beat); prefs.edit().remove("stats_pending").remove("stats_events").apply() }
+    @Synchronized fun setEnabled(on: Boolean) {
+        generation++
+        prefs.edit().putBoolean("stats_on", on).putBoolean(ASKED, true).apply()
+        if (!on) { ui.removeCallbacks(beat); prefs.edit().remove("stats_pending").remove("stats_events").remove(BATCH).apply() }
         else if (started > 0) { sessionStart = System.currentTimeMillis(); ui.removeCallbacks(beat); ui.post(beat) }
     }
 
@@ -81,6 +86,7 @@ object Stats {
     fun event(name: String) {
         if (!enabled) return
         synchronized(this) {
+            if (!enabled) return
             val o = JSONObject(prefs.getString("stats_events", "{}") ?: "{}")
             o.put(name, o.optInt(name) + 1)
             prefs.edit().putString("stats_events", o.toString()).apply()
@@ -101,7 +107,10 @@ object Stats {
         prefs.getString("stats_iid", null) ?: UUID.randomUUID().toString().also { prefs.edit().putString("stats_iid", it).apply() }
 
     /** Сброс номера установки: старая статистика с новой не связывается. */
-    fun resetId() { prefs.edit().remove("stats_iid").apply() }
+    @Synchronized fun resetId() {
+        generation++
+        prefs.edit().remove("stats_iid").remove("stats_pending").remove("stats_events").remove(BATCH).apply()
+    }
 
     private fun netType(): String = runCatching {
         val cm = app.getSystemService(ConnectivityManager::class.java)
@@ -115,32 +124,63 @@ object Stats {
 
     /** Отправка в фоне; не вышло (нет сети) — сеансы остаются в очереди и уйдут при следующем сигнале. */
     private fun send(fg: Long) {
-        val sent: String
-        val evSent: String
+        val body: String
+        val epoch: Long
         synchronized(this) {
-            sent = prefs.getString("stats_pending", "[]") ?: "[]"
-            evSent = prefs.getString("stats_events", "{}") ?: "{}"
+            if (!enabled || sending) return
+            val existing = prefs.getString(BATCH, null)
+            if (existing != null) body = existing
+            else {
+                val pending = JSONArray(prefs.getString("stats_pending", "[]") ?: "[]")
+                val events = JSONObject(prefs.getString("stats_events", "{}") ?: "{}")
+                val sent = JSONArray()
+                val left = JSONArray()
+                for (i in 0 until pending.length()) {
+                    if (i < 50) sent.put(pending.get(i)) else left.put(pending.get(i))
+                }
+                val evSent = JSONObject()
+                val evLeft = JSONObject()
+                events.keys().asSequence().sorted().forEach { k ->
+                    val n = events.optInt(k)
+                    if (n > 0) {
+                        if (evSent.length() < 30) {
+                            val chunk = n.coerceAtMost(999_999)
+                            evSent.put(k, chunk)
+                            if (n > chunk) evLeft.put(k, n - chunk)
+                        } else evLeft.put(k, n)
+                    }
+                }
+                body = JSONObject().put("iid", installId()).put("batch", UUID.randomUUID().toString())
+                    .put("ver", BuildConfig.VERSION_NAME).put("os", "Android " + Build.VERSION.RELEASE)
+                    .put("dev", (Build.MANUFACTURER + " " + Build.MODEL).take(60))
+                    .put("lang", Locale.getDefault().language).put("net", netType())
+                    .put("fg", fg).put("sessions", sent).put("events", evSent).toString()
+                // Move only the transmitted chunk into a durable retry envelope.
+                prefs.edit().putString(BATCH, body).putString("stats_pending", left.toString())
+                    .putString("stats_events", evLeft.toString()).apply()
+            }
+            epoch = generation
+            sending = true
         }
-        val body = JSONObject().put("iid", installId()).put("ver", BuildConfig.VERSION_NAME).put("os", "Android " + Build.VERSION.RELEASE)
-            .put("dev", (Build.MANUFACTURER + " " + Build.MODEL).take(60)).put("lang", Locale.getDefault().language).put("net", netType())
-            .put("fg", fg).put("sessions", JSONArray(sent)).put("events", JSONObject(evSent))
         Thread {
             val ok = runCatching {
+                if (!synchronized(this) { enabled && generation == epoch }) return@runCatching false
                 val c = URL(URL_PING).openConnection() as HttpURLConnection
-                c.connectTimeout = 10_000; c.readTimeout = 10_000; c.requestMethod = "POST"; c.doOutput = true
-                c.setRequestProperty("x-key", KEY); c.setRequestProperty("content-type", "application/json")
-                c.outputStream.use { it.write(body.toString().toByteArray()) }
-                (c.responseCode in 200..299).also { c.disconnect() }
+                try {
+                    c.connectTimeout = 10_000; c.readTimeout = 10_000
+                    c.requestMethod = "POST"; c.doOutput = true
+                    c.setRequestProperty("x-key", KEY); c.setRequestProperty("content-type", "application/json")
+                    c.outputStream.use { it.write(body.toByteArray()) }
+                    c.responseCode in 200..299 && c.inputStream.bufferedReader().use {
+                        JSONObject(it.readText()).optString("batch") == JSONObject(body).getString("batch")
+                    }
+                } finally { c.disconnect() }
             }.getOrDefault(false)
-            if (ok) synchronized(this) { // убрать только ушедшее: за время запроса могло накопиться новое
-                val left = JSONArray()
-                val cur = JSONArray(prefs.getString("stats_pending", "[]") ?: "[]")
-                val gone = JSONArray(sent)
-                for (i in gone.length() until cur.length()) left.put(cur.get(i))
-                val ev = JSONObject(prefs.getString("stats_events", "{}") ?: "{}")
-                val es = JSONObject(evSent)
-                es.keys().forEach { k -> val n = ev.optInt(k) - es.optInt(k); if (n > 0) ev.put(k, n) else ev.remove(k) }
-                prefs.edit().putString("stats_pending", left.toString()).putString("stats_events", ev.toString()).apply()
+            synchronized(this) {
+                if (ok && epoch == generation && prefs.getString(BATCH, null) == body) {
+                    prefs.edit().remove(BATCH).apply()
+                }
+                sending = false
             }
         }.start()
     }
@@ -148,8 +188,6 @@ object Stats {
     /** Окно согласия при первом запуске (один раз); без ответа статистика остаётся выключенной. */
     fun askOnce(a: Activity) {
         if (asked) return
-        prefs.edit().putBoolean("stats_asked", true).apply()
-        if (prefs.contains("stats_on")) return
         AlertDialog.Builder(a).setTitle("Анонимная статистика / Anonymous stats")
             .setCancelable(false).setMessage(
                 "Приложение отправляет разработчику анонимные данные: случайный номер установки, версию, модель устройства, " +

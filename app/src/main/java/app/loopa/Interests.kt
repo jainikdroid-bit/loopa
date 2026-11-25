@@ -101,7 +101,7 @@ object Interests {
         if (::file.isInitialized) return
         TasteModel.init(ctx)
         file = File(ctx.filesDir, "interests.json")
-        data = runCatching { JSONObject(file.readText()) }.getOrDefault(JSONObject())
+        data = runCatching { android.util.AtomicFile(file).openRead().bufferedReader().use { JSONObject(it.readText()) } }.getOrDefault(JSONObject())
         net = null
         AXES.forEach { if (!data.has(it)) data.put(it, JSONObject()) }
         COUNTS.forEach { c -> if (!data.has(c)) data.put(c, JSONObject()) }
@@ -500,11 +500,23 @@ object Interests {
     @Synchronized private fun trimSeen() { while (seen.size > MAX_SEEN) seen.remove(seen.first()) }
 
     /** Запись в фоне и не чаще раза в 2 с. */
-    private fun save() {
-        io.removeCallbacksAndMessages(null)
+    private var saveQueued = false
+    @Synchronized private fun save() {
+        if (saveQueued) return
+        saveQueued = true
         io.postDelayed({
-            val text = synchronized(this) { decay(); data.put("seen", JSONArray(seen.toList())); data.put("wt", JSONObject().also { o -> watchSec.forEach { (k, v) -> o.put(k, v) } }); data.toString() }
-            runCatching { File(file.path + ".tmp").apply { writeText(text) }.renameTo(file) }
+            val text = synchronized(this) {
+                saveQueued = false
+                decay(); data.put("seen", JSONArray(seen.toList()))
+                data.put("wt", JSONObject().also { o -> watchSec.forEach { (k, v) -> o.put(k, v) } })
+                data.toString()
+            }
+            val atomic = android.util.AtomicFile(file)
+            runCatching {
+                val stream = atomic.startWrite()
+                try { stream.write(text.toByteArray(Charsets.UTF_8)); atomic.finishWrite(stream) }
+                catch (e: Exception) { atomic.failWrite(stream); throw e }
+            }.onFailure { android.util.Log.w("Loopa", "Interest checkpoint failed", it) }
         }, 2000)
     }
 
