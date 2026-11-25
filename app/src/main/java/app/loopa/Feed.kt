@@ -299,13 +299,12 @@ object Feed {
     private fun add(q: String, bt: Boolean, p: Int, pg: Page) {
         query = q; byTag = bt; page = p; pages = pg.pages; error = null; fails = 0
         if (pg.tags.isNotEmpty() && p == 1) tags = pg.tags
-        val seen = items.mapTo(HashSet()) { it.id }
-        items.forEach { if (it.hd.isNotBlank()) seen.add(it.hd) }
-        val same = items.mapNotNullTo(HashSet()) { twin(it) }
+        val seen = MediaIdentity()
+        items.forEach { seen.remember(it.id, it.hd) }
         val range = range
-        // одинаковые ролики: тот же id, тот же файл или перезалив (тот же размер кадра и длительность до сотых секунды)
-        val fresh = pg.gifs.filter { mode != "foryou" || !ForYou.dismissed(it.id) }.filter { seen.add(it.id) && seen.add(it.hd) && twin(it)?.let { k -> same.add(k) } != false }
+        val fresh = pg.gifs.filter { mode != "foryou" || !ForYou.dismissed(it.id) }
             .filter { duration == "any" || it.duration in range }.filter { !audioOnly || it.hasAudio }.filter { !Hide.hidden(it) }
+            .filter { seen.accept(it.id, it.hd) }
         val local = if (mode == null || mode == "foryou") localCmp() else null
         val cmp = if (mode == "foryou" && local != null) {
             val recent = ForYou.recentOrder()
@@ -344,12 +343,14 @@ object Feed {
      * по релевантности — уровни, внутри уровня источники вперемешку ([Relevance.order]) — или по выбранной сортировке.
      */
     private fun addLive(part: List<Pair<Gif, Double>>) {
-        val seen = HashSet<String>(); items.forEach { seen += it.id; seen += it.hd }
-        val same = items.mapNotNullTo(HashSet()) { twin(it) }
+        val seen = MediaIdentity()
+        items.forEach { seen.remember(it.id, it.hd) }
         val range = range
-        val fresh = part.filter { (x, _) -> seen.add(x.id) && seen.add(x.hd) && twin(x)?.let { k -> same.add(k) } != false }
-            .filter { (x, _) -> (duration == "any" || x.duration in range) && (!audioOnly || x.hasAudio) && !Hide.hidden(x) }
+        val fresh = part.filter { (x, _) -> (duration == "any" || x.duration in range) && (!audioOnly || x.hasAudio) && !Hide.hidden(x) }
+            .filter { (x, _) -> seen.accept(x.id, x.hd) }
         if (fresh.isEmpty()) return
+        // UI count reflects accepted unique rows, not raw provider responses.
+        exact += fresh.count { Relevance.exact(it.second) }
         val cmp = localCmp()
         val keep = frozen()
         val tail = ArrayList(items.subList(keep, items.size)); tail += fresh.map { it.first }
@@ -363,21 +364,9 @@ object Feed {
                 g.id to base?.let { Relevance.Rank(it.score, it.bonus + SearchTaste.bonus(context, g)) }
             }
             replaceTail(keep, Relevance.order(tail) { ranks[it.id] })
-            exact = Search.exact
             return
         }
         replaceTail(keep, tail)
-        exact = Search.exact
-    }
-
-    /** Ключ перезалива: размер кадра + длительность до 0,01 с (у разных роликов совпадает редко); null — длительность неизвестна. */
-    private fun twin(g: Gif): String? {
-        if (g.duration <= 0.5) return null
-        val title = g.description.trim().lowercase()
-        if (title.length >= 12) return "$title@${Math.round(g.duration)}"
-        // Sources often provide placeholder dimensions and whole seconds for unrelated clips.
-        if (g.w <= 16 || g.duration == kotlin.math.floor(g.duration)) return null
-        return "${g.w}x${g.h}@${Math.round(g.duration * 100)}"
     }
 
     private fun fail(e: Throwable) {

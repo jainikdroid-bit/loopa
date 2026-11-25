@@ -84,7 +84,7 @@ object Reddit {
         return try {
             Net.retry { fetch("$OAUTH$path?$query") { it.setRequestProperty("Authorization", "Bearer $t"); it.setRequestProperty("User-Agent", apiUa) } }
         } catch (e: HttpError) {
-            android.util.Log.w("Loopa", "Reddit $path: HTTP ${e.code}")
+            android.util.Log.w("Loopa", "Remote HTTP ${e.code}")
             if (e.code == 401) { prefs?.edit()?.putLong("rd_exp", 1)?.apply(); throw RuntimeException(LOGIN_EXPIRED) }
             if (e.code != 403) throw e
             throw e
@@ -95,8 +95,7 @@ object Reddit {
         val c = Net.open(url); auth(c)
         try {
             if (c.responseCode !in 200..299) {
-                val body = runCatching { c.errorStream?.bufferedReader()?.readText()?.take(300) }.getOrNull()
-                android.util.Log.w("Loopa", "Reddit ${c.responseCode} ${url.substringBefore('?')}: ${c.headerFields.filterKeys { it != null && (it.startsWith("x-", true) || it.equals("server", true)) }} ${body?.replace("\n", " ")}")
+                android.util.Log.w("Loopa", "Remote HTTP ${c.responseCode}")
                 throw Net.fail(c)
             }
             return c.inputStream.bufferedReader().readText()
@@ -150,7 +149,7 @@ object Reddit {
         var tries = 0
         while (out.size < 10 && tries++ < 3) {
             val s = synchronized(rounds) { r.subs.filter { !r.cur.containsKey(it) || r.cur[it] != null }.let { open -> if (open.isEmpty()) null else open[r.i++ % open.size] } } ?: break
-            val (g, next) = runCatching { page(s, sortId, r.cur[s]) }.getOrElse { android.util.Log.w("Loopa", "Reddit r/$s: ${it.message}"); emptyList<Gif>() to null }
+            val (g, next) = runCatching { page(s, sortId, r.cur[s]) }.getOrElse { android.util.Log.w("Loopa", "Remote page failed: ${it.javaClass.simpleName}"); emptyList<Gif>() to null }
             synchronized(rounds) { r.cur[s] = next }
             out += g
         }
@@ -191,7 +190,7 @@ var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');
             moreSrc = r2.optString("more").takeIf { it.isNotBlank() && it != "null" }
         }
         if (url != null) j.put("more", moreSrc ?: JSONObject.NULL)
-        android.util.Log.i("Loopa", "Reddit со страницы: ${posts.size} постов, пример ${posts.firstOrNull()}")
+        android.util.Log.i("Loopa", "Remote response: ${posts.size} rows")
         val jobs = posts.map { o -> pool.submit<Gif?> { runCatching { fromPage(o) }.getOrNull() } }
         val next = j.optString("more").takeIf { it.isNotBlank() && it != "null" }?.let { if (it.startsWith("http")) it else WWW + it }
         return jobs.mapNotNull { it.get() } to next?.let { WEB + it }
@@ -267,7 +266,7 @@ var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');
         val ok = subs.map { s -> s to pool.submit<Boolean> { runCatching { get("/r/$s/about", "raw_json=1"); true }.getOrElse { it !is HttpError || it.code != 403 && it.code != 404 } } }
             .filter { (s, f) -> f.get().also { good -> if (!good) bad += s.lowercase() } }.map { it.first }
         prefs?.edit()?.putStringSet("rd_bad", (prefs?.getStringSet("rd_bad", emptySet()).orEmpty() + bad).toSet())?.apply()
-        android.util.Log.i("Loopa", "Reddit: убраны ${subs - ok.toSet()}")
+        android.util.Log.i("Loopa", "Remote entries removed: ${(subs - ok.toSet()).size}")
         return ok
     }
 

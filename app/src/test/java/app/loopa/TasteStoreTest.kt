@@ -27,6 +27,18 @@ class TasteStoreTest {
         assertTrue(log.count("id899") > 0)
     }
 
+    @Test fun oldSkipHistoryExpires() {
+        val log = SkipLog()
+        val now = 1_700_000_000_000L
+        log.put("old", 4, now - SkipLog.RETENTION_MS - 1)
+        log.put("new", 2, now - 1)
+        assertEquals(0, log.count("old", now))
+        assertTrue(log.prune(now))
+        assertEquals(1, log.size)
+        assertEquals(2, log.count("new", now))
+        assertEquals(1, log.bump("old", now))
+    }
+
     @Test fun queryProfileKeepsAboutHundredWeights() {
         val profile = QueryProfile()
         for (i in 0 until 300) {

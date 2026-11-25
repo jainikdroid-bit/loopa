@@ -15,10 +15,17 @@ internal class SkipLog(private val capacity: Int = 800) {
     fun clear() = map.clear()
     val size get() = map.size
     fun count(id: String) = map[id]?.count ?: 0
+    fun count(id: String, now: Long) = map[id]?.takeIf { !expired(it.at, now) }?.count ?: 0
+
+    private fun expired(at: Long, now: Long) = at < 0L || at > now || now - at > RETENTION_MS
+    fun prune(now: Long): Boolean = map.entries.removeAll { expired(it.value.at, now) }
+
+    companion object { const val RETENTION_MS = 30L * 86_400_000L }
 
     /** Прибавить пропуск (не выше [max]); запись становится самой свежей. Возвращает новое значение. */
     fun bump(id: String, now: Long, max: Int = 4): Int {
-        val next = ((map.remove(id)?.count ?: 0) + 1).coerceAtMost(max)
+        val next = (count(id, now) + 1).coerceAtMost(max)
+        map.remove(id)
         map[id] = Entry(next, now)
         while (map.size > capacity) map.remove(map.keys.first())
         return next
@@ -45,7 +52,7 @@ internal class SkipLog(private val capacity: Int = 800) {
         // порядок в файле — от старых к новым; ломаные строки пропускаем
         for (i in 0 until rows.length()) runCatching {
             val r = rows.getJSONArray(i)
-            put(r.getString(0), r.getInt(1), r.getLong(2))
+            put(r.getString(0), r.getInt(1).coerceIn(1, 4), r.getLong(2))
         }
     }
 }

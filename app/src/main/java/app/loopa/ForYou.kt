@@ -42,12 +42,12 @@ object ForYou {
     private var dirtyRecent = false
     private const val SAVE_DELAY = 5_000L
 
-    fun dismissed(id: String) = TrainingLab.learning && synchronized(recentLock) { skips.count(id) } >= 4
+    fun dismissed(id: String) = TrainingLab.learning && synchronized(recentLock) { skips.count(id, System.currentTimeMillis()) } >= 4
 
     fun passed(g: Gif) {
         if (!TrainingLab.learning) return
         val id = g.id
-        val count = synchronized(recentLock) { skips.count(id) }
+        val count = synchronized(recentLock) { skips.count(id, System.currentTimeMillis()) }
         if (count == 3) TasteModel.noteSkip(g)
         if (count < 4) {
             synchronized(recentLock) { skips.bump(id, System.currentTimeMillis()); dirtySkips = true }
@@ -74,6 +74,7 @@ object ForYou {
         val skipJson: String?
         val recentJson: String?
         synchronized(recentLock) {
+            if (skips.prune(System.currentTimeMillis())) dirtySkips = true
             skipJson = if (dirtySkips) skips.toJson() else null
             recentJson = if (dirtyRecent) org.json.JSONArray(recent.saved()).toString() else null
             dirtySkips = false; dirtyRecent = false
@@ -93,6 +94,7 @@ object ForYou {
     fun recentOrder() = synchronized(recentLock) { if (TrainingLab.learning) recent.order() else emptyMap() }
 
     fun clearTasteHistory() {
+        reset()
         synchronized(recentLock) {
             skips.clear()
             recent.restore(emptyList())
@@ -105,7 +107,11 @@ object ForYou {
         if (prefs != null) return
         prefs = ctx.applicationContext.getSharedPreferences("loopa", Context.MODE_PRIVATE)
         taste = TasteStore.open(ctx)
-        taste?.getString(TasteStore.SKIPS, null)?.let { raw -> runCatching { synchronized(recentLock) { skips.restore(raw) } } }
+        taste?.getString(TasteStore.SKIPS, null)?.let { raw -> runCatching { synchronized(recentLock) {
+            skips.restore(raw)
+            if (skips.prune(System.currentTimeMillis())) dirtySkips = true
+        } } }
+        if (dirtySkips) queueSave()
         prefs?.getString(RECENT_KEY, null)?.let { raw ->
             runCatching {
                 val saved = org.json.JSONArray(raw)

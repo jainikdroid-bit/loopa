@@ -87,12 +87,26 @@ object Search {
         val cs = java.util.concurrent.ExecutorCompletionService<List<Gif>>(pool)
         val batch = ArrayList<Future<List<Gif>>>()
         var n = 0
+        val successes = java.util.concurrent.atomic.AtomicInteger()
+        val failures = java.util.concurrent.atomic.AtomicInteger()
+        fun provider(task: () -> List<Gif>): List<Gif> {
+            return try {
+                lifetime.check()
+                task().also { successes.incrementAndGet() }
+            } catch (e: java.util.concurrent.CancellationException) { throw e }
+            catch (e: InterruptedException) { Thread.currentThread().interrupt(); throw e }
+            catch (e: Exception) {
+                failures.incrementAndGet()
+                android.util.Log.w("Loopa", "Search provider failed: ${e.javaClass.simpleName}")
+                emptyList()
+            }
+        }
         fun submit(task: () -> List<Gif>) {
             lifetime.check()
             batch += lifetime.track(cs.submit { lifetime.check(); task() })
             n++
         }
-        fun rg(query: String, byTag: Boolean, k: Int) { submit { runCatching { Api.page(query, order, k, byTag = byTag).gifs }.getOrDefault(emptyList()) } }
+        fun rg(query: String, byTag: Boolean, k: Int) { submit { provider { Api.page(query, order, k, byTag = byTag).gifs } } }
         try {
         if (p == 1) {
             synReady = false
@@ -108,9 +122,9 @@ object Search {
             val src = synchronized(this) { (synonyms.take(4).map { it to false } + tags.take(3).map { it to true }).let { l -> l.getOrNull(turn++ % maxOf(1, l.size)) } }
             src?.let { (s, byTag) -> val k = synchronized(this) { ((srcPage[s] ?: 1) + 1).also { srcPage[s] = it } }; rg(s, byTag, k) }
         }
-        if (reddit) submit { redditPart(q, p) }
+        if (reddit) submit { provider { redditPart(q, p) } }
         // сторонние сайты (галочки «Источники» в меню 👤): их поиск по тому же запросу, страница p
-        for (s in ForYou.onSources) submit { runCatching { s.tracked(q, false, p).gifs }.getOrDefault(emptyList()) }
+        for (s in ForYou.onSources) submit { provider { s.tracked(q, false, p).gifs } }
         var total = 0
         var synDone = p != 1
         if (p == 1) strong = 0
@@ -122,7 +136,7 @@ object Search {
             lifetime.check()
             val remaining = deadline - System.nanoTime()
             if (remaining <= 0) break
-            val done = cs.poll(remaining, TimeUnit.NANOSECONDS) ?: break
+            val done = cs.poll(minOf(remaining, TimeUnit.MILLISECONDS.toNanos(200)), TimeUnit.NANOSECONDS) ?: continue
             val got = runCatching { done.get() }.getOrDefault(emptyList())
             lifetime.check()
             i++
@@ -153,7 +167,10 @@ object Search {
             // мимо (0) не показываем; похожее (синонимы, корень, часть слов) — показываем, но ниже точного
             part(scored.filter { Relevance.visible(it.second) })
         }
-        android.util.Log.i("Loopa", "Search page finished: $total rows")
+        lifetime.check()
+        if (successes.get() == 0 && (failures.get() > 0 || i < n))
+            throw java.io.IOException("Search providers unavailable")
+        android.util.Log.i("Loopa", "Search page finished: $total rows; provider failures: ${failures.get()}")
         return total
         } finally { batch.forEach { if (!it.isDone) it.cancel(true) } }
     }
@@ -192,10 +209,12 @@ object Search {
                     .distinct().filter { !it.lowercase().contains("audio") && !it.lowercase().contains("writing") }.take(5).also { rdSubs = it }
                 if (subs.isEmpty() || p > 1 && rdNext == null) emptyList()
                 else Reddit.page(subs.joinToString("+"), "top-month", rdNext).let { (g, next) -> rdNext = next; g }
-            }.onFailure { android.util.Log.w("Loopa", "Remote search failed: ${it.javaClass.simpleName}") }.getOrDefault(emptyList())
+            }.getOrThrow()
         })
         // живьём ждать можно дольше: остальные источники уже показаны
-        return try { f.get(25, TimeUnit.SECONDS).also { rdPending = null } } catch (e: java.util.concurrent.TimeoutException) { rdPending = f; emptyList() } catch (e: Exception) { rdPending = null; emptyList() }
+        return try { f.get(25, TimeUnit.SECONDS).also { rdPending = null } }
+        catch (e: java.util.concurrent.TimeoutException) { rdPending = f; throw e }
+        catch (e: Exception) { rdPending = null; throw e }
     }
     }
 }

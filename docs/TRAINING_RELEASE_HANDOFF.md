@@ -56,3 +56,12 @@ Status: implementation draft; **not release-ready until built, tested and review
 4. Finish translations, privacy text and README/changelog. Review any source-account or age-related policies before distribution.
 5. The existing build script can fall back to debug signing; **do not publish such a build**. Verify signing certificate matches the prior release and run release smoke tests; bump version code/name consistently. Review updater's release asset naming. Obtain approval before publishing.
 6. Record commit, test results, signer fingerprint (not key), migration/rollback steps, APK SHA-256, and release notes.
+
+## Search / feed reliability follow-up
+
+- Search and feed background requests now capture separate session objects on the UI thread. Reset/back cancels the old lifetime; cancelled tasks cannot write to the new session's cursors and buffers. Cancellation is cooperative: blocking third-party networking may finish after cancellation. Shared caches and provider-global state still need instrumentation review. The bounded worker pool is 12 feed workers plus existing dedicated pools; existing retrieval/ranking logic is otherwise unchanged.
+- Search polls for cancellation every 200 ms; outstanding page jobs are cancelled at deadline. All-provider failure is distinct from an empty successful response. Partial errors remain in local technical logs and existing source-health indicators; a full per-source diagnostics UI is not added.
+- Displayed exact count reflects accepted unique rows. Duplicate identity uses exact IDs / nonempty exact URLs; similar titles or dimensions/durations no longer imply identity. This intentionally permits some re-uploads rather than hiding unrelated items.
+- Skip history has a 30-day retention limit checked during use, initialization and save; legacy timestamp-zero records expire. Preference migration commits destination before clearing source.
+- Redacted queries, tags, subscription names, media IDs/URLs, response bodies and headers from the audited Search, ForYou, Reddit, Net and PlayerActivity log sites. Full repository log audit remains required.
+- CI setup now uses the runner's SDK manager instead of the deprecated 'tools' package. Standalone RequestLifetime logic passed 3 checks and 1,000 concurrent registration/cancellation races on Kotlin/JVM. Android compile/lint/tests and live device behavior still require CI verification. Added generic unit tests for identity and retention.

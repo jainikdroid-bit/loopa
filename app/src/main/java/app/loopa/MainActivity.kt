@@ -725,7 +725,7 @@ class MainActivity : Activity() {
                     else -> Feed.sub.split("+").joinToString(" + ") { "r/$it" }
                 } + " · " + Reddit.sort(Feed.rorder).label)
                 Feed.author != null -> append(tr("Автор: %s  (назад — к ленте)", Feed.author))
-                Feed.text.isNotEmpty() && !Feed.byTag -> append(tr("Поиск: «%s»", Feed.text) + " · " + tr("по теме %s", Search.exact) +
+                Feed.text.isNotEmpty() && !Feed.byTag -> append(tr("Поиск: «%s»", Feed.text) + " · " + tr("по теме %s", Feed.exact) +
                     Search.synonyms.takeIf { it.isNotEmpty() }?.let { " · " + tr("+ похожее:") + " " + it.take(4).joinToString(", ") }.orEmpty())
                 Feed.text.isNotEmpty() && !Feed.byTag -> append(tr("Поиск: «%s»", Feed.query.ifEmpty { Feed.text }) + (if (Feed.query.isNotEmpty() && !Feed.query.equals(Feed.text, true)) " («${Feed.text}»)" else "") +
                     (if (Feed.query.isNotEmpty()) " · " + tr("точных совпадений: %s", Feed.exact) + (if (Feed.exact > 0) " " + tr("(они первыми)") else "") else ""))
