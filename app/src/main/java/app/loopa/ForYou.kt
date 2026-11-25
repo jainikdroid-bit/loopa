@@ -23,24 +23,14 @@ import java.util.concurrent.Executors
  */
 object ForYou {
     /** Потоков столько, чтобы RedGIFs, Reddit и все сайты шли разом: ждать очереди за медленным сайтом незачем. */
-    private val pool = Executors.newCachedThreadPool()
+    private val pool = Executors.newFixedThreadPool(12)
+    private val rgPool = Executors.newFixedThreadPool(6)
+    private const val STOCK = 40
+    private const val PORTION = 30
+    private const val MIN_RG = 20
     private const val WAIT_RD = 6_000L
     private const val WAIT_EXT = 15_000L
     private var prefs: SharedPreferences? = null
-    private var rgPage = 0
-    private val tagPage = HashMap<String, Int>()
-    private var subs: List<String> = emptyList()
-    private var after: String? = null
-    private var redditDry = 0
-    /** Чередование источников Reddit: смесь сабреддитов / поиск постов по всему Reddit по интересу. */
-    private var turn = 0
-    private val searchAfter = HashMap<String, String?>()
-    private var rr = 0
-    private val subCursor = HashMap<String, String?>()
-    /** Адреса уже показанных в этой ленте — один ролик и с RedGIFs, и из Reddit не должен прийти дважды. */
-    private val shown = HashSet<String>()
-
-
     private val recent = RecentTiles()
     private val recentLock = Any()
     /** Пропуски живут в отдельном файле [TasteStore] (не больше 800 записей); пишем отложенно. */
@@ -150,10 +140,36 @@ object ForYou {
     val onSources get() = Sources.ALL.filter { uses(it) }
     /** Подписи источников для строки статуса. */
     val sources get() = listOfNotNull("RedGIFs".takeIf { useRg }, "Reddit".takeIf { reddit }) + onSources.map { it.title }
-    /** Почему Reddit не подмешался (для строки статуса); null — всё в порядке. */
-    @Volatile var redditNote: String? = null; private set
+    /** Доли источников (меню сортировки «Для вас»): вес 1 — мало, 2 — средне, 3 — много; относительные. */
+    val WEIGHTS = listOf(1 to "Мало", 2 to "Средне", 3 to "Много")
+    fun weight(src: String): Int = prefs?.getInt("w_$src", 2) ?: 2
+    fun setWeight(src: String, w: Int) { prefs?.edit()?.putInt("w_$src", w)?.apply() }
 
-    @Synchronized fun reset() { rgBuf.clear(); rdBuf.clear(); extBuf.clear(); dead.clear(); extra = 0; pendingRd = null; redditNote = null; turn = 0; rr = 0; subCursor.clear(); searchAfter.clear(); rgPage = 0; tagPage.clear(); subs = emptyList(); after = null; redditDry = 0; shown.clear(); extTurn.clear() }
+    @Volatile private var current = Session()
+    internal fun session() = current
+    val redditNote get() = current.redditNote
+    @Synchronized fun reset() {
+        current.close()
+        current = Session()
+    }
+
+    internal class Session {
+    private val lifetime = RequestLifetime()
+    fun close() = lifetime.cancel()
+    @Volatile var redditNote: String? = null; private set
+    private var rgPage = 0
+    private val tagPage = HashMap<String, Int>()
+    private var subs: List<String> = emptyList()
+    private var after: String? = null
+    private var redditDry = 0
+    /** Чередование источников Reddit: смесь сабреддитов / поиск постов по всему Reddit по интересу. */
+    private var turn = 0
+    private val searchAfter = HashMap<String, String?>()
+    private var rr = 0
+    private val subCursor = HashMap<String, String?>()
+    /** Адреса уже показанных в этой ленте — один ролик и с RedGIFs, и из Reddit не должен прийти дважды. */
+    private val shown = HashSet<String>()
+
 
     /** Следующая порция (в фоне). Пусто — источники кончились. Ошибка — только если не ответил ни один. */
     /** Порция Reddit, не успевшая к прошлой выдаче, — войдёт в следующую. */
@@ -166,23 +182,17 @@ object ForYou {
     private val extBuf = HashMap<String, ArrayList<Gif>>()
     private fun bufOf(id: String) = extBuf.getOrPut(id) { ArrayList() }
     /** Запас источника, больше которого не догружаем (новое ждёт, пока выдадим старое). */
-    private const val STOCK = 40
-    /** Роликов в порции. */
-    private const val PORTION = 30
-
-    /** Доли источников (меню сортировки «Для вас»): вес 1 — мало, 2 — средне, 3 — много; относительные. */
-    val WEIGHTS = listOf(1 to "Мало", 2 to "Средне", 3 to "Много")
-    fun weight(src: String): Int = prefs?.getInt("w_$src", 2) ?: 2
-    fun setWeight(src: String, w: Int) { prefs?.edit()?.putInt("w_$src", w)?.apply() }
+    // Buffer size and page size are defined on the enclosing object.
 
     private fun page1(): List<Gif> {
+        lifetime.check()
         val rdOn = reddit && redditDry < 3
         fun low(b: ArrayList<Gif>) = synchronized(this) { b.size } < STOCK
-        val rgF = if (useRg && low(rgBuf)) pool.submit<List<Gif>> { rg() } else null
-        val extF = onSources.mapNotNull { s -> if (low(synchronized(this) { bufOf(s.id) })) s to pool.submit<List<Gif>> { ext(s) } else null }
+        val rgF = if (useRg && low(rgBuf)) lifetime.track(pool.submit<List<Gif>> { lifetime.check(); rg() }) else null
+        val extF = onSources.mapNotNull { s -> if (low(synchronized(this) { bufOf(s.id) })) s to lifetime.track(pool.submit<List<Gif>> { lifetime.check(); ext(s) }) else null }
         // Reddit (страница сайта) бывает медленным — не успел за WAIT_RD — войдёт в следующую порцию
-        val rdF = pendingRd ?: if (rdOn && low(rdBuf)) pool.submit<List<Gif>> { redditBatch() } else null
-        val a = rgF?.let { runCatching { it.get() } }
+        val rdF = pendingRd ?: if (rdOn && low(rdBuf)) lifetime.track(pool.submit<List<Gif>> { lifetime.check(); redditBatch() }) else null
+        val a = rgF?.let { runCatching { it.get(WAIT_EXT, java.util.concurrent.TimeUnit.MILLISECONDS) }.onFailure { _ -> it.cancel(true) } }
         // сторонний сайт не ответил за WAIT_EXT (блок, капча, медленная сеть) — порция без него, ответ отменяем
         val until = System.currentTimeMillis() + WAIT_EXT
         val extR = extF.map { (s, f) -> s to runCatching { f.get(maxOf(1L, until - System.currentTimeMillis()), java.util.concurrent.TimeUnit.MILLISECONDS) }.onFailure { f.cancel(true) } }
@@ -190,8 +200,9 @@ object ForYou {
             try { runCatching { f.get(WAIT_RD, java.util.concurrent.TimeUnit.MILLISECONDS) }.also { pendingRd = null } }
             catch (e: Exception) { null }
         }?.let { r -> if (r.exceptionOrNull() is java.util.concurrent.TimeoutException) { pendingRd = rdF; null } else r }
-        b?.exceptionOrNull()?.let { e -> val c = unwrap(e); redditNote = "Reddit: " + (c.message ?: c.javaClass.simpleName); android.util.Log.w("Loopa", "Для вас: Reddit не ответил", c) }
+        b?.exceptionOrNull()?.let { e -> val c = unwrap(e); redditNote = "Reddit: " + c.javaClass.simpleName; android.util.Log.w("Loopa", "Remote request failed: ${c.javaClass.simpleName}") }
             ?: run { if (b != null) redditNote = if (b.getOrNull().isNullOrEmpty()) redditNote ?: tr("Reddit: пусто") else null }
+        lifetime.check()
         return synchronized(this) {
             a?.getOrNull()?.let { rgBuf += rank(it) }
             b?.getOrNull()?.let { rdBuf += rank(it) }
@@ -238,6 +249,7 @@ object ForYou {
 
     /** Порция; пустая (всё уже видели, источники исчерпаны) — ещё пара попыток с другими источниками, прежде чем сказать «кончилось». */
     fun page(): List<Gif> {
+        lifetime.check()
         repeat(3) { val l = page1(); if (l.isNotEmpty()) return l }
         return emptyList()
     }
@@ -254,7 +266,7 @@ object ForYou {
      */
     private fun rg(): List<Gif> {
         val jobs = ArrayList<java.util.concurrent.Future<List<Gif>>>()
-        fun src(f: () -> List<Gif>) { jobs += rgPool.submit<List<Gif>> { f() } }
+        fun src(f: () -> List<Gif>) { lifetime.check(); jobs += lifetime.track(rgPool.submit<List<Gif>> { lifetime.check(); f() }) }
         if (Api.loggedIn) src { Api.page("", "trending", synchronized(this) { ++rgPage }, mode = "foryou").gifs }
         // шире выборка: два разных сочетания и два разных тега за порцию (по весу, не только самые верхние)
         val pr1 = Interests.pickPair(dead); pr1?.let { pr -> src { byTag(pr) } }
@@ -264,7 +276,8 @@ object ForYou {
         if (synchronized(this) { extra++ } % 2 == 0) Interests.pickQuery(dead)?.let { q -> src { byQuery(q) } }
         else Interests.pickUser(dead)?.let { u -> src { byUser(u) } }
         if (jobs.isEmpty()) return Api.page("", "trending", synchronized(this) { ++rgPage }).gifs
-        val res = jobs.map { runCatching { it.get() } }
+        val res = try { jobs.map { runCatching { it.get(WAIT_EXT, java.util.concurrent.TimeUnit.MILLISECONDS) } } } finally { jobs.forEach { if (!it.isDone) it.cancel(true) } }
+        lifetime.check()
         if (res.all { it.isFailure }) throw unwrap(res.first().exceptionOrNull()!!)
         val got = res.flatMap { it.getOrDefault(emptyList()) }
         // узкие интересы дали мало (редкие теги, сочетания) — добрать популярным, чтобы лента не пустела
@@ -272,9 +285,7 @@ object ForYou {
         android.util.Log.i("Loopa", "Для вас: RedGIFs по интересам мало (${got.size}) — добираю популярным")
         return got + runCatching { Api.page("", "trending", synchronized(this) { ++rgPage }).gifs }.getOrDefault(emptyList())
     }
-    private val rgPool = Executors.newFixedThreadPool(6)
-    /** Меньше стольких роликов RedGIFs за порцию — добор популярным. */
-    private const val MIN_RG = 20
+    // The shared worker pool is bounded on the enclosing object.
 
     /** Сторонний сайт: по очереди личная лента (если вошли) и поиск по интересу; пусто — источник на эту ленту исчерпан. */
     private fun ext(src: Source): List<Gif> {
@@ -282,19 +293,21 @@ object ForYou {
         val feeds = if (s != null && Ext.loggedIn(s)) Ext.feeds(s).filter { "${s.id}:$it" !in dead } else emptyList()
         val n = synchronized(this) { extTurn.merge(src.id, 1, Int::plus)!! }
         val feed = feeds.takeIf { it.isNotEmpty() && n % 2 == 1 }?.random()
+        lifetime.check()
         if (feed != null && src === Erome) {
             val k = "${src.id}:$feed"
             val g = runCatching { Erome.feed(feed, next(k)).gifs }.getOrDefault(emptyList())
             if (g.isEmpty()) dead += k
-            android.util.Log.i("Loopa", "Для вас: ${src.title} лента $feed — ${g.size}")
+            android.util.Log.i("Loopa", "Source response: ${g.size} rows")
             if (g.isNotEmpty()) return g
         }
         val term = (if (n % 3 == 0) Interests.pickQuery(dead) else null) ?: Interests.pickTag(dead) ?: Interests.top("kw", 5).randomOrNull()?.first ?: ""
         val k = "${src.id}:q:$term"
         if (k in dead) return emptyList()
+        lifetime.check()
         val g = src.tracked(term, false, next(k)).gifs
         if (g.isEmpty()) dead += k
-        android.util.Log.i("Loopa", "Для вас: ${src.title} «$term» — ${g.size}")
+        android.util.Log.i("Loopa", "Source response: ${g.size} rows")
         return g
     }
     private val extTurn = HashMap<String, Int>()
@@ -306,7 +319,7 @@ object ForYou {
 
     private fun byTag(t: String) = Api.page(t, "trending", next(t), byTag = true).gifs.also {
         if (it.isEmpty()) dead += t
-        android.util.Log.i("Loopa", "Для вас: ${if (',' in t) "сочетание" else "тег"} «$t» — ${it.size}")
+        android.util.Log.i("Loopa", "Source response: ${it.size} rows")
     }
 
     /** Прошлый поиск: текстовый поиск RedGIFs нечёткий — берём только ролики со всеми словами запроса. */
@@ -315,21 +328,22 @@ object ForYou {
         val all = Api.page(q, "trending", next("q:$q"), byTag = false).gifs
         if (all.isEmpty()) dead += q
         return all.filter { g -> val t = (g.tags.joinToString(" ") + " " + g.description).lowercase().replace(" ", ""); ws.all { it in t } }
-            .also { android.util.Log.i("Loopa", "Для вас: поиск «$q» — ${it.size} из ${all.size}") }
+            .also { android.util.Log.i("Loopa", "Source response: ${it.size} rows") }
     }
 
     private fun byUser(u: String) = runCatching { Api.page("", "latest", next("u:$u"), author = u).gifs }.getOrDefault(emptyList())
-        .also { if (it.isEmpty()) dead += u; android.util.Log.i("Loopa", "Для вас: автор $u — ${it.size}") }
+        .also { if (it.isEmpty()) dead += u; android.util.Log.i("Loopa", "Source response: ${it.size} rows") }
 
     /** Каждый второй раз — поиск по всему Reddit по любимому тегу/слову (новые сабреддиты сами попадают в профиль). */
     private fun redditBatch(): List<Gif> {
+        lifetime.check()
         if (turn++ % 2 == 1) {
             val term = Interests.pickTag() ?: Interests.top("kw", 5).randomOrNull()?.first
             if (term != null && !(searchAfter.containsKey(term) && searchAfter[term] == null)) {
                 // поиск постов API может резать (403) — тогда просто смесь сабреддитов
                 runCatching { Reddit.searchPosts(term, searchAfter[term]) }.onSuccess { (g, next) ->
                     synchronized(this) { searchAfter[term] = next }
-                    android.util.Log.i("Loopa", "Для вас: поиск по Reddit «$term» — ${g.size}")
+                    android.util.Log.i("Loopa", "Remote response: ${g.size} rows")
                     if (g.isNotEmpty()) return g
                 }.onFailure { synchronized(this) { searchAfter[term] = null } }
             }
@@ -338,6 +352,7 @@ object ForYou {
     }
 
     private fun mixBatch(): List<Gif> {
+        lifetime.check()
         if (subs.isEmpty()) subs = chooseSubs()
         if (subs.isEmpty()) { redditDry = 3; redditNote = tr("Reddit: не нашлось сабреддитов по интересам"); android.util.Log.w("Loopa", "Для вас: нет сабреддитов"); return emptyList() }
         // по одному сабреддиту за раз, по кругу (страница сайта смеси через «+» не открывает); у каждого — свой курсор
@@ -346,7 +361,7 @@ object ForYou {
             synchronized(this) { subs = subs - sub; if (subs.isEmpty()) subCursor.clear() }
             return if (subs.isEmpty()) emptyList() else mixBatch()
         }
-        android.util.Log.i("Loopa", "Для вас: Reddit r/$sub (смесь ${subs.joinToString("+")})")
+        // Do not log private subscription names.
         val (gifs, next) = Reddit.page(sub, "hot", subCursor[sub])
         synchronized(this) {
             subCursor[sub] = next
@@ -354,7 +369,7 @@ object ForYou {
             // почти одни картинки (меньше 3 видео со страницы) — этот сабреддит больше не берём, место — следующему
             if (gifs.size < 3) { lowYield += sub.lowercase(); subs = subs - sub }
         }
-        android.util.Log.i("Loopa", "Для вас: r/$sub дал ${gifs.size} видео")
+        android.util.Log.i("Loopa", "Remote response: ${gifs.size} rows")
         return gifs
     }
 
@@ -381,10 +396,10 @@ object ForYou {
         var lookups = 0
         (Interests.top("tag", 5) + Interests.top("kw", 3)).forEach { (term, x) ->
             val found = Interests.mapped(term) ?: if (lookups++ < 3) runCatching { Reddit.searchSubs(term) }
-                .onFailure { android.util.Log.w("Loopa", "поиск сабреддитов «$term»", it) }.getOrNull()?.also { Interests.map(term, it) } else null
+                .onFailure { android.util.Log.w("Loopa", "Remote lookup failed: ${it.javaClass.simpleName}") }.getOrNull()?.also { if (lifetime.active) Interests.map(term, it) } else null
             found?.forEach { add(it, x * 0.6) }
         }
-        runCatching { Reddit.subscribedNsfw() }.onFailure { android.util.Log.w("Loopa", "подписки Reddit", it) }.getOrDefault(emptyList()).forEach { add(it, 1.0) }
+        runCatching { Reddit.subscribedNsfw() }.onFailure { android.util.Log.w("Loopa", "Remote lookup failed: ${it.javaClass.simpleName}") }.getOrDefault(emptyList()).forEach { add(it, 1.0) }
         // аудио- и текстовые сабреддиты видео не дают; закрытые/карантин (403) — не брать
         // только сабреддиты 18+: обычные (из старых поисков, подписок) видео 18+ не дают
         val ranked = w.entries.sortedByDescending { it.value }.map { it.key }.filter { !Reddit.isBad(it) && it !in lowYield && !it.contains("audio") && !it.contains("writing") }
@@ -403,5 +418,6 @@ object ForYou {
         val scored = l.filter { !dismissed(it.id) && !Interests.isSeen(it.id) && shown.add(it.hd) }
             .map { g -> val t = Interests.score(g); taste[g.id] = Interests.damp(t * Ranker.norm(g.tags.size)); g to Ranker.value(t, g.tags.size, g.likes, g.views, Math.random()) }
         return Ranker.diversify(Ranker.dropDisliked(scored) { taste[it.id] ?: 0.0 })
+    }
     }
 }

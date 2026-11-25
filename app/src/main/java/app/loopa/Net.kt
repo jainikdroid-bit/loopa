@@ -154,7 +154,7 @@ object Net {
         override fun connectStart(call: okhttp3.Call, inetSocketAddress: java.net.InetSocketAddress, proxy: java.net.Proxy) { connect = System.currentTimeMillis() }
         override fun responseHeadersEnd(call: okhttp3.Call, response: okhttp3.Response) {
             val dt = System.currentTimeMillis() - t0
-            if (dt > SLOW_MS) android.util.Log.i("Loopa", "медленный запрос: ${call.request().method} ${call.request().url.host}…${call.request().url.encodedPath.takeLast(32)}" +
+            if (dt > SLOW_MS) android.util.Log.i("Loopa", "медленный запрос: ${call.request().method} ${call.request().url.host}" +
                 " — ответ через $dt мс${if (connect > 0) " (новое соединение)" else ""}, одновременно запросов: $parallel")
         }
         override fun callEnd(call: okhttp3.Call) { running.decrementAndGet() }

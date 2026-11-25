@@ -250,7 +250,7 @@ class PlayerActivity : Activity() {
                     Stats.event("playback_error")
                     // сеть: показать и повторить самим; прочее (файл удалён, вместо видео картинка или заглушка) — так и сказать,
                     // но не листать самим: иначе на этот ролик не вернуться — каждый раз уносит к следующему
-                    android.util.Log.w("Loopa", "ошибка плеера ${e.errorCodeName}: ${list.getOrNull(current)?.id}")
+                    android.util.Log.w("Loopa", "Player error: ${e.errorCodeName}")
                     if (fallbackToNet()) return
                     // ленивый адрес мог устареть (подпись истекла, 403) — повтор спросит сайт заново
                     list.getOrNull(current)?.let { Sources.forget(it.hd); Sources.forget(it.sd) }
@@ -258,7 +258,7 @@ class PlayerActivity : Activity() {
                         holder?.spin?.apply { text = tr("нет связи — повторю…"); visibility = View.VISIBLE }
                         ui.removeCallbacks(replay); ui.postDelayed(replay, minOf(30_000L, 2000L shl minOf(fails, 4))); fails++
                     } else {
-                        android.util.Log.w("Loopa", "ролик не открывается: ${list.getOrNull(current)?.hd}", e)
+                        android.util.Log.w("Loopa", "Playback unavailable: ${e.errorCodeName}")
                         holder?.spin?.apply { text = tr("Этот ролик не открывается (удалён или это не видео) — листайте дальше"); visibility = View.VISIBLE }
                     }
                 }
@@ -332,7 +332,7 @@ class PlayerActivity : Activity() {
     private fun fallbackToNet(): Boolean {
         val g = list.getOrNull(current) ?: return false
         if (!isLocal(player.currentMediaItem)) return false
-        android.util.Log.w("Loopa", "сохранённый файл не играет, перехожу на сеть: ${g.id}")
+        android.util.Log.w("Loopa", "Cached media unavailable")
         CachedExport.forget(g)
         val at = player.currentPosition
         managed[current]?.let { preload.remove(it) }
@@ -392,7 +392,7 @@ class PlayerActivity : Activity() {
         // сначала новый источник, потом поверхность: иначе прежний ролик успевал отрисовать кадр на новой странице —
         // превью пряталось, и до первого кадра нового стоял застывший кадр чужого видео
         val m = managed.getValue(pos)
-        android.util.Log.i("Loopa", "ролик ${pos + 1}/${list.size}: ${list[pos].id}, предзагружен: ${preload.getMediaSource(m) != null}")
+        android.util.Log.i("Loopa", "Player position ${pos + 1}/${list.size}; preloaded: ${preload.getMediaSource(m) != null}")
         // заставка сайта пропускается стартовой позицией (не обрезкой): перемоткой назад её можно досмотреть.
         // Повтор (REPEAT_MODE_ONE) начинает с 0, то есть вся заставка проигрывается заново — так проще и не ломает перемотку
         player.setMediaSource(source(m), introAt(pos))
