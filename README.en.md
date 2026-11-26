@@ -55,6 +55,7 @@ Search learns preferences for each query on the device. With relevance sorting, 
   before the end. In the player, the start of the next 1–2 videos in the swipe direction is preloaded (Media3
   PreloadManager), but only once the video on screen has buffer: while it is loading, preloading pauses. Depth depends
   on the network: fast — more, mobile — one video, Data Saver — nothing; fast swiping skips the clips in between.
+- **Russian search:** a Russian query is translated to English with a built-in dictionary and searched on every source alongside the original; relevance takes the better of the two. Unknown Russian words are dropped.
 - **Grid layout:** number of columns (portrait 1–4, landscape 2–6), tile ratio (1:1, 3:4, 9:16, 16:9) and spacing — ⧩ → “Settings” → “Feed”; defaults unchanged.
 - **Four colour themes:** black (default), pink, red and violet — the background stays dark, the accent colour and the tint of surfaces change. Choose in ⧩ → “Settings” → “Appearance”; applied at once on every screen, including the player and the 3D graph.
 - **Disk cache.** Videos — an LRU cache of 512 MB–1 GB depending on free space (or 512 MB / 1 GB / 2 GB in ⧩ → “Settings” → “Video

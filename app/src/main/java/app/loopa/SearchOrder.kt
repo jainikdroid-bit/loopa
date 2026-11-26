@@ -30,6 +30,13 @@ object Relevance {
      *  0 — мимо, в выдачу не идёт (пост Reddit с частью слов — 0,1…0,9, ниже всех).
      */
     fun score(g: Gif, q: String, alias: List<String>, synonyms: List<String>): Double {
+        // русский запрос: оцениваем и как есть (русские названия), и в английском переводе (теги источников английские)
+        val en = Thesaurus.translate(q)
+        val own = scoreOf(g, q, alias, synonyms)
+        return if (en == null) own else maxOf(own, scoreOf(g, en, alias, synonyms))
+    }
+
+    private fun scoreOf(g: Gif, q: String, alias: List<String>, synonyms: List<String>): Double {
         fun tokens(s: String) = s.replace(CAMEL_BOUNDARY, " ").lowercase().split(SPLIT).filter { it.isNotEmpty() }
         val fields = (g.tags + listOf(g.description, g.sub)).map(::tokens)
         fun phraseMatch(query: List<String>): Boolean = query.isNotEmpty() && fields.any { field ->

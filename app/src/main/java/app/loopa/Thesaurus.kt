@@ -76,4 +76,61 @@ object Thesaurus {
         return keys.flatMap { k -> MAP[k] ?: MAP.entries.firstOrNull { (key, _) -> key.length >= 4 && (k.startsWith(key) || key.startsWith(k) && k.length >= 4) }?.value ?: emptyList() }
             .plus(abbr).filter { it.replace(" ", "") != n }.distinct()
     }
+
+    // ---- русские запросы -> английские (теги и названия на источниках английские) ----
+
+    /** Целиком слово (после приведения к нижнему регистру, «ё» = «е»): служебные — пропускаются. */
+    private val RU_STOP = setOf("в", "на", "с", "со", "и", "для", "по", "к", "у", "от", "из", "за", "над", "под", "о", "об", "а", "но", "или", "как", "мой", "моя", "её", "ее", "его")
+
+    /** Слова точным совпадением (короткие — по префиксу нельзя: «поп» поймал бы «попытка»). */
+    private val RU_WORD = mapOf(
+        "поп" to "ass", "попа" to "ass", "попка" to "ass", "попку" to "ass", "жопа" to "ass", "жопу" to "ass",
+        "мама" to "mom", "маму" to "mom", "сестра" to "sister", "сестру" to "sister", "брат" to "brother", "жена" to "wife", "жену" to "wife",
+        "муж" to "husband", "пара" to "couple", "пары" to "couple", "двое" to "couple", "порно" to "porn",
+        "рот" to "mouth", "рта" to "mouth", "ног" to "feet", "ноги" to "feet", "ножки" to "feet", "ступни" to "feet", "стопы" to "feet",
+        "сиськи" to "tits", "сиськами" to "tits", "грудь" to "tits", "груди" to "tits", "дом" to "homemade", "душ" to "shower", "душе" to "shower",
+        "кино" to "movie", "лицо" to "face", "лицу" to "face", "лице" to "face", "очки" to "glasses", "очках" to "glasses",
+        "секс" to "sex", "анал" to "anal", "пов" to "pov", "бдсм" to "bdsm", "милф" to "milf", "гей" to "gay", "геи" to "gay",
+    )
+
+    /** Начала слов (длиннее трёх букв): склонения и числа — «блондинка», «блондинку», «блондинки». */
+    private val RU_STEM = mapOf(
+        "девушк" to "girl", "девочк" to "girl", "женщин" to "woman", "мужчин" to "man", "парн" to "guy", "парень" to "guy",
+        "мамоч" to "mom", "мамаш" to "mom", "зрел" to "mature", "студентк" to "student", "школьниц" to "schoolgirl", "медсестр" to "nurse",
+        "секретарш" to "secretary", "учительниц" to "teacher", "училк" to "teacher", "русск" to "russian", "азиат" to "asian",
+        "японк" to "japanese", "япон" to "japanese", "китаян" to "chinese", "кореянк" to "korean", "латин" to "latina",
+        "темнокож" to "ebony", "негритянк" to "ebony", "блондинк" to "blonde", "брюнетк" to "brunette", "рыж" to "redhead",
+        "больш" to "big", "огромн" to "huge", "маленьк" to "small", "толст" to "bbw", "пухл" to "chubby", "худощав" to "skinny", "худая" to "skinny", "худые" to "skinny", "стройн" to "slim",
+        "сисек" to "tits", "сиськ" to "tits", "задниц" to "ass", "минет" to "blowjob", "отсос" to "blowjob", "вагин" to "pussy", "киск" to "pussy",
+        "член" to "cock", "дроч" to "handjob", "мастурб" to "masturbation", "трах" to "fuck", "кончи" to "cumshot", "кончал" to "cumshot",
+        "сперм" to "cum", "камшот" to "cumshot", "групп" to "group", "тройнич" to "threesome", "свинг" to "swinger", "лесби" to "lesbian",
+        "домашн" to "homemade", "любител" to "amateur", "ролев" to "roleplay", "массаж" to "massage", "ванн" to "bath", "офис" to "office",
+        "кухн" to "kitchen", "машин" to "car", "публичн" to "public", "пляж" to "beach", "бассейн" to "pool", "связан" to "bondage",
+        "госпож" to "femdom", "чулк" to "stockings", "колгот" to "pantyhose", "белье" to "lingerie", "бель" to "lingerie", "каблук" to "heels",
+        "косплей" to "cosplay", "танц" to "dance", "стриптиз" to "striptease", "мокр" to "wet", "сквирт" to "squirt", "оргазм" to "orgasm",
+        "стон" to "moaning", "крупн" to "closeup", "медленн" to "slow", "жестк" to "hardcore", "нежн" to "gentle", "сзади" to "doggystyle",
+        "наездниц" to "cowgirl", "миссионер" to "missionary", "горяч" to "hot", "красив" to "beautiful", "красотк" to "beauty", "молод" to "young",
+        "соседк" to "neighbor", "подруг" to "girlfriend", "тещ" to "mother in law", "мачех" to "stepmom", "падчериц" to "stepdaughter",
+        "скрыт" to "hidden cam", "тату" to "tattoo", "пирсинг" to "piercing", "волосат" to "hairy", "бритая" to "shaved", "бритой" to "shaved",
+    )
+
+    private val CYRILLIC = Regex("[а-яё]")
+
+    /**
+     * Русский запрос -> английский («большие сиськи блондинка» -> «big tits blonde»). Латинские слова остаются как есть,
+     * незнакомые русские отбрасываются; null — запрос не русский или ни одно слово не узнано. Чистая функция.
+     */
+    fun translate(q: String): String? {
+        val lower = q.lowercase().replace('ё', 'е')
+        if (!CYRILLIC.containsMatchIn(lower)) return null
+        var known = 0
+        val out = ArrayList<String>()
+        for (w in lower.split(Regex("[^\\p{L}0-9]+")).filter { it.isNotEmpty() }) {
+            if (!CYRILLIC.containsMatchIn(w)) { out += w; continue }
+            if (w in RU_STOP) continue
+            val en = RU_WORD[w] ?: RU_STEM.entries.filter { w.startsWith(it.key) }.maxByOrNull { it.key.length }?.value
+            if (en != null) { known++; out += en }
+        }
+        return if (known == 0) null else out.distinct().joinToString(" ")
+    }
 }

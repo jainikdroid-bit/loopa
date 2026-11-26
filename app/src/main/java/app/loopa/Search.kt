@@ -45,6 +45,8 @@ object Search {
     private val lifetime = RequestLifetime()
     fun close() = lifetime.cancel()
     private val text = initial
+    /** Английский перевод русского запроса (null — запрос не русский): теги и названия на источниках английские. */
+    private val en: String? = Thesaurus.translate(initial)
     @Volatile var synonyms: List<String> = emptyList(); private set
     private var tags: List<String> = emptyList()
     private val srcPage = HashMap<String, Int>()
@@ -113,17 +115,19 @@ object Search {
             synReady = false
             val nq = norm(q)
             (1..3).forEach { rg(q, false, it) }
+            en?.let { e -> (1..3).forEach { rg(e, false, it) } }
             // сокращение: по полным фразам; если фраза — готовый тег RedGIFs («Ass to Pussy»), то по тегу (текстом его не найти)
             alias.forEach { a -> val t = exactTag(a); if (t != null) { rg(t, true, 1); rg(t, true, 2); rg(t, true, 3) } else { rg(a, false, 1); rg(a, false, 2) } }
             if (' ' in q.trim()) rg(nq, false, 1)                        // «bed post» → «bedpost»
             // синонимы и близкие теги ищутся, пока идёт основной запрос; Reddit — тоже параллельно
-            submit { val syn = runCatching { synonymsFor(q) }.getOrDefault(emptyList<String>() to emptyList()); lifetime.check(); synchronized(this) { synonyms = syn.first; tags = syn.second }; synReady = true; emptyList() }
+            submit { val syn = runCatching { synonymsFor(en ?: q) }.getOrDefault(emptyList<String>() to emptyList()); lifetime.check(); synchronized(this) { synonyms = syn.first; tags = syn.second }; synReady = true; emptyList() }
         } else {
             rg(q, false, p + 2)
+            en?.let { rg(it, false, p + 2) }
             val src = synchronized(this) { (synonyms.take(4).map { it to false } + tags.take(3).map { it to true }).let { l -> l.getOrNull(turn++ % maxOf(1, l.size)) } }
             src?.let { (s, byTag) -> val k = synchronized(this) { ((srcPage[s] ?: 1) + 1).also { srcPage[s] = it } }; rg(s, byTag, k) }
         }
-        if (reddit) submit { provider { redditPart(q, p) } }
+        if (reddit) submit { provider { redditPart(en ?: q, p) } }
         // сторонние сайты (галочки «Источники» в меню 👤): их поиск по тому же запросу, страница p
         for (s in ForYou.onSources) submit { provider { s.tracked(q, false, p).gifs } }
         var total = 0
