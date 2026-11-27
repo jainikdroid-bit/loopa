@@ -180,6 +180,7 @@ The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) 
 | 1.29 | Preview hot moments — one in each part of the clip (start 5–30 %, middle 35–65 %, end 70–95 %); a part without a clear peak uses 10/50/80 %: pieces never bunch up, so the story shows |
 | 1.30 | Settings → Sources → “Source check”: the status of every site (working / needs a check / temporary error, when it last answered) and a manual check, even without the “!” badge |
 | 1.31 | “For you” remembers the last 240 tiles: one scrolled past 4 times drops lower; the player shows a cache bar and fills gaps; feed and search learn from skipped / watched / liked / downloaded, search puts the exact phrase first; new source PeerTube (explicitly tagged adult posts) |
+| 1.39 | Feed, search and playback stability: stale requests and preloads are cancelled, Enter starts search once, and third-party sources use translated Russian queries. Reddit downloads appear after the file is fully written. Opt-in statistics add quality metrics. Local diagnostics have a separate switch. |
 | 1.9.2 | No more frozen start: the player page isn't rebound when the feed loads more, no stale frame on swipe, neighbours preload after the current video has buffer, dead links fail fast |
 | 1.9.1 | “For you” never runs dry: topped up with popular videos when interest matches are few |
 | 1.9 | Erome and Eporner, sign-in to them, “Similar” in the player, welcome screen, source shares “low / medium / high” |
