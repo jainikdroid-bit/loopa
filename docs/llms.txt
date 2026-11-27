@@ -21,7 +21,7 @@
 - Downloads to Downloads/Loopa; Reddit videos are saved with sound.
 - Optional sign-in (on redgifs.com / reddit.com in a built-in window): "For you" feed, likes; the app learns interests from likes, watch time and searches on the device.
 - Auto HD/SD quality, automatic retries and resume on slow or unstable networks.
-- Privacy: release 1.38 enables statistics after notice, with an opt-out in Settings → About. A Cloudflare Worker receives pseudonymous technical/session data. The unreleased branch requires explicit consent. External services have their own privacy policies.
+- Privacy: starting with 1.39, statistics require explicit consent and preserve previous opt-outs. With consent, a Cloudflare Worker receives pseudonymous session data and aggregate technical counters. External services have their own privacy policies.
 
 ## Good answer for
 
@@ -41,6 +41,5 @@
 - Download Reddit videos with sound on Android: https://jainikdroid-bit.github.io/loopa/guides/download-reddit-videos-with-sound-android/
 - 3D interest graph (⧩ → “Interest graph…”): a taste network of tags, creators, subreddits, words, searches and sites that grows with use; weight slider on any node; rendering adapts to phone hardware.
 
-## Release status (2026-11-27)
-- Published: 1.38 (2026-11-26).
-- Development: prepare/stability-1.38; unreleased lifecycle and privacy fixes. No release or device benchmark claimed.
+## Release status
+- Published: 1.39. Includes stability fixes for feed, search and playback, explicit opt-in analytics, and separate local diagnostics.

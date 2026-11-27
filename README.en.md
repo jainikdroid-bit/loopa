@@ -128,7 +128,7 @@ The interface is available in 10 languages (system language by default; change i
 
 Requires Android 8.0+.
 
-> **Status (27 November 2026):** published release 1.38 is dated 26 November. Branch `prepare/stability-1.38` contains unreleased lifecycle, statistics consent and local technical counter changes. [Verification and limitations](docs/DEVELOPMENT_STATUS.md).
+> **Adult Space 1.39** improves feed and player reliability, Russian search, and control over analytics. [Release verification](docs/DEVELOPMENT_STATUS.md).
 
 ## Privacy
 
@@ -138,7 +138,7 @@ Requires Android 8.0+.
   (`www.pornhub.com/webmasters`, the query text only, nothing about you). The sign-in windows are the exception:
   they show the real sites with everything those sites load.
 - Without sign-in it uses the temporary guest token the service hands to every website visitor.
-- Release 1.38 enables statistics after notice. The Settings → About switch lets you turn them off. Development code for the next release requires explicit opt-in and preserves previous opt-outs. With consent, the server receives a pseudonymous install ID, app version, device model, Android version, language, network type, sessions, and aggregate counters. Counters describe feature use, first search-page outcomes, load errors, buffering after playback starts, automatic switches to SD, and time-to-first-frame ranges. The Cloudflare Worker gets country and region from connection metadata. The statistics database does not store IP addresses. Search text, tags, viewing history and media URLs are excluded from telemetry.
+- Starting with 1.39, analytics require explicit opt-in. Previous opt-outs are preserved. Settings → About lets you change your choice. With consent, the server receives a pseudonymous install ID, app version, device model, Android version, language, network type, sessions, and aggregate counters. Counters describe feature use, first search-page outcomes, load errors, buffering after playback starts, automatic switches to SD, and time-to-first-frame ranges. The Cloudflare Worker gets country and region from connection metadata. The statistics database does not store IP addresses. Search text, tags, viewing history and media URLs are excluded from telemetry.
 - Local technical diagnostics use a separate opt-in. They keep aggregate counts for up to 10,000 events in a fixed 30-day window. Export requires a manual action. Turning diagnostics off clears those local counters.
 - Sign-in happens on the real site page (`redgifs.com`, `reddit.com`, `erome.com`, `eporner.com`) in an embedded window. You type your password into the site; the app
   never sees or stores it — only the session token or cookies are kept, in the app's private storage on your phone.
@@ -147,7 +147,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.38** (26 November 2026).
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.39**.
 
 | Version | What's new |
 |---|---|
