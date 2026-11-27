@@ -282,6 +282,24 @@ class SettingsActivity : Activity() {
         action(tr("Сайт"), "jainikdroid-bit.github.io/loopa") { open("https://jainikdroid-bit.github.io/loopa/") }
         toggle("Анонимная статистика / Anonymous stats", "Только по согласию; номер установки, версия, устройство, страна, время в приложении; без запросов и истории. Opt-in only.", Stats.enabled) { Stats.setEnabled(it) }
         action("Сбросить номер установки / Reset install ID", null) { Stats.resetId() }
+        toggle("Локальная диагностика / Local diagnostics", "Только технические счётчики, без отправки. Technical counters, no upload.", LocalTechnicalDiagnostics.enabled) {
+            LocalTechnicalDiagnostics.setEnabled(it); render()
+        }
+        if (LocalTechnicalDiagnostics.enabled) {
+            action("Технический отчёт / Technical report", null) {
+                LocalTechnicalDiagnostics.report()?.let { report ->
+                    AlertDialog.Builder(this).setTitle("Технический отчёт / Technical report").setMessage(report)
+                        .setPositiveButton("OK", null)
+                        .setNeutralButton("Поделиться / Share") { _, _ ->
+                            val share = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, report)
+                            startActivity(Intent.createChooser(share, "Technical report"))
+                        }.show()
+                }
+            }
+            action("Очистить диагностику / Clear diagnostics", null) {
+                LocalTechnicalDiagnostics.clear(); render()
+            }
+        }
         note(tr("Лицензия: MIT — свободное открытое ПО."))
         note(tr("Неофициальное приложение: к сервисам, ролики которых показывает, отношения не имеет. Только для совершеннолетних, 18+."))
     }

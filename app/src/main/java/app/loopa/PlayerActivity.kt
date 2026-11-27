@@ -209,6 +209,7 @@ class PlayerActivity : Activity() {
             volume = if (muted) 0f else 1f
             addListener(object : Player.Listener {
                 override fun onRenderedFirstFrame() {
+                    LocalTechnicalDiagnostics.event("first_frame")
                     if (!rendered) android.util.Log.i("Loopa", "первый кадр: ${System.currentTimeMillis() - settledAt} мс; видео с диска " +
                         "${(Video.fromCache.get() - cache0) shr 10} КБ, из сети ${(Video.fromNet.get() - net0) shr 10} КБ")
                     rendered = true; holder?.poster?.visibility = View.GONE
@@ -233,6 +234,7 @@ class PlayerActivity : Activity() {
                     if (st == Player.STATE_READY) { fails = 0; holder?.spin?.text = tr("загрузка…") }
                 }
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
+                    LocalTechnicalDiagnostics.event("playback_error")
                     hadPlaybackError = true
                     // сеть: показать и повторить самим; прочее (файл удалён, вместо видео картинка или заглушка) — так и сказать,
                     // но не листать самим: иначе на этот ролик не вернуться — каждый раз уносит к следующему
@@ -273,6 +275,7 @@ class PlayerActivity : Activity() {
     }
 
     override fun onPause() {
+        LocalTechnicalDiagnostics.event("player_background")
         backfill.stop()
         super.onPause(); if (!::player.isInitialized) return
         list.getOrNull(current)?.let { CachedExport.touch(it) }; CachedExport.sweep(list.getOrNull(current)?.id)

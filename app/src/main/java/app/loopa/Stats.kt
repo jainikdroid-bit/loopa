@@ -51,6 +51,7 @@ object Stats {
     fun init(a: Application) {
         if (::app.isInitialized) return
         app = a
+        LocalTechnicalDiagnostics.init(a)
         // Do not upload the old queue under a new consent policy.
         if (!asked) {
             val sp = prefs
