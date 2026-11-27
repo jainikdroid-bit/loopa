@@ -2,6 +2,7 @@ package app.loopa
 
 import android.os.Handler
 import android.os.Looper
+import java.util.concurrent.FutureTask
 import kotlin.concurrent.thread
 
 /**
@@ -89,7 +90,28 @@ object Feed {
     fun searchFor(g: Gif) = searchContext?.takeIf { items.any { it.id == g.id } }
     val generation get() = gen
     private var gen = 0
+    private var firstSearchPageReported = false
     private val ui = Handler(Looper.getMainLooper())
+    private var ordinaryRequest: RequestLifetime? = null
+
+    private fun cancelOrdinaryRequest() {
+        ordinaryRequest?.cancel()
+        ordinaryRequest = null
+    }
+
+    private fun <T> loadOrdinary(load: () -> T, publish: (Result<T>) -> Unit) {
+        val request = RequestLifetime()
+        ordinaryRequest = request
+        val task = request.track(FutureTask<Unit> {
+            val result = runCatching { request.run(load) }
+            ui.post {
+                if (ordinaryRequest !== request) return@post
+                ordinaryRequest = null
+                publish(result)
+            }
+        })
+        Thread(task, "loopa-feed").start()
+    }
     /** Сколько при поиске с профилем держим ответы источников ради общей сортировки, мс. */
     private const val HOLD_MS = 2_000L
     val listeners = LinkedHashSet<() -> Unit>()
@@ -123,6 +145,8 @@ object Feed {
     }
 
     fun reset(text: String, order: String, author: String? = null, mode: String? = null, tag: Boolean = false) {
+        cancelOrdinaryRequest()
+        firstSearchPageReported = false
         this.text = text; this.order = order; this.author = author; this.mode = mode; query = ""; tagOnly = tag; byTag = tag; exact = 0
         scoreOf.clear(); seenTo = 0; chaining = false
         items.clear(); page = 0; pages = 1; after = null; loading = false; error = null; fails = 0; chain = 0; stopRetry(); gen++
@@ -205,27 +229,19 @@ object Feed {
         }
         if (reddit) {
             val s = sub; val o = rorder; val a = after
-            thread {
-                val r = runCatching { Reddit.page(s, o, a) }
-                ui.post {
-                    if (g != gen) return@post
-                    loading = false
-                    r.onSuccess { (gifs, next) -> after = next; add("", false, p, Page(gifs, if (next != null) p + 1 else p, emptyList())) }.onFailure { fail(it) }
-                    changed()
-                }
+            loadOrdinary({ Reddit.page(s, o, a) }) { r ->
+                loading = false
+                r.onSuccess { (gifs, next) -> after = next; add("", false, p, Page(gifs, if (next != null) p + 1 else p, emptyList())) }.onFailure { fail(it) }
+                changed()
             }
             return
         }
         if (ext) {
             val m = mode; val t = text; val fresh = sort.id == "date" && desc
-            thread {
-                val r = runCatching { Sources.byId(m)!!.tracked(t, fresh, p) }
-                ui.post {
-                    if (g != gen) return@post
-                    loading = false
-                    r.onSuccess { add("", false, p, it) }.onFailure { fail(it) }
-                    changed()
-                }
+            loadOrdinary({ Sources.byId(m)!!.tracked(t, fresh, p) }) { r ->
+                loading = false
+                r.onSuccess { add("", false, p, it) }.onFailure { fail(it) }
+                changed()
             }
             return
         }
@@ -243,9 +259,11 @@ object Feed {
                     if (rows.isNotEmpty()) ui.post { if (g == gen) { addLive(rows); changed() } }
                 }
                 /** Удерживаемое отдать в выдачу (по релевантности); дальше всё идёт сразу, как раньше. */
-                fun release() {
-                    val rows = synchronized(deferred) { released = true; deferred.toList().also { deferred.clear() } }
-                    publish(rows.sortedByDescending { it.second })
+                fun release() = synchronized(deferred) {
+                    released = true
+                    // Постим до выхода из lock, чтобы итог страницы не обогнал отложенные ролики.
+                    publish(deferred.sortedByDescending { it.second })
+                    deferred.clear()
                 }
                 /** Удержать до конца страницы, но не дольше [HOLD_MS]: к тому времени уже пришедшее показываем. */
                 fun hold(rows: List<Pair<Gif, Double>>) {
@@ -267,6 +285,14 @@ object Feed {
                 ui.post {
                     if (g != gen) return@post
                     loading = false
+                    if (p == 1 && !firstSearchPageReported) {
+                        firstSearchPageReported = true
+                        Stats.event(when {
+                            r.isFailure -> Stats.Event.SEARCH_PAGE_ERROR
+                            items.isEmpty() -> Stats.Event.SEARCH_PAGE_EMPTY
+                            else -> Stats.Event.SEARCH_PAGE_RESULTS
+                        })
+                    }
                     r.onSuccess { query = t; byTag = false; page = p; pages = if (it > 0) p + 1 else p; error = null; fails = 0 }.onFailure { fail(it) }
                     // мало прошло фильтры — сразу следующая порция (до уведомления, чтобы не мигало «ничего не нашлось»)
                     if (r.isSuccess && items.size < 20 && page < pages && p < 4) more()
@@ -275,24 +301,25 @@ object Feed {
             }
             return
         }
-        thread {
-            val r = runCatching {
-                // запрос → теги (если он целиком из тегов) или текст, как на сайте
-                var bt = byTag
-                val q = when {
-                    author != null || mode != null || text.isBlank() -> ""
-                    p > 1 && query.isNotEmpty() -> query
-                    tagOnly -> text
-                    else -> text.trim().let { t -> Api.toTags(t)?.also { bt = true } ?: t.also { bt = false } }
-                }
-                Triple(q, bt, Api.page(q, ord, p, author, mode, bt))
+        val author = this.author
+        val mode = this.mode
+        val text = this.text
+        val query = this.query
+        val tagOnly = this.tagOnly
+        val byTag = this.byTag
+        loadOrdinary({
+            var bt = byTag
+            val q = when {
+                author != null || mode != null || text.isBlank() -> ""
+                p > 1 && query.isNotEmpty() -> query
+                tagOnly -> text
+                else -> text.trim().let { t -> Api.toTags(t)?.also { bt = true } ?: t.also { bt = false } }
             }
-            ui.post {
-                if (g != gen) return@post
-                loading = false
-                r.onSuccess { (q, bt, pg) -> add(q, bt, p, pg) }.onFailure { fail(it) }
-                changed()
-            }
+            Triple(q, bt, Api.page(q, ord, p, author, mode, bt))
+        }) { r ->
+            loading = false
+            r.onSuccess { (q, bt, pg) -> add(q, bt, p, pg) }.onFailure { fail(it) }
+            changed()
         }
     }
 
@@ -381,6 +408,7 @@ object Feed {
     }
 
     private fun fail(e: Throwable) {
+        if (mode != null || text.isBlank() || author != null || tagOnly) Stats.event(Stats.Event.FEED_LOAD_ERROR)
         error = when {
             e.message == Api.LOGIN_EXPIRED || e.message == Reddit.LOGIN_EXPIRED || e.message == Reddit.LOGIN_NEEDED -> e.message
             e is HttpError -> e.message
@@ -436,6 +464,9 @@ object Feed {
     /** Вернуть предыдущую страницу; null — истории нет. Возвращает позицию прокрутки. */
     fun back(): Int? {
         val s = history.removeLastOrNull() ?: return null
+        cancelOrdinaryRequest()
+        // Восстановление страницы из истории не считается новым поиском.
+        firstSearchPageReported = true
         stopRetry(); gen++
         Search.invalidate(); ForYou.reset()   // старая работа не пишет в страницу, на которую вернулись
         text = s.text; query = s.query; byTag = s.byTag; tagOnly = s.tagOnly; exact = s.exact; order = s.order; desc = s.desc

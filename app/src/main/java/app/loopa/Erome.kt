@@ -1,7 +1,6 @@
 package app.loopa
 
 import java.net.URLEncoder
-import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -41,7 +40,7 @@ object Erome : Source {
 
     private fun parse(html: String, p: Int): Page {
         val albums = albums(html).filter { it.videos > 0 }
-        val jobs = albums.map { a -> pool.submit(Callable { runCatching { videos(a) }.getOrDefault(emptyList()) }) }
+        val jobs = albums.map { a -> RequestLifetime.submit(pool) { runCatching { videos(a) }.getOrDefault(emptyList()) } }
         val gifs = jobs.flatMap { runCatching { it.get(40, TimeUnit.SECONDS) }.getOrDefault(emptyList()) }
         val more = html.contains("page=${p + 1}")
         return Page(gifs, if (more) p + 1 else p, emptyList())

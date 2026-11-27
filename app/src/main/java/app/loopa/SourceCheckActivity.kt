@@ -44,6 +44,7 @@ class SourceCheckActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         I18n.init(this); Theme.init(this); Net.init(this); Stats.init(application); ForYou.init(this)
+        if (savedInstanceState == null) Stats.event(Stats.Event.SOURCE_CHECK_OPEN)
         Theme.bars(this)
         // из Настроек — сразу все источники с состоянием; из «!» — только требующие внимания
         showAll = savedInstanceState?.getBoolean("all") ?: intent.getBooleanExtra("all", false)

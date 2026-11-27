@@ -9,6 +9,7 @@ import android.os.Looper
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.Executors
 
 /** Ответ сервера с кодом ошибки: 429 и 5xx — временные (повторяем), остальные — нет. */
 class HttpError(val code: Int, msg: String = "HTTP $code") : IOException(msg) {
@@ -27,6 +28,7 @@ object Net {
     const val READ_MS = 30_000
     private const val ATTEMPTS = 4
     private val ui = Handler(Looper.getMainLooper())
+    private val disconnects = Executors.newCachedThreadPool()
     /** Слушатели «появилась сеть» — вызываются на главном потоке. */
     val online = LinkedHashSet<() -> Unit>()
     private var inited = false
@@ -51,14 +53,18 @@ object Net {
 
     /** Выполнить с повторами: пауза 1, 2, 4 с (или сколько просит сервер в Retry-After, но не больше 10 с). */
     fun <T> retry(block: () -> T): T {
+        val lifetime = RequestLifetime.current
         var wait = 1000L
         repeat(ATTEMPTS - 1) {
+            lifetime?.check()
             try { return block() } catch (e: Exception) {
+                lifetime?.check()
                 if (!transient(e)) throw e
                 Thread.sleep((e as? HttpError)?.retryAfterMs?.takeIf { it > 0 }?.coerceAtMost(10_000) ?: wait)
                 wait *= 2
             }
         }
+        lifetime?.check()
         return block()
     }
 
@@ -69,10 +75,18 @@ object Net {
      * GET/запрос с общими таймаутами; ошибка HTTP — [HttpError]. К сайтам из [Sources.ALL] — с куками встроенного браузера
      * и, если пользователь проходил проверку на этом сайте, с его User-Agent ([WebAccess]).
      */
-    fun open(url: String): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
-        connectTimeout = CONNECT_MS; readTimeout = READ_MS
-        setRequestProperty("User-Agent", Api.UA)
-        WebAccess.decorate(this)
+    fun open(url: String): HttpURLConnection {
+        val lifetime = RequestLifetime.current
+        lifetime?.check()
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = CONNECT_MS; readTimeout = READ_MS
+            setRequestProperty("User-Agent", Api.UA)
+            WebAccess.decorate(this)
+        }
+        // disconnect() может ждать I/O. Не вызываем его на главном потоке.
+        lifetime?.onCancel { disconnects.execute { runCatching { connection.disconnect() } } }
+        lifetime?.check()
+        return connection
     }
 
     /** User-Agent сайта: у сайта, где пройдена проверка, остаётся UA браузера (Cloudflare привязывает к нему cf_clearance). */

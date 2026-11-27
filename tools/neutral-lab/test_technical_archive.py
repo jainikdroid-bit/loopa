@@ -1,4 +1,5 @@
 import json
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -21,7 +22,7 @@ class TechnicalArchiveTest(unittest.TestCase):
         c = self.root / "report.csv"
         c.write_text("kind,count\nbuffering,8\n", encoding="utf-8")
         s = self.root / "report.sqlite"
-        with sqlite3.connect(s) as db:
+        with closing(sqlite3.connect(s)) as db, db:
             db.execute("CREATE TABLE technical_counts(kind TEXT,count INTEGER)")
             db.execute("INSERT INTO technical_counts VALUES (?,?)", ("buffering", 8))
         first, created = self.archive.add(import_report(j))
@@ -61,7 +62,7 @@ class TechnicalArchiveTest(unittest.TestCase):
 
     def test_reject_unexpected_sqlite_schema(self):
         p = self.root / "wrong.sqlite"
-        with sqlite3.connect(p) as db:
+        with closing(sqlite3.connect(p)) as db, db:
             db.execute("CREATE TABLE other(kind TEXT,count INTEGER)")
             db.execute("CREATE VIEW technical_counts AS SELECT * FROM other")
         with self.assertRaises(ValueError):

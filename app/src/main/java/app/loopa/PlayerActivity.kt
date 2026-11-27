@@ -104,6 +104,7 @@ class PlayerActivity : Activity() {
     private val onFeed: () -> Unit = { merge() }
     /** Первый кадр текущего ролика уже на экране (превью над ним прятать и после перепривязки страницы). */
     private var rendered = false
+    private var frameWaitStartedAt = 0L
     private var settledAt = 0L
     private var startAt = 0L
     /** Счётчики байт видео на момент выбора страницы — сколько ролик взял с диска и из сети до первого кадра. */
@@ -181,6 +182,7 @@ class PlayerActivity : Activity() {
     private val onOnline: () -> Unit = { ui.removeCallbacks(replay); replay.run() }
     /** С какого момента текущий ролик стоит в буферизации (0 — играет). */
     private var bufferingSince = 0L
+    private val playbackStall = PlaybackStall()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -188,7 +190,7 @@ class PlayerActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.statusBarColor = Color.BLACK; window.navigationBarColor = Color.BLACK
         Video.init(this); Interests.init(this); Likes.init(this)
-        Net.init(this); Stats.init(application); Stats.event("player"); CachedExport.init(this)
+        Net.init(this); Stats.init(application); Stats.event(Stats.Event.PLAYER); CachedExport.init(this)
         // Android 8–9: запись в публичные Загрузки требует разрешения — спросить один раз
         if (android.os.Build.VERSION.SDK_INT < 29 && CachedExport.enabled && !prefs.getBoolean("cx_perm_asked", false) &&
             checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -210,6 +212,10 @@ class PlayerActivity : Activity() {
             addListener(object : Player.Listener {
                 override fun onRenderedFirstFrame() {
                     LocalTechnicalDiagnostics.event("first_frame")
+                    playbackStall.firstFrame()
+                    if (!rendered && frameWaitStartedAt > 0L) {
+                        Stats.firstFrame(android.os.SystemClock.elapsedRealtime() - frameWaitStartedAt)
+                    }
                     if (!rendered) android.util.Log.i("Loopa", "первый кадр: ${System.currentTimeMillis() - settledAt} мс; видео с диска " +
                         "${(Video.fromCache.get() - cache0) shr 10} КБ, из сети ${(Video.fromNet.get() - net0) shr 10} КБ")
                     rendered = true; holder?.poster?.visibility = View.GONE
@@ -226,6 +232,7 @@ class PlayerActivity : Activity() {
                 override fun onVideoSizeChanged(s: VideoSize) { holder?.fit(s.width, s.height) }
                 // повтор по кругу: ролик сайта с заставкой начинается заново уже после неё
                 override fun onPositionDiscontinuity(old: Player.PositionInfo, new: Player.PositionInfo, reason: Int) {
+                    if (reason == Player.DISCONTINUITY_REASON_SEEK) playbackStall.seek()
                     if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) introAt(current).takeIf { it > 0 }?.let { player.seekTo(it) }
                 }
                 override fun onPlaybackStateChanged(st: Int) {
@@ -235,6 +242,8 @@ class PlayerActivity : Activity() {
                 }
                 override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
                     LocalTechnicalDiagnostics.event("playback_error")
+                    playbackStall.resetSource()
+                    Stats.event(Stats.Event.PLAYER_ERROR)
                     hadPlaybackError = true
                     // сеть: показать и повторить самим; прочее (файл удалён, вместо видео картинка или заглушка) — так и сказать,
                     // но не листать самим: иначе на этот ролик не вернуться — каждый раз уносит к следующему
@@ -362,6 +371,8 @@ class PlayerActivity : Activity() {
         CachedExport.sweep(list[pos].id)
         holder?.poster?.visibility = View.VISIBLE
         holder = h; h.spin.text = tr("загрузка…"); fails = 0; rendered = false; hadPlaybackError = false
+        playbackStall.resetSource()
+        frameWaitStartedAt = android.os.SystemClock.elapsedRealtime()
         val now = System.currentTimeMillis()
         if (settledAt > 0) { dwells.addLast(now - settledAt); while (dwells.size > 4) dwells.removeFirst() }
         control.dir = if (current >= 0 && pos < current) -1 else 1
@@ -401,6 +412,7 @@ class PlayerActivity : Activity() {
     /** Качество сменили — перезапустить текущий с той же секунды, окно предзагрузки — заново. */
     private fun requality() {
         val at = player.currentPosition
+        playbackStall.resetSource()
         managed.values.forEach { preload.remove(it) }; managed.clear()
         settledAt = System.currentTimeMillis()
         sync(); gate(false, "смена качества")
@@ -410,9 +422,17 @@ class PlayerActivity : Activity() {
 
     /** Полоса перемотки текущей страницы. */
     private fun tick() {
+        if (playbackStall.sample(android.os.SystemClock.elapsedRealtime(), player.playbackState == Player.STATE_BUFFERING, player.playWhenReady)) {
+            Stats.event(Stats.Event.PLAYER_STALL_1S)
+        }
         // «Авто» на HD подвис дольше 4 с — сеть не тянет: этот и следующие ролики в SD, с той же секунды
         if (quality == "auto" && bufferingSince > 0 && System.currentTimeMillis() - bufferingSince > 4000 && !Video.sdOnly) {
-            list.getOrNull(current)?.takeIf { it.sd != it.hd && player.currentMediaItem?.mediaId == it.hd }?.let { Video.stalled(); bufferingSince = 0; requality() }
+            list.getOrNull(current)?.takeIf { it.sd != it.hd && player.currentMediaItem?.mediaId == it.hd }?.let {
+                Stats.event(Stats.Event.PLAYER_AUTO_SD)
+                Video.stalled()
+                bufferingSince = 0
+                requality()
+            }
         }
         gateTick()
         holder?.let { h ->

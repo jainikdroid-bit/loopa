@@ -93,7 +93,17 @@ class MainActivity : Activity() {
             hint = tr("Поиск по тегам: blonde, POV, car…"); setHintTextColor(0xFF8A8F98.toInt()); setTextColor(Color.WHITE); textSize = 16f
             isSingleLine = true; imeOptions = EditorInfo.IME_ACTION_SEARCH
             background = pill(Theme.field); setPadding(dp(14), dp(10), dp(14), dp(10))
-            setOnEditorActionListener { _, a, e -> if (a == EditorInfo.IME_ACTION_SEARCH || e?.keyCode == KeyEvent.KEYCODE_ENTER) { go(text.toString()); true } else false }
+            setOnEditorActionListener { _, actionId, event ->
+                if (event == null) {
+                    if (actionId != EditorInfo.IME_ACTION_SEARCH) return@setOnEditorActionListener false
+                    go(text.toString())
+                } else {
+                    if (event.keyCode != KeyEvent.KEYCODE_ENTER && event.keyCode != KeyEvent.KEYCODE_NUMPAD_ENTER)
+                        return@setOnEditorActionListener false
+                    if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) go(text.toString())
+                }
+                true
+            }
             addTextChangedListener(object : TextWatcher {
                 override fun afterTextChanged(s: Editable?) { suggestLater(s.toString()) }
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -236,6 +246,13 @@ class MainActivity : Activity() {
     }
 
     private fun tab(m: String?) {
+        Stats.event(when (m) {
+            null -> Stats.Event.FEED_TRENDING
+            "foryou" -> Stats.Event.FEED_FORYOU
+            "liked" -> Stats.Event.FEED_LIKES
+            "reddit" -> Stats.Event.FEED_REDDIT
+            else -> Stats.Event.FEED_OTHER
+        })
         if (m == "mfcshare") {
             val q = search.text.toString().trim()
             val url = if (q.isEmpty()) android.net.Uri.parse("https://share.myfreecams.com/recordings/newest?free=t")
@@ -571,7 +588,10 @@ class MainActivity : Activity() {
         // пустой ввод на вкладке сайта — его лента; текст — всегда глобальный поиск по всем источникам (ниже), а не только по сайту
         if (Feed.ext && q.isBlank()) { Feed.reset("", Feed.order, mode = Feed.mode); grid.scrollToPosition(0); return }
         if (q.isBlank()) { home(); return }
-        if (tag) Interests.openTag(q.trim()) else Interests.search(q)
+        if (tag) Interests.openTag(q.trim()) else {
+            Stats.event(Stats.Event.SEARCH_SUBMIT)
+            Interests.search(q)
+        }
         // тег (из плеера, панели, чипов) ищет как обычный текст — по всем включённым источникам, а не строго по RedGIFs или сайту ролика
         Feed.reset(q.trim(), Feed.order)
         grid.scrollToPosition(0)

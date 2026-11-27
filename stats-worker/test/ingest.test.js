@@ -21,7 +21,7 @@ function store() {
 }
 test('batch retry cannot double count events', async () => {
   const s = store();
-  const body = { iid: 'test-install', batch: 'batch-001', geo: {}, events: { playback_error: 3 }, sessions: [] };
+  const body = { iid: 'test-install', batch: 'batch-001', geo: {}, events: { player_error: 3 }, sessions: [] };
   const first = await s.ping(body).json();
   assert.equal(first.batch, body.batch);
   await s.ping(body).json();
@@ -42,7 +42,8 @@ test('50 + 50 sessions are retained and retries are idempotent', async () => {
 });
 test('admin deletion includes receipt rows', async () => {
   const s = store();
-  await s.ping({ iid: 'test-install', batch: 'batch-001', geo: {}, events: { e: 1 } }).json();
+  await s.ping({ iid: 'test-install', batch: 'batch-001', geo: {}, events: { player: 1 } }).json();
+  assert.equal(s.one('SELECT COUNT(*) n FROM batches').n, 1);
   await s.fetch(new Request('https://do/installs/test-install', { method: 'DELETE' }));
   assert.equal(s.one('SELECT COUNT(*) n FROM batches').n, 0);
   assert.equal(s.detail('test-install').error, 'not found');

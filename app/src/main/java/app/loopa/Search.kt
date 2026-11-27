@@ -128,8 +128,8 @@ object Search {
             src?.let { (s, byTag) -> val k = synchronized(this) { ((srcPage[s] ?: 1) + 1).also { srcPage[s] = it } }; rg(s, byTag, k) }
         }
         if (reddit) submit { provider { redditPart(en ?: q, p) } }
-        // сторонние сайты (галочки «Источники» в меню 👤): их поиск по тому же запросу, страница p
-        for (s in ForYou.onSources) submit { provider { s.tracked(q, false, p).gifs } }
+        // сторонние сайты: английский перевод, если он есть, иначе исходный запрос
+        for (s in ForYou.onSources) submit { provider { s.tracked(en ?: q, false, p).gifs } }
         var total = 0
         var synDone = p != 1
         if (p == 1) strong = 0

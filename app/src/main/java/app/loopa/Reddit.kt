@@ -150,6 +150,7 @@ object Reddit {
         while (out.size < 10 && tries++ < 3) {
             val s = synchronized(rounds) { r.subs.filter { !r.cur.containsKey(it) || r.cur[it] != null }.let { open -> if (open.isEmpty()) null else open[r.i++ % open.size] } } ?: break
             val (g, next) = runCatching { page(s, sortId, r.cur[s]) }.getOrElse { android.util.Log.w("Loopa", "Remote page failed: ${it.javaClass.simpleName}"); emptyList<Gif>() to null }
+            RequestLifetime.current?.check()
             synchronized(rounds) { r.cur[s] = next }
             out += g
         }
@@ -170,11 +171,18 @@ thumb:im?im.getAttribute('src'):''};});};
 var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');return m?m.getAttribute('src'):null;};"""
 
     /** Порция со страницы: url — открыть страницу, иначе more — подгрузить следующую порцию из уже открытой. */
+    private fun webMore(ctx: Context, more: String?): String? = WebJson.run(
+        ctx,
+        "(function(signal){$GRAB fetch(${JSONObject.quote(more)},{credentials:'include',signal:signal})" +
+            ".then(function(r){return r.text()}).then(function(t){if(signal.aborted)return;" +
+            "var d=new DOMParser().parseFromString(t,'text/html');window.__lp=JSON.stringify({posts:G(d),more:M(d)});" +
+            "}).catch(function(e){if(!signal.aborted)window.__lp=JSON.stringify({error:String(e)})});})(window.__lpAbort.signal)"
+    )
+
     private fun web(url: String?, more: String?): Pair<List<Gif>, String?> {
         val ctx = app ?: throw RuntimeException("нет контекста")
         val raw = if (url != null) WebJson.page(ctx, url, "(function(){$GRAB return JSON.stringify({posts:G(document),more:M(document)});})()")
-            else WebJson.run(ctx, "(function(){$GRAB fetch(${JSONObject.quote(more)},{credentials:'include'}).then(function(r){return r.text()}).then(function(t){" +
-                "var d=new DOMParser().parseFromString(t,'text/html');window.__lp=JSON.stringify({posts:G(d),more:M(d)});}).catch(function(e){window.__lp=JSON.stringify({error:String(e)})});})()")
+            else webMore(ctx, more)
         val j = runCatching { JSONObject(raw ?: "") }.getOrNull() ?: throw RuntimeException(tr("Reddit: страница не открылась"))
         j.optString("error").takeIf { it.isNotEmpty() }?.let { throw RuntimeException("Reddit: $it") }
         val a = j.optJSONArray("posts") ?: JSONArray()
@@ -183,15 +191,14 @@ var M=function(r){var m=r.querySelector('faceplate-partial[src*="more-posts"]');
         var moreSrc = j.optString("more").takeIf { it.isNotBlank() && it != "null" }
         var extra = 0
         while (url != null && posts.size < 20 && moreSrc != null && extra++ < 2) {
-            val r2 = runCatching { JSONObject(WebJson.run(ctx, "(function(){$GRAB fetch(${JSONObject.quote(moreSrc)},{credentials:'include'}).then(function(r){return r.text()}).then(function(t){" +
-                "var d=new DOMParser().parseFromString(t,'text/html');window.__lp=JSON.stringify({posts:G(d),more:M(d)});}).catch(function(e){window.__lp=JSON.stringify({error:String(e)})});})()") ?: "") }.getOrNull() ?: break
+            val r2 = runCatching { JSONObject(webMore(ctx, moreSrc) ?: "") }.getOrNull() ?: break
             val a2 = r2.optJSONArray("posts") ?: break
             for (i in 0 until a2.length()) posts += a2.getJSONObject(i)
             moreSrc = r2.optString("more").takeIf { it.isNotBlank() && it != "null" }
         }
         if (url != null) j.put("more", moreSrc ?: JSONObject.NULL)
         android.util.Log.i("Loopa", "Remote response: ${posts.size} rows")
-        val jobs = posts.map { o -> pool.submit<Gif?> { runCatching { fromPage(o) }.getOrNull() } }
+        val jobs = posts.map { o -> RequestLifetime.submit(pool) { runCatching { fromPage(o) }.getOrNull() } }
         val next = j.optString("more").takeIf { it.isNotBlank() && it != "null" }?.let { if (it.startsWith("http")) it else WWW + it }
         return jobs.mapNotNull { it.get() } to next?.let { WEB + it }
     }
