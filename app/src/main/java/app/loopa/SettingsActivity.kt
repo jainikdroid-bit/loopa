@@ -280,7 +280,7 @@ class SettingsActivity : Activity() {
         note("Adult Space\n" + tr("Версия %s", Updater.current(this)))
         action("GitHub", "github.com/jainikdroid-bit/loopa") { open("https://github.com/jainikdroid-bit/loopa") }
         action(tr("Сайт"), "jainikdroid-bit.github.io/loopa") { open("https://jainikdroid-bit.github.io/loopa/") }
-        toggle("Анонимная статистика / Anonymous stats", "Включена по умолчанию; номер установки, версия, устройство, страна, время в приложении; без IP, запросов и истории. On by default.", Stats.enabled) { Stats.setEnabled(it) }
+        toggle("Анонимная статистика / Anonymous stats", "Только по согласию; номер установки, версия, устройство, страна, время в приложении; без запросов и истории. Opt-in only.", Stats.enabled) { Stats.setEnabled(it) }
         action("Сбросить номер установки / Reset install ID", null) { Stats.resetId() }
         note(tr("Лицензия: MIT — свободное открытое ПО."))
         note(tr("Неофициальное приложение: к сервисам, ролики которых показывает, отношения не имеет. Только для совершеннолетних, 18+."))
