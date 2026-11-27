@@ -128,15 +128,18 @@ The interface is available in 10 languages (system language by default; change i
 
 Requires Android 8.0+.
 
+> **Status (27 November 2026):** published release 1.38 is dated 26 November. Branch `prepare/stability-1.38` contains unreleased lifecycle, statistics consent and local technical counter changes. [Verification and limitations](docs/DEVELOPMENT_STATUS.md).
+
 ## Privacy
 
-- The app talks only to the sources themselves: the RedGIFs API and video servers; Reddit (`oauth.reddit.com` /
+- The app primarily contacts external sources, plus update checks and the statistics endpoint described below. Examples include the RedGIFs API and video servers; Reddit (`oauth.reddit.com` /
   `www.reddit.com`, `v.redd.it`, `i.redd.it`, `preview.redd.it`, `i.imgur.com`); `www.erome.com` and its video servers;
   the open `www.eporner.com` API; the pages and video servers of xVideos, XNXX, Pornhub, RedTube, xHamster and FikFap. For “related tags” in search it queries the open Pornhub webmasters API
   (`www.pornhub.com/webmasters`, the query text only, nothing about you). The sign-in windows are the exception:
   they show the real sites with everything those sites load.
 - Without sign-in it uses the temporary guest token the service hands to every website visitor.
-- Anonymous stats are on by default: the app tells you on first launch, where you can turn them off at once (also via the toggle in Settings → About, which has an ID reset): a random install ID, app version, device and Android model, language, network type, time spent in the app and feature counters (graph, player, download). The country comes from connection metadata and the IP is not stored. Searches, tags, likes, history, links and the taste graph are never sent. The server is a Cloudflare Worker, source in `stats-worker/`.
+- In release 1.38, statistics are enabled by default after notice and can be disabled in Settings → About. The development branch requires explicit consent and preserves a previous opt-out. If enabled, a pseudonymous install ID, app/device/OS versions, language, network type, session times and feature counts are sent to a Cloudflare Worker (`stats-worker/`). Country and region come from connection metadata. The statistics database does not store IP addresses according to the code; infrastructure may process network metadata. Queries, tags, history and media URLs are not included in telemetry.
+- Separate development-branch local technical diagnostics are off by default. Aggregate counters only, up to 10,000 events in a fixed 30-day window; expiry resets the window on next use. Export is manual; disabling clears the data.
 - Sign-in happens on the real site page (`redgifs.com`, `reddit.com`, `erome.com`, `eporner.com`) in an embedded window. You type your password into the site; the app
   never sees or stores it — only the session token or cookies are kept, in the app's private storage on your phone.
 - Cloud backup of app data is disabled.
@@ -144,7 +147,7 @@ Requires Android 8.0+.
 
 ## Versions
 
-The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.31**.
+The latest APK in [Releases](https://github.com/jainikdroid-bit/loopa/releases) is **1.38** (26 November 2026).
 
 | Version | What's new |
 |---|---|
@@ -198,8 +201,7 @@ cd loopa
 ./gradlew assembleRelease
 ```
 
-Requires JDK 17 and Android SDK 35. Unit tests (scroll forecast, preload depth, cache size): `./gradlew testReleaseUnitTest`. Without `keystore.properties` the release build is signed with the debug key, which
-is fine for personal use. APKs in Releases are signed with the project key; certificate SHA-256 fingerprint:
+Requires JDK 17 and Android SDK 35. Unit tests (scroll forecast, preload depth, cache size): `./gradlew testReleaseUnitTest`. Without `keystore.properties`, release builds remain unsigned; `-PallowDebugReleaseSigning=true` is for local testing only. APKs in Releases are signed with the project key; certificate SHA-256 fingerprint:
 
 ```
 32:9D:15:73:05:60:8C:5D:F2:1B:D7:7B:ED:3F:9C:70:DC:1C:38:D0:F9:44:A6:F8:C9:69:26:12:90:44:9C:84

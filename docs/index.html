@@ -51,7 +51,7 @@
     "Live animated previews in the grid",
     "Download videos; Reddit videos are saved with sound",
     "Auto HD/SD quality and automatic retries on bad networks",
-    "No trackers, analytics or ad SDKs"
+    "Configurable application statistics"
   ],
   "keywords": "RedGIFs app, RedGIFs Android, RedGIFs client, Reddit NSFW video app, Reddit video downloader with sound, ad-free, open source, APK"
 }
@@ -269,30 +269,29 @@
 
   <section id="privacy">
     <div class="wrap">
-      <h2 data-ru>Приватность по умолчанию</h2><h2 data-en>Private by default</h2>
-      <p class="sub" data-ru>Весь код открыт — проверить можно каждую строчку.</p><p class="sub" data-en>All code is open — every line can be checked.</p>
+      <h2 data-ru>Приватность и данные</h2><h2 data-en>Privacy and data</h2>
+      <p data-ru>В версии 1.38 статистика включается после уведомления; выключатель находится в Настройки → О приложении. Ветка разработки требует явного согласия и сохраняет ранее выбранный отказ.</p>
+      <p data-en>Release 1.38 enables statistics after notice; the opt-out is in Settings → About. The development branch requires explicit consent and preserves earlier opt-outs.</p>
       <div class="privacy">
         <ul class="clean" data-ru>
-          <li><b>Никаких трекеров</b>, аналитики и рекламных SDK.</li>
-          <li><b>Только сами сервисы</b>: RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster, FikFap (и открытый API тегов Pornhub для «похожих тегов» — только текст запроса); окна входа — сами сайты.</li>
-          <li><b>Пароль не видит</b>: вы вводите его на странице сайта, сохраняется лишь токен сессии.</li>
+          <li>Сервер статистики — Cloudflare Worker. При согласии передаются псевдонимный номер установки, данные устройства, сеансы и счётчики. Запросы, история и ссылки не включаются в телеметрию.</li>
+          <li>Облачное резервное копирование приложения отключено. Внешние сайты обрабатывают запросы по собственным правилам.</li>
+          <li>Ветка разработки: отдельная локальная диагностика, агрегированные технические счётчики, ручной экспорт и очистка.</li>
         </ul>
         <ul class="clean" data-en>
-          <li><b>No trackers</b>, analytics or ad SDKs.</li>
-          <li><b>Only the services themselves</b>: RedGIFs, Reddit, Erome, Eporner, xVideos, XNXX, Pornhub, RedTube, xHamster, FikFap (plus the open Pornhub tag API for “related tags” — query text only); sign-in windows are the sites themselves.</li>
-          <li><b>Never sees your password</b>: you type it on the site; only the session token is kept.</li>
-        </ul>
-        <ul class="clean" data-ru>
-          <li><b>Данные остаются на телефоне</b>, облачная копия отключена.</li>
-          <li><b>Без посредников</b>: запросы идут с телефона напрямую к сервисам, своего сервера у Adult Space нет.</li>
-          <li><b>Бережно к сервису</b>: грузит только то, что вы смотрите.</li>
-        </ul>
-        <ul class="clean" data-en>
-          <li><b>Data stays on your phone</b>; cloud backup is disabled.</li>
-          <li><b>No middleman</b>: requests go straight from your phone to the services; Adult Space has no server.</li>
-          <li><b>Gentle on the service</b>: it loads only what you watch.</li>
+          <li>A Cloudflare Worker handles statistics. With consent, it receives a pseudonymous installation ID, device information, sessions and counters. Queries, history and URLs are not part of telemetry.</li>
+          <li>App cloud backup is disabled. External sites process requests under their own policies.</li>
+          <li>Development branch: separate local diagnostics, aggregate technical counters, manual export and deletion.</li>
         </ul>
       </div>
+    </div>
+  </section>
+  <section id="development">
+    <div class="wrap">
+      <h2 data-ru>Статус выпуска</h2><h2 data-en>Release status</h2>
+      <p data-ru>Опубликована версия 1.38 от 26 ноября 2026. Дополнительные исправления жизненного цикла и приватности пока не выпущены. Требуются CI, испытания на устройстве и подпись владельца.</p>
+      <p data-en>Published release: 1.38, 26 November 2026. Further lifecycle and privacy fixes are unreleased. CI, device testing and owner signing are required.</p>
+      <p><a href="https://github.com/jainikdroid-bit/loopa/blob/prepare/stability-1.38/docs/DEVELOPMENT_STATUS.md">Development status / Статус разработки</a></p>
     </div>
   </section>
 
