@@ -256,7 +256,7 @@ object Api {
         // слова проверяем параллельно: при высоком пинге последовательные запросы складывались в секунды
         val pool = java.util.concurrent.Executors.newFixedThreadPool(minOf(words.size, 4))
         try {
-            val tags = words.map { w -> pool.submit<String?> { exact(w) ?: exact(w.removeSuffix("s")) } }.map { it.get() ?: return null }
+            val tags = words.map { w -> RequestLifetime.submit(pool) { exact(w) ?: exact(w.removeSuffix("s")) } }.map { it.get() ?: return null }
             return tags.distinct().joinToString(",")
         } finally { pool.shutdownNow() }
     }

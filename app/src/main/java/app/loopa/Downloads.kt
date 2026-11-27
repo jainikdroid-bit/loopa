@@ -12,9 +12,13 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import android.util.Log
 import android.widget.Toast
 import java.io.File
+import java.io.IOException
 import java.nio.ByteBuffer
+import java.nio.file.Files
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.thread
 
 /**
@@ -24,6 +28,7 @@ import kotlin.concurrent.thread
  */
 object Downloads {
     private val ui = Handler(Looper.getMainLooper())
+    private val redditInFlight = ConcurrentHashMap.newKeySet<String>()
 
     fun get(ctx: Context, g: Gif) {
         // ролик уже лежит файлом в папке сохранённых из кэша ([CachedExport]) — второй копии не делаем
@@ -48,7 +53,8 @@ object Downloads {
 
     /** Поставить mp4 в системную очередь скачивания; заголовки — сайта (Referer и т. п.), у Erome — его Referer. */
     private fun enqueue(ctx: Context, name: String, r: Resolved) {
-        Stats.event("download"); val rq = DownloadManager.Request(Uri.parse(r.url))
+        Stats.event(Stats.Event.DOWNLOAD)
+        val rq = DownloadManager.Request(Uri.parse(r.url))
             .setTitle(name)
             .setDescription("Loopa")
             .apply {
@@ -59,27 +65,44 @@ object Downloads {
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Loopa/$name")
         runCatching { (ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(rq) }
-            .onSuccess { toast(ctx, tr("Скачиваю в Загрузки/Loopa")) }
-            .onFailure { toast(ctx, tr("Не скачать: %s", it.message)) }
+            .onSuccess {
+                Stats.event(Stats.Event.DOWNLOAD_QUEUED)
+                toast(ctx, tr("Скачиваю в Загрузки/Loopa"))
+            }
+            .onFailure {
+                Stats.event(Stats.Event.DOWNLOAD_FAILED)
+                toast(ctx, tr("Не скачать: %s", it.message))
+            }
     }
 
     private fun toast(ctx: Context, t: String) = ui.post { Toast.makeText(ctx, t, if (t.length > 40) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show() }
 
     /** v.redd.it: лучшая видеодорожка и звук из DASH-манифеста → один mp4. */
     private fun reddit(ctx: Context, g: Gif, name: String) {
+        if (!redditInFlight.add(name)) return
         toast(ctx, tr("Скачиваю в Загрузки/Loopa (видео и звук)…"))
         thread {
-            val tmp = ctx.cacheDir.resolve("dl").apply { mkdirs() }
-            val v = File(tmp, "$name.v"); val a = File(tmp, "$name.a"); val out = File(tmp, name)
             runCatching {
-                val (vu, au) = tracks(g)
-                fetch(vu, v)
-                val audio = au != null && g.hasAudio && runCatching { fetch(au, a) }.isSuccess
-                mux(v, if (audio) a else null, out)
-                save(ctx, out, name)
-            }.onSuccess { toast(ctx, tr("Сохранено: Загрузки/Loopa/%s", name)) }
-                .onFailure { toast(ctx, tr("Не скачать: %s", it.message ?: it.javaClass.simpleName)) }
-            v.delete(); a.delete(); out.delete()
+                val tmp = ctx.cacheDir.resolve("dl").apply { mkdirs() }
+                val v = File(tmp, "$name.v"); val a = File(tmp, "$name.a"); val out = File(tmp, name)
+                try {
+                    val (vu, au) = tracks(g)
+                    fetch(vu, v)
+                    val audio = au != null && g.hasAudio && runCatching { fetch(au, a) }.isSuccess
+                    mux(v, if (audio) a else null, out)
+                    save(ctx, out, name)
+                } finally {
+                    v.delete(); a.delete(); out.delete()
+                }
+            }.also {
+                redditInFlight.remove(name)
+            }.onSuccess {
+                Stats.event(Stats.Event.DOWNLOAD_SAVED)
+                toast(ctx, tr("Сохранено: Загрузки/Loopa/%s", name))
+            }.onFailure {
+                Stats.event(Stats.Event.DOWNLOAD_FAILED)
+                toast(ctx, tr("Не скачать: %s", it.message ?: it.javaClass.simpleName))
+            }
         }
     }
 
@@ -142,12 +165,34 @@ object Downloads {
             val cv = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, name); put(MediaStore.Downloads.MIME_TYPE, "video/mp4")
                 put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Loopa")
+                put(MediaStore.Downloads.IS_PENDING, 1)
             }
-            val uri = ctx.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv) ?: throw IllegalStateException(tr("нет доступа к Загрузкам"))
-            ctx.contentResolver.openOutputStream(uri)!!.use { o -> f.inputStream().use { it.copyTo(o) } }
+            val resolver = ctx.contentResolver
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv)
+                ?: throw IOException(tr("нет доступа к Загрузкам"))
+            var published = false
+            try {
+                val output = resolver.openOutputStream(uri) ?: throw IOException(tr("нет доступа к Загрузкам"))
+                output.use { o -> f.inputStream().use { it.copyTo(o) } }
+                cv.clear()
+                cv.put(MediaStore.Downloads.IS_PENDING, 0)
+                if (resolver.update(uri, cv, null, null) != 1) throw IOException(tr("нет доступа к Загрузкам"))
+                published = true
+            } finally {
+                if (!published) {
+                    runCatching { resolver.delete(uri, null, null) }
+                        .onFailure { Log.w("Loopa", "Не удалить незавершённую загрузку Reddit", it) }
+                }
+            }
         } else {
             val d = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Loopa").apply { mkdirs() }
-            f.copyTo(File(d, name), overwrite = true)
+            val part = File.createTempFile(".loopa-", ".part", d)
+            try {
+                part.outputStream().use { o -> f.inputStream().use { it.copyTo(o) } }
+                Files.move(part.toPath(), File(d, name).toPath())
+            } finally {
+                part.delete()
+            }
         }
     }
 }

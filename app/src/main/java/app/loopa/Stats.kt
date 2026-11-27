@@ -18,14 +18,14 @@ import java.util.Locale
 import java.util.UUID
 
 /**
- * Анонимная статистика — включена по умолчанию, но после уведомления при первом запуске (кнопка «Выключить» там же)
+ * Анонимная статистика — выключена до явного согласия при первом запуске
  * и с переключателем в Настройки → О приложении. Что уходит: случайный номер установки, версия приложения и Android, модель
- * устройства, язык, тип сети, время работы приложения на экране (начало/конец сеансов), счётчики открытия функций.
+ * устройства, язык, тип сети, время работы приложения на экране (начало/конец сеансов), счётчики функций и качества воспроизведения.
  * Страну и регион сервер берёт из метаданных соединения; IP-адреса не сохраняются. НЕ уходит: поисковые запросы, теги,
  * лайки, история, адреса роликов, содержимое графа вкусов, аккаунты. Сервер — Cloudflare Worker (stats-worker/).
  */
 object Stats {
-    private const val URL_PING = "https://loopa-stats.dom-dcbb13.workers.dev/v1/ping"
+    private const val URL_PING = "https://loopa-stats.dom-dcbb13.workers.dev/v2/ping"
     /** Ключ приёма: только отсекает случайный мусор, читать им статистику нельзя. */
     private const val KEY = "DK_12z4Qu_USvFxkXBCiKA"
     private const val HEARTBEAT_MS = 60_000L
@@ -36,16 +36,32 @@ object Stats {
     private lateinit var app: Application
     private val prefs get() = app.getSharedPreferences("loopa", Context.MODE_PRIVATE)
     private var started = 0
+    private var sending = false
+    private var queuedForeground: Long? = null
+    private var connection: HttpURLConnection? = null
+    private var generation = 0L
+    private const val BATCH = "stats_batch_v2"
+    private const val ASKED = "stats_asked_v2"
     private var sessionStart = 0L
     private val beat = object : Runnable { override fun run() { ping(); ui.postDelayed(this, HEARTBEAT_MS) } }
 
-    /** Включена по умолчанию, но не раньше, чем пользователь увидел уведомление ([askOnce]); выключается там же и в Настройках. */
-    val enabled get() = ::app.isInitialized && prefs.getBoolean("stats_asked", false) && prefs.getBoolean("stats_on", true)
-    val asked get() = ::app.isInitialized && prefs.getBoolean("stats_asked", false)
+    /** Включается только после явного согласия; выключается в Настройках. */
+    val enabled get() = ::app.isInitialized && prefs.getBoolean(ASKED, false) && prefs.getBoolean("stats_on", false)
+    val asked get() = ::app.isInitialized && prefs.getBoolean(ASKED, false)
 
     fun init(a: Application) {
         if (::app.isInitialized) return
         app = a
+        LocalTechnicalDiagnostics.init(a)
+        // Do not upload the old queue under a new consent policy.
+        if (!asked) {
+            val sp = prefs
+            val edit = sp.edit().remove("stats_pending").remove("stats_events").remove(BATCH).remove("stats_iid")
+            // Preserve an existing explicit opt-out; opt-in under the old default is not consent.
+            if (sp.contains("stats_on") && !sp.getBoolean("stats_on", false)) edit.putBoolean(ASKED, true)
+            else edit.remove("stats_on")
+            edit.apply()
+        }
         a.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) { if (started++ == 0) foreground() }
             override fun onActivityStopped(activity: Activity) { if (--started <= 0) { started = 0; background() } }
@@ -71,25 +87,55 @@ object Stats {
         send(fg = 0L)
     }
 
-    fun setEnabled(on: Boolean) {
-        prefs.edit().putBoolean("stats_on", on).putBoolean("stats_asked", true).apply()
-        if (!on) { ui.removeCallbacks(beat); prefs.edit().remove("stats_pending").remove("stats_events").apply() }
-        else if (started > 0) { sessionStart = System.currentTimeMillis(); ui.removeCallbacks(beat); ui.post(beat) }
+    @Synchronized fun setEnabled(on: Boolean) {
+        cancelDelivery()
+        val edit = prefs.edit().putBoolean("stats_on", on).putBoolean(ASKED, true)
+        if (!on) {
+            ui.removeCallbacks(beat)
+            sessionStart = 0
+            edit.remove("stats_pending").remove("stats_events").remove(BATCH).remove("stats_iid")
+        }
+        edit.apply()
+        if (on && started > 0) {
+            sessionStart = System.currentTimeMillis()
+            ui.removeCallbacks(beat)
+            ui.post(beat)
+        }
     }
 
-    /** Счётчик открытия функции («graph», «player», «download»): только число, без содержимого. */
-    fun event(name: String) {
-        if (!enabled) return
+    enum class Event {
+        GRAPH, PLAYER, DOWNLOAD, SEARCH_SUBMIT, FEED_FORYOU, FEED_TRENDING, FEED_LIKES, FEED_REDDIT, FEED_OTHER,
+        PLAYER_FIRST_FRAME, PLAYER_ERROR, PLAYER_START_LT_1S, PLAYER_START_1_3S, PLAYER_START_3_8S, PLAYER_START_GE_8S,
+        DOWNLOAD_QUEUED, DOWNLOAD_SAVED, DOWNLOAD_FAILED, SETTINGS_OPEN, SOURCE_CHECK_OPEN,
+        SEARCH_PAGE_RESULTS, SEARCH_PAGE_EMPTY, SEARCH_PAGE_ERROR, FEED_LOAD_ERROR, PLAYER_STALL_1S, PLAYER_AUTO_SD;
+
+        internal val key = name.lowercase(Locale.ROOT)
+    }
+
+    /** Имена фиксированы. В событии передаётся счётчик без дополнительных полей. */
+    fun event(vararg events: Event) {
         synchronized(this) {
+            if (!enabled) return
             val o = JSONObject(prefs.getString("stats_events", "{}") ?: "{}")
-            o.put(name, o.optInt(name) + 1)
+            events.forEach { event -> o.put(event.key, o.optInt(event.key) + 1) }
             prefs.edit().putString("stats_events", o.toString()).apply()
         }
+    }
+
+    fun firstFrame(elapsedMs: Long) {
+        val bucket = when {
+            elapsedMs < 1_000L -> Event.PLAYER_START_LT_1S
+            elapsedMs < 3_000L -> Event.PLAYER_START_1_3S
+            elapsedMs < 8_000L -> Event.PLAYER_START_3_8S
+            else -> Event.PLAYER_START_GE_8S
+        }
+        event(Event.PLAYER_FIRST_FRAME, bucket)
     }
 
     private fun ping() { if (enabled && sessionStart > 0) send(fg = sessionStart) }
 
     @Synchronized private fun addPending(a: Long, b: Long) {
+        if (!enabled) return
         val arr = JSONArray(prefs.getString("stats_pending", "[]") ?: "[]")
         arr.put(JSONObject().put("a", a).put("b", b))
         val keep = JSONArray()
@@ -101,7 +147,20 @@ object Stats {
         prefs.getString("stats_iid", null) ?: UUID.randomUUID().toString().also { prefs.edit().putString("stats_iid", it).apply() }
 
     /** Сброс номера установки: старая статистика с новой не связывается. */
-    fun resetId() { prefs.edit().remove("stats_iid").apply() }
+    @Synchronized fun resetId() {
+        cancelDelivery()
+        prefs.edit().remove("stats_iid").remove("stats_pending").remove("stats_events").remove(BATCH).apply()
+        sessionStart = if (enabled && started > 0) System.currentTimeMillis() else 0L
+    }
+
+    private fun cancelDelivery() {
+        generation++
+        queuedForeground = null
+        connection?.let { stale ->
+            connection = null
+            Thread({ runCatching { stale.disconnect() } }, "loopa-stats-cancel").start()
+        }
+    }
 
     private fun netType(): String = runCatching {
         val cm = app.getSystemService(ConnectivityManager::class.java)
@@ -114,52 +173,113 @@ object Stats {
     }.getOrDefault("none")
 
     /** Отправка в фоне; не вышло (нет сети) — сеансы остаются в очереди и уйдут при следующем сигнале. */
-    private fun send(fg: Long) {
-        val sent: String
-        val evSent: String
-        synchronized(this) {
-            sent = prefs.getString("stats_pending", "[]") ?: "[]"
-            evSent = prefs.getString("stats_events", "{}") ?: "{}"
-        }
-        val body = JSONObject().put("iid", installId()).put("ver", BuildConfig.VERSION_NAME).put("os", "Android " + Build.VERSION.RELEASE)
-            .put("dev", (Build.MANUFACTURER + " " + Build.MODEL).take(60)).put("lang", Locale.getDefault().language).put("net", netType())
-            .put("fg", fg).put("sessions", JSONArray(sent)).put("events", JSONObject(evSent))
-        Thread {
-            val ok = runCatching {
-                val c = URL(URL_PING).openConnection() as HttpURLConnection
-                c.connectTimeout = 10_000; c.readTimeout = 10_000; c.requestMethod = "POST"; c.doOutput = true
-                c.setRequestProperty("x-key", KEY); c.setRequestProperty("content-type", "application/json")
-                c.outputStream.use { it.write(body.toString().toByteArray()) }
-                (c.responseCode in 200..299).also { c.disconnect() }
-            }.getOrDefault(false)
-            if (ok) synchronized(this) { // убрать только ушедшее: за время запроса могло накопиться новое
-                val left = JSONArray()
-                val cur = JSONArray(prefs.getString("stats_pending", "[]") ?: "[]")
-                val gone = JSONArray(sent)
-                for (i in gone.length() until cur.length()) left.put(cur.get(i))
-                val ev = JSONObject(prefs.getString("stats_events", "{}") ?: "{}")
-                val es = JSONObject(evSent)
-                es.keys().forEach { k -> val n = ev.optInt(k) - es.optInt(k); if (n > 0) ev.put(k, n) else ev.remove(k) }
-                prefs.edit().putString("stats_pending", left.toString()).putString("stats_events", ev.toString()).apply()
+    @Synchronized private fun send(fg: Long) {
+        if (!enabled) return
+        queuedForeground = fg
+        if (sending) return
+        sending = true
+        Thread(::drain, "loopa-stats").start()
+    }
+
+    private fun drain() {
+        while (true) {
+            val (fg, epoch) = synchronized(this) {
+                val next = queuedForeground
+                if (!enabled || next == null) {
+                    sending = false
+                    return
+                }
+                queuedForeground = null
+                next to generation
             }
-        }.start()
+            val delivered = try {
+                sendBatch(fg, epoch)
+            } catch (e: Exception) {
+                android.util.Log.w("Loopa", "Telemetry delivery failed: " + e.javaClass.simpleName)
+                false
+            }
+            synchronized(this) {
+                connection = null
+                if (delivered && enabled && generation == epoch && queuedForeground == null &&
+                    (prefs.getString("stats_pending", "[]") != "[]" || prefs.getString("stats_events", "{}") != "{}")) {
+                    queuedForeground = fg
+                }
+            }
+        }
+    }
+
+    private fun sendBatch(fg: Long, epoch: Long): Boolean {
+        val body: String
+        synchronized(this) {
+            if (!enabled || generation != epoch) return false
+            val existing = prefs.getString(BATCH, null)
+            if (existing != null) body = existing
+            else {
+                val pending = JSONArray(prefs.getString("stats_pending", "[]") ?: "[]")
+                val events = JSONObject(prefs.getString("stats_events", "{}") ?: "{}")
+                val sent = JSONArray()
+                val left = JSONArray()
+                for (i in 0 until pending.length()) {
+                    if (i < 50) sent.put(pending.get(i)) else left.put(pending.get(i))
+                }
+                val evSent = JSONObject()
+                val evLeft = JSONObject()
+                for (event in Event.entries) {
+                    val key = event.key
+                    val n = events.optInt(key)
+                    if (n <= 0) continue
+                    val chunk = n.coerceAtMost(999_999)
+                    evSent.put(key, chunk)
+                    if (n > chunk) evLeft.put(key, n - chunk)
+                }
+                body = JSONObject().put("iid", installId()).put("batch", UUID.randomUUID().toString())
+                    .put("ver", BuildConfig.VERSION_NAME).put("os", "Android " + Build.VERSION.RELEASE)
+                    .put("dev", (Build.MANUFACTURER + " " + Build.MODEL).take(60))
+                    .put("lang", Locale.getDefault().language).put("net", netType())
+                    .put("fg", fg).put("sessions", sent).put("events", evSent).toString()
+                // Move only the transmitted chunk into a durable retry envelope.
+                if (!prefs.edit().putString(BATCH, body).putString("stats_pending", left.toString())
+                    .putString("stats_events", evLeft.toString()).commit()) return false
+            }
+        }
+        val ok = runCatching {
+                val c = URL(URL_PING).openConnection() as HttpURLConnection
+                try {
+                    synchronized(this) {
+                        if (!enabled || generation != epoch) return@runCatching false
+                        connection = c
+                    }
+                    c.connectTimeout = 10_000; c.readTimeout = 10_000
+                    c.requestMethod = "POST"; c.doOutput = true
+                    c.setRequestProperty("x-key", KEY); c.setRequestProperty("content-type", "application/json")
+                    c.outputStream.use { it.write(body.toByteArray()) }
+                    c.responseCode in 200..299 && c.inputStream.bufferedReader().use {
+                        JSONObject(it.readText()).optString("batch") == JSONObject(body).getString("batch")
+                    }
+                } finally { c.disconnect() }
+        }.getOrDefault(false)
+        return synchronized(this) {
+            ok && epoch == generation && prefs.getString(BATCH, null) == body &&
+                prefs.edit().remove(BATCH).commit()
+        }
     }
 
     /** Окно согласия при первом запуске (один раз); без ответа статистика остаётся выключенной. */
     fun askOnce(a: Activity) {
         if (asked) return
-        prefs.edit().putBoolean("stats_asked", true).apply()
-        if (prefs.contains("stats_on")) return
         AlertDialog.Builder(a).setTitle("Анонимная статистика / Anonymous stats")
             .setCancelable(false).setMessage(
-                "Приложение отправляет разработчику анонимные данные: случайный номер установки, версию, модель устройства, " +
-                    "страну, время работы приложения и счётчики функций. Без IP, запросов, тегов, истории и ссылок. " +
-                    "Это можно выключить сейчас или позже: Настройки → О приложении.\n\n" +
-                    "The app sends the developer anonymous data: a random install ID, version, device model, country, " +
-                    "time spent in the app and feature counters. No IP, searches, tags, history or links. You can turn it off now or later in Settings → About."
+                "При вашем согласии приложение отправляет разработчику технические данные: случайный номер установки, версии приложения и Android, " +
+                    "модель устройства, язык, тип сети, страну и регион, время в приложении и счётчики функций, ошибок и задержек воспроизведения. " +
+                    "Время запуска видео учитывается по диапазонам. IP-адреса не сохраняются. Запросы, теги, история и ссылки не отправляются. " +
+                    "Согласие можно отозвать в разделе «Настройки → О приложении».\n\n" +
+                    "If you opt in, the app sends the developer technical data: a random install ID, app and Android versions, " +
+                    "device model, language, network type, country and region, time in the app, and counters for feature use, playback errors and delays. " +
+                    "Video startup times are counted in ranges. IP addresses are not stored. Searches, tags, history and links are not sent. " +
+                    "You can withdraw consent in Settings → About."
             )
-            .setPositiveButton("ОК / OK") { _, _ -> setEnabled(true) }
-            .setNegativeButton("Выключить / Turn off") { _, _ -> setEnabled(false) }
+            .setPositiveButton("Разрешить / Allow") { _, _ -> setEnabled(true) }
+            .setNegativeButton("Не разрешать / Decline") { _, _ -> setEnabled(false) }
             .show()
     }
 }

@@ -27,7 +27,7 @@ class GraphActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        I18n.init(this); Theme.init(this); Interests.init(this); Stats.init(application); Stats.event("graph")
+        I18n.init(this); Theme.init(this); Interests.init(this); Stats.init(application); Stats.event(Stats.Event.GRAPH)
         tier = DeviceTier.detect(this)
         android.util.Log.i("Loopa", "граф: уровень $tier (ОЗУ ${DeviceTier.ramMb(this)} МБ, ядер ${Runtime.getRuntime().availableProcessors()})")
         val bg = Color.parseColor("#0f0f1a")

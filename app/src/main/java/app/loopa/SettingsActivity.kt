@@ -33,6 +33,7 @@ class SettingsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         I18n.init(this); Theme.init(this); Api.init(this); Reddit.init(this); Ext.init(this); ForYou.init(this); Interests.init(this); Hide.init(this); Net.init(this); Stats.init(application); Video.init(this); CachedExport.init(this)
+        if (savedInstanceState == null) Stats.event(Stats.Event.SETTINGS_OPEN)
         page = savedInstanceState?.getString("page")
         Theme.bars(this)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Theme.bg) }
@@ -280,8 +281,26 @@ class SettingsActivity : Activity() {
         note("Adult Space\n" + tr("Версия %s", Updater.current(this)))
         action("GitHub", "github.com/jainikdroid-bit/loopa") { open("https://github.com/jainikdroid-bit/loopa") }
         action(tr("Сайт"), "jainikdroid-bit.github.io/loopa") { open("https://jainikdroid-bit.github.io/loopa/") }
-        toggle("Анонимная статистика / Anonymous stats", "Включена по умолчанию; номер установки, версия, устройство, страна, время в приложении; без IP, запросов и истории. On by default.", Stats.enabled) { Stats.setEnabled(it) }
+        toggle("Анонимная статистика / Anonymous stats", "Только по согласию. Устройство, страна, сеансы, счётчики функций и качества видео. Без текста запросов и истории. Opt-in usage and playback metrics.", Stats.enabled) { Stats.setEnabled(it) }
         action("Сбросить номер установки / Reset install ID", null) { Stats.resetId() }
+        toggle("Локальная диагностика / Local diagnostics", "Только технические счётчики, без отправки. Technical counters, no upload.", LocalTechnicalDiagnostics.enabled) {
+            LocalTechnicalDiagnostics.setEnabled(it); render()
+        }
+        if (LocalTechnicalDiagnostics.enabled) {
+            action("Технический отчёт / Technical report", null) {
+                LocalTechnicalDiagnostics.report()?.let { report ->
+                    AlertDialog.Builder(this).setTitle("Технический отчёт / Technical report").setMessage(report)
+                        .setPositiveButton("OK", null)
+                        .setNeutralButton("Поделиться / Share") { _, _ ->
+                            val share = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, report)
+                            startActivity(Intent.createChooser(share, "Technical report"))
+                        }.show()
+                }
+            }
+            action("Очистить диагностику / Clear diagnostics", null) {
+                LocalTechnicalDiagnostics.clear(); render()
+            }
+        }
         note(tr("Лицензия: MIT — свободное открытое ПО."))
         note(tr("Неофициальное приложение: к сервисам, ролики которых показывает, отношения не имеет. Только для совершеннолетних, 18+."))
     }

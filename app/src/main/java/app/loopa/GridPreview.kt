@@ -70,20 +70,19 @@ class GridPreview(private val ctx: Context) {
      * а новых кадров нет [STUCK_NO_FRAMES_MS] — декодеру не хватило ресурсов), — перезапустить.
      * frames — сколько кадров отдано на экран (считает VideoFrameMetadataListener на потоке плеера).
      */
-    private class Watch(var pos: Long = -1, var since: Long = System.currentTimeMillis()) {
+    private class Watch(var pos: Long = -1, var since: Long = android.os.SystemClock.elapsedRealtime()) {
         val frames = java.util.concurrent.atomic.AtomicLong()
         var listener: androidx.media3.exoplayer.video.VideoFrameMetadataListener? = null
-        var seenFrames = 0L; var framesSince = System.currentTimeMillis()
+        var seenFrames = 0L; var framesSince = android.os.SystemClock.elapsedRealtime()
         /** С какого момента кадры идут без перерыва (0 — не идут): ≥ [FLOW_OK_MS] — превью сыграло, счётчик перезапусков сбрасывается. */
         var flowSince = 0L
     }
     private val watch = HashMap<ExoPlayer, Watch>()
     /** Сколько раз подряд превью ячейки перезапускали после ошибки или застревания (по id ролика). */
-    private val retries = HashMap<String, Int>()
+    private val retries = PreviewRetryState()
     private val STUCK_BUFFER_MS = 8_000L
     private val STUCK_FROZEN_MS = 4_000L
     private val STUCK_NO_FRAMES_MS = 3_000L
-    private val MAX_RETRIES = 3
     private val MIN_PREVIEWS = 2
     private val FLOW_OK_MS = 5_000L
     /** Потолки снижаются после стольких срабатываний «нет кадров» за [HITS_WINDOW_MS] и растут на 1 после [RECOVER_MS] без срабатываний. */
@@ -91,10 +90,10 @@ class GridPreview(private val ctx: Context) {
     private val HITS_WINDOW_MS = 60_000L
     private val RECOVER_MS = 120_000L
     private val noFrameHits = ArrayDeque<Long>()
-    private var lastCapEvent = System.currentTimeMillis()
+    private var lastCapEvent = android.os.SystemClock.elapsedRealtime()
     private val guard: Runnable = object : Runnable {
         override fun run() {
-            val now = System.currentTimeMillis()
+            val now = android.os.SystemClock.elapsedRealtime()
             active.entries.toList().forEach { (s, p) ->
                 if (s !in rendered && loaded(p)) { rendered += s; onWarm?.let { ui.post(it) } }
                 val w = watch.getOrPut(p) { Watch() }
@@ -105,7 +104,7 @@ class GridPreview(private val ctx: Context) {
                     // кадры идут ≥ FLOW_OK_MS — превью сыграло: прежние перезапуски этого ролика больше не в счёт
                     if (fr != w.seenFrames && p.playbackState == Player.STATE_READY && p.isPlaying) {
                         if (w.flowSince == 0L) w.flowSince = now
-                        else if (now - w.flowSince >= FLOW_OK_MS) gifs[s]?.let { retries.remove(it.id) }
+                        else if (now - w.flowSince >= FLOW_OK_MS) gifs[s]?.let { retries.healthy(it.id) }
                     } else w.flowSince = 0L
                     w.seenFrames = fr; w.framesSince = now
                 }
@@ -145,20 +144,23 @@ class GridPreview(private val ctx: Context) {
         if (decoderCap != Int.MAX_VALUE) decoderCap = if (decoderCap + 1 >= total) Int.MAX_VALUE else decoderCap + 1
         if (hwCap != Int.MAX_VALUE) hwCap = if (hwCap + 1 >= hwLimit) Int.MAX_VALUE else hwCap + 1
     }
-    /** Перезапустить превью ячейки тем же роликом (не больше [MAX_RETRIES] раз подряд — дальше остаётся картинка). */
+    /** Перезапустить превью ячейки тем же роликом (не больше PreviewRetryState раз подряд — дальше остаётся картинка). */
     private fun restart(s: Slot) {
         val g = gifs[s] ?: return
-        val n = (retries[g.id] ?: 0) + 1
-        stop(s)
-        if (n > MAX_RETRIES) return
-        if (retries.size > 500) retries.clear()
-        retries[g.id] = n
-        val r = Runnable { pending.remove(s); if (!released && s !in active && s.id == g.id && enabled) start(s, g) }
+        discard(s)
+        val n = retries.failure(g.id) ?: return
+        if (desired[s] != g.id) return
+        val r = Runnable {
+            pending.remove(s)
+            if (!released && enabled && desired[s] == g.id && s.id == g.id &&
+                s.tex.isAttachedToWindow && s !in active && active.size < limit()) start(s, g)
+        }
         pending[s] = r
         ui.postDelayed(r, 1_500L * n)
     }
     /** Отложенные старты после перезапуска (по ячейке): снимаются в [stop], [stopAll], [release]. */
     private val pending = HashMap<Slot, Runnable>()
+    private var desired: Map<Slot, String> = emptyMap()
     private var released = false
     private fun cancelPending(s: Slot) { pending.remove(s)?.let { ui.removeCallbacks(it) } }
     private val gifs = HashMap<Slot, Gif>()
@@ -210,6 +212,10 @@ class GridPreview(private val ctx: Context) {
         ui.removeCallbacks(tick); ui.post(tick)
     }
     var enabled = true
+        set(value) {
+            field = value
+            if (!value) stopAll()
+        }
 
     /**
      * Сколько играют сразу: все на экране, до предела телефона и декодеров. На медленной сети — столько же, но новые из
@@ -275,24 +281,35 @@ class GridPreview(private val ctx: Context) {
 
     /** Какие ячейки играют: видимые целиком, первые [limit] по порядку. */
     fun update(visible: List<Pair<Slot, Gif>>) {
+        if (released || !enabled) { stopAll(); return }
         val t = touched
-        val want = pick(visible.sortedBy { if (it.first === t) 0 else 1 })
-        val keep = want.map { it.first }.toSet()
-        active.keys.filter { it !in keep }.forEach { stop(it) }
-        // ячейку перепривязали к другому ролику — его превью, а не прежнее
+        val candidates = visible.filter { (s, g) -> s.id == g.id && s.tex.isAttachedToWindow }
+        if (t != null && candidates.none { it.first === t }) touched = null
+        val want = pick(candidates.sortedBy { if (it.first === t) 0 else 1 })
+        val next = want.associate { (slot, g) -> slot to g.id }
+        pending.keys.filter { desired[it] != next[it] || it !in next }.forEach { cancelPending(it) }
+        desired = next
+        active.keys.filter { it !in desired }.forEach { stop(it) }
+        // Do not resurrect the old binding or bypass an already scheduled retry.
         want.forEach { (s, g) -> if (s in active && s.playing != g.id) stop(s) }
-        want.forEach { (s, g) -> if (s !in active) start(s, g) }
+        want.forEach { (s, g) -> if (s !in active && s !in pending && !retries.exhausted(g.id)) start(s, g) }
     }
 
     private fun start(s: Slot, g: Gif) {
-        if (released) return
+        if (released || !enabled || desired[s] != g.id || s.id != g.id ||
+            !s.tex.isAttachedToWindow || active.size >= limit() || retries.exhausted(g.id)) return
         cancelPending(s)
         // аппаратных декодеров — сколько есть (минус плееру), остальным плиткам — программный
         val sw = active.values.count { it !in soft } >= minOf(hwLimit, hwCap)
-        val p = player(sw)
+        val p = runCatching { player(sw) }.getOrElse {
+            retries.failure(g.id)
+            android.util.Log.w("Loopa", "Preview player creation failed: ${it.javaClass.simpleName}")
+            return
+        }
         if (sw) soft += p
         active[s] = p; s.player = p; s.playing = g.id; gifs[s] = g
         val w = Watch(); watch[p] = w
+        try {
         val fl = androidx.media3.exoplayer.video.VideoFrameMetadataListener { _, _, _, _ -> w.frames.incrementAndGet() }
         w.listener = fl; p.setVideoFrameMetadataListener(fl)
         ui.removeCallbacks(guard); ui.postDelayed(guard, 1_000)
@@ -308,7 +325,7 @@ class GridPreview(private val ctx: Context) {
             override fun onPositionDiscontinuity(o: Player.PositionInfo, n: Player.PositionInfo, reason: Int) {
                 if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION && s.player === p) cuts[p]?.looped = true
             }
-            override fun onRenderedFirstFrame() { if (s.player === p) s.tex.alpha = 1f }
+            override fun onRenderedFirstFrame() { if (s.player === p && s.id == g.id && desired[s] == g.id && enabled && !released) s.tex.alpha = 1f }
             // длительность из API бывает пустой (Imgur) — тогда берём у плеера, когда он её узнал
             override fun onPlaybackStateChanged(st: Int) { if (st == Player.STATE_READY && s.player === p && p.duration > 0) plan(p, p.duration / 1000.0, Sources.intro(g), g.id) }
         }.also { listeners[p] = it })
@@ -321,32 +338,63 @@ class GridPreview(private val ctx: Context) {
         val intro = Sources.intro(g)
         if (g.duration > 0) plan(p, g.duration, intro, g.id)
         else if (intro > 0) p.seekTo(intro)   // длительность неизвестна — хотя бы первый кусок уже за заставкой
+        } catch (e: Exception) {
+            android.util.Log.w("Loopa", "Preview setup failed: ${e.javaClass.simpleName}")
+            discard(s)
+            retries.failure(g.id)
+        }
     }
     private val listeners = HashMap<ExoPlayer, Player.Listener>()
 
     /** Ячейку переиспользовали или она ушла с экрана — превью остановить, плеер в запас. */
-    fun stop(s: Slot) {
+    fun stop(s: Slot) = detach(s, reuse = true)
+
+    private fun discard(s: Slot) = detach(s, reuse = false)
+
+    private fun detach(s: Slot, reuse: Boolean) {
         cancelPending(s)
         val p = active.remove(s) ?: return
         s.player = null; s.playing = null; s.tex.alpha = 0f
         s.bar?.let { it.animate().cancel(); it.visibility = android.view.View.GONE }
-        listeners.remove(p)?.let { p.removeListener(it) }
+        val listener = listeners.remove(p)
+        val frame = watch.remove(p)?.listener
         cuts.remove(p); gifs.remove(s); rendered.remove(s)
-        watch.remove(p)?.listener?.let { p.clearVideoFrameMetadataListener(it) }
-        p.stop(); p.clearMediaItems(); p.clearVideoTextureView(s.tex)
-        if (soft.remove(p)) idleSw += p else idle += p
+        val sw = soft.remove(p)
+        val ok = runCatching {
+            listener?.let { p.removeListener(it) }
+            frame?.let { p.clearVideoFrameMetadataListener(it) }
+            p.clearVideoTextureView(s.tex)
+            p.stop(); p.clearMediaItems()
+        }.isSuccess
+        // Broken players are never returned to the pool; cap retained idle resources.
+        if (ok && reuse && !released && idle.size + idleSw.size < total) {
+            if (sw) idleSw += p else idle += p
+        } else runCatching { p.release() }
+    }
+
+    /** Called when RecyclerView actually detaches or rebinds a slot. */
+    fun unbind(s: Slot) {
+        desired = desired - s
+        if (touched === s) touched = null
+        stop(s)
     }
 
     fun stopAll() {
+        desired = emptyMap()
+        touched = null
         pending.keys.toList().forEach { cancelPending(it) }
-        active.keys.toList().forEach { stop(it) }
+        active.keys.toList().forEach { discard(it) }
+        ui.removeCallbacksAndMessages(null)
+        (idle + idleSw).forEach { runCatching { it.release() } }
+        idle.clear(); idleSw.clear()
     }
 
     fun release() {
+        if (released) return
         released = true
         stopAll()
-        ui.removeCallbacks(guard); ui.removeCallbacks(tick)
-        (idle + idleSw).forEach { it.release() }; idle.clear(); idleSw.clear()
+        retries.clear()
+        onWarm = null
     }
 
     /** Заполнить ячейку как CENTER_CROP: TextureView иначе растягивает кадр. */
