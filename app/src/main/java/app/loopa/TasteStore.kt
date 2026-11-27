@@ -72,11 +72,12 @@ internal object TasteStore {
         val oldKeys = old.all.keys.filter { it.startsWith(OLD_SKIP_PREFIX) }
         oldKeys.forEach { k -> log.put(k.removePrefix(OLD_SKIP_PREFIX), old.getInt(k, 0).coerceIn(1, 4), 0L) }
         val search = old.getString(SEARCH, null)
-        taste.edit().apply {
+        // Keep the original preference data until the new file is written successfully.
+        val saved = taste.edit().apply {
             if (oldKeys.isNotEmpty()) putString(SKIPS, log.toJson())
             if (search != null && !taste.contains(SEARCH)) putString(SEARCH, search)
             putBoolean(MIGRATED, true)
-        }.apply()
-        old.edit().apply { oldKeys.forEach { remove(it) }; remove(SEARCH) }.apply()
+        }.commit()
+        if (saved) old.edit().apply { oldKeys.forEach { remove(it) }; remove(SEARCH) }.apply()
     }
 }

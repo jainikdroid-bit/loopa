@@ -33,4 +33,6 @@ jobs:
           node-version: '22'
       - run: npm test
         working-directory: stats-worker
-      - run: python3 -m unittest discover -s tools/neutral-lab -p 'test_technical_archive.py'
+      - run: node --test tools/neutral-lab/*.test.mjs
+      - run: node tools/neutral-lab/run.mjs
+      - run: python3 -m unittest discover -s tools/neutral-lab -p 'test_*.py'
