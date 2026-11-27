@@ -62,9 +62,15 @@ object Thumbs {
      * Заранее загрузить в память и на диск картинки прогноза — в порядке важности. Прежний прогноз отменяется: его
      * ещё не начатые картинки, которых нет в новом, пропускаются.
      */
-    fun prefetch(urls: List<String>) {
-        val list = urls.filter { it.isNotEmpty() && cache.get(it) == null }
-        val g = ++gen; wanted = list.toHashSet()
+    @Synchronized fun prefetch(urls: List<String>) {
+        val list = urls.asSequence().filter { it.isNotEmpty() && cache.get(it) == null }
+            .distinct().take(Forecaster.MAX_THUMBS).toList()
+        val next = list.toHashSet()
+        // Keep the original four workers and network policy. Only replace queued speculative work.
+        // An already running task still checks the current generation and wanted set.
+        if (next == wanted && ahead.queue.isNotEmpty()) return
+        val g = ++gen; wanted = next
+        ahead.queue.clear()
         list.forEach { u ->
             ahead.execute {
                 // видимое — первым: пока на экране что-то грузится, прогноз ждёт (на медленном канале не делит его)
@@ -91,7 +97,7 @@ object Thumbs {
     fun stats() = "картинки: из памяти ${fromMem.get()}, с диска ${fromDisk.get()}, из сети ${fromNet.get()}"
 
     /** Отменить ещё не начатое из прогноза (ушли в плеер — канал ролику). */
-    fun stopPrefetch() { gen++; wanted = emptySet() }
+    @Synchronized fun stopPrefetch() { gen++; wanted = emptySet(); ahead.queue.clear() }
 
     /** Загрузить и декодировать под [width]; в память. Повторы — снаружи. */
     private fun fetch(url: String): Bitmap? {
